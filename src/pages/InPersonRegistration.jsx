@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,35 +12,27 @@ import {
     FileEdit,
     Save,
     Phone,
-    Mail,
-    MapPin,
     Info,
     History,
     TrendingUp,
     CheckCircle,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts";
 
 const registrationSchema = z.object({
     nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
     prenom: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
+    age: z.number().min(1, "L'âge est requis").max(120, "Âge invalide"),
     sexe: z.enum(["homme", "femme"]),
-    telephone: z.string().min(10, "Numéro de téléphone invalide"),
-    email: z.string().email().optional().or(z.literal("")),
-    ville: z.string().min(1, "Veuillez sélectionner une localité"),
+    niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
+    telephone: z.string().optional().or(z.literal("")),
 });
 
-// Mock recent registrations
-const recentRegistrations = [
-    { id: 1, name: "Diarrassouba Ali", phone: "07 48 22 11 90", time: "10:42", recent: true },
-    { id: 2, name: "Kone Mariam", phone: "01 02 03 04 05", time: "10:38", recent: true },
-    { id: 3, name: "Traoré Issouf", phone: "05 55 44 33 22", time: "10:30", recent: false },
-    { id: 4, name: "Soro Fatou", phone: "07 88 99 00 11", time: "10:15", recent: false },
-    { id: 5, name: "Coulibaly Seydou", phone: "01 11 22 33 44", time: "09:55", recent: false },
-];
-
 export function InPersonRegistration() {
+    const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const [registrations, setRegistrations] = useState(recentRegistrations);
+    const [registrations, setRegistrations] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
 
     const {
@@ -58,18 +50,69 @@ export function InPersonRegistration() {
 
     const selectedSexe = watch("sexe");
 
+    // Charger les inscriptions présentielles récentes de cet admin
+    useEffect(() => {
+        async function loadRecentRegistrations() {
+            if (!user) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('inscriptions')
+                    .select('*')
+                    .eq('type_inscription', 'presentielle')
+                    .eq('admin_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                if (error) throw error;
+
+                const formatted = data.map(r => ({
+                    id: r.id,
+                    name: `${r.nom} ${r.prenom}`,
+                    phone: r.telephone || 'N/A',
+                    time: new Date(r.created_at).toLocaleTimeString('fr-FR', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }),
+                    recent: new Date(r.created_at) > new Date(Date.now() - 10 * 60 * 1000), // Récent si < 10min
+                }));
+
+                setRegistrations(formatted);
+            } catch (error) {
+                console.error('Erreur chargement inscriptions:', error);
+            }
+        }
+
+        loadRecentRegistrations();
+    }, [user]);
+
     const onSubmit = async (data) => {
         setIsLoading(true);
         try {
-            // TODO: Implement Supabase submission
-            console.log("Inscription présentielle:", data);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const { data: inscription, error } = await supabase
+                .from('inscriptions')
+                .insert({
+                    nom: data.nom,
+                    prenom: data.prenom,
+                    age: data.age,
+                    sexe: data.sexe,
+                    niveau_etude: data.niveauEtude,
+                    telephone: data.telephone || null,
+                    admin_id: user.id,
+                    type_inscription: 'presentielle',
+                    statut: 'valide', // Automatiquement validé
+                    chef_quartier_id: null,
+                })
+                .select()
+                .single();
 
-            // Add to recent registrations
+            if (error) throw error;
+
+            // Ajouter aux inscriptions récentes
             const newRegistration = {
-                id: Date.now(),
+                id: inscription.id,
                 name: `${data.nom} ${data.prenom}`,
-                phone: data.telephone,
+                phone: data.telephone || 'N/A',
                 time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
                 recent: true,
             };
@@ -79,7 +122,8 @@ export function InPersonRegistration() {
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (error) {
-            console.error("Erreur:", error);
+            console.error("Erreur inscription:", error);
+            alert(`Erreur: ${error.message || 'Impossible d\'enregistrer l\'inscription'}`);
         } finally {
             setIsLoading(false);
         }
@@ -99,7 +143,7 @@ export function InPersonRegistration() {
                             <span>
                                 Enregistré par:{" "}
                                 <span className="font-medium text-text-main dark:text-white">
-                                    Amadou Kone (Admin)
+                                    {user?.email || 'Admin'}
                                 </span>
                             </span>
                         </div>
@@ -193,62 +237,56 @@ export function InPersonRegistration() {
                                         </div>
                                     </div>
 
-                                    {/* Contact Row */}
+                                    {/* Age et Niveau Row */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-2">
-                                            <Label htmlFor="telephone">Téléphone</Label>
-                                            <div className="relative">
-                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
-                                                <Input
-                                                    id="telephone"
-                                                    type="tel"
-                                                    placeholder="07 00 00 00 00"
-                                                    {...register("telephone")}
-                                                    className={`pl-12 ${errors.telephone ? "border-red-500" : ""}`}
-                                                />
-                                            </div>
-                                            {errors.telephone && (
-                                                <p className="text-red-500 text-xs">{errors.telephone.message}</p>
+                                            <Label htmlFor="age">Âge</Label>
+                                            <Input
+                                                id="age"
+                                                type="number"
+                                                placeholder="Ex: 25"
+                                                {...register("age", { valueAsNumber: true })}
+                                                className={errors.age ? "border-red-500" : ""}
+                                            />
+                                            {errors.age && (
+                                                <p className="text-red-500 text-xs">{errors.age.message}</p>
                                             )}
                                         </div>
                                         <div className="flex flex-col gap-2">
-                                            <Label htmlFor="email">Email (Optionnel)</Label>
-                                            <div className="relative">
-                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
-                                                <Input
-                                                    id="email"
-                                                    type="email"
-                                                    placeholder="exemple@email.com"
-                                                    {...register("email")}
-                                                    className="pl-12"
-                                                />
-                                            </div>
+                                            <Label htmlFor="niveauEtude">Niveau d'étude</Label>
+                                            <Select
+                                                id="niveauEtude"
+                                                {...register("niveauEtude")}
+                                                className={errors.niveauEtude ? "border-red-500" : ""}
+                                            >
+                                                <option value="">Sélectionnez un niveau</option>
+                                                <option value="aucun">Aucun</option>
+                                                <option value="primaire">Primaire</option>
+                                                <option value="secondaire">Secondaire</option>
+                                                <option value="superieur">Universitaire</option>
+                                                <option value="arabe">Arabe / Franco-arabe</option>
+                                            </Select>
+                                            {errors.niveauEtude && (
+                                                <p className="text-red-500 text-xs">{errors.niveauEtude.message}</p>
+                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Location */}
+                                    {/* Téléphone (Optionnel) */}
                                     <div className="flex flex-col gap-2">
-                                        <Label htmlFor="ville">Ville / Commune</Label>
+                                        <Label htmlFor="telephone">Téléphone (Optionnel)</Label>
                                         <div className="relative">
-                                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary z-10" />
-                                            <Select
-                                                id="ville"
-                                                {...register("ville")}
-                                                className={`pl-12 ${errors.ville ? "border-red-500" : ""}`}
-                                            >
-                                                <option value="" disabled>
-                                                    Sélectionnez une localité
-                                                </option>
-                                                <option value="abidjan">Abidjan</option>
-                                                <option value="bouake">Bouaké</option>
-                                                <option value="daloa">Daloa</option>
-                                                <option value="yamoussoukro">Yamoussoukro</option>
-                                                <option value="san-pedro">San-Pédro</option>
-                                                <option value="korhogo">Korhogo</option>
-                                            </Select>
+                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
+                                            <Input
+                                                id="telephone"
+                                                type="tel"
+                                                placeholder="Ex: 07 00 00 00 00"
+                                                {...register("telephone")}
+                                                className="pl-12"
+                                            />
                                         </div>
-                                        {errors.ville && (
-                                            <p className="text-red-500 text-xs">{errors.ville.message}</p>
+                                        {errors.telephone && (
+                                            <p className="text-red-500 text-xs">{errors.telephone.message}</p>
                                         )}
                                     </div>
 

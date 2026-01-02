@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,74 +17,30 @@ import {
     ChevronRight,
     X,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts";
 
-// Mock registrations data
-const mockRegistrations = [
-    {
-        id: 1,
-        nom: "Koné",
-        prenom: "Moussa",
-        age: 24,
-        sexe: "H",
-        niveau: "Universitaire",
-        chefQuartier: "Ahmed Koné (Q1)",
-        statut: "pending",
-        date: "12/10/2023",
-    },
-    {
-        id: 2,
-        nom: "Diaby",
-        prenom: "Aïcha",
-        age: 30,
-        sexe: "F",
-        niveau: "Secondaire",
-        chefQuartier: "Moussa Sidibé (Q2)",
-        statut: "validated",
-        date: "11/10/2023",
-    },
-    {
-        id: 3,
-        nom: "Traoré",
-        prenom: "Ibrahim",
-        age: 19,
-        sexe: "H",
-        niveau: "Universitaire",
-        chefQuartier: "Fatou Traoré (Q3)",
-        statut: "pending",
-        date: "10/10/2023",
-    },
-    {
-        id: 4,
-        nom: "Cissé",
-        prenom: "Fatou",
-        age: 45,
-        sexe: "F",
-        niveau: "Primaire",
-        chefQuartier: "Ahmed Koné (Q1)",
-        statut: "rejected",
-        date: "09/10/2023",
-    },
-    {
-        id: 5,
-        nom: "Ouattara",
-        prenom: "Seydou",
-        age: 28,
-        sexe: "H",
-        niveau: "Universitaire",
-        chefQuartier: "Fatou Traoré (Q3)",
-        statut: "pending",
-        date: "09/10/2023",
-    },
-];
-
+// Configuration des statuts (mapping DB -> UI)
 const statusConfig = {
-    pending: { label: "En attente", variant: "warning" },
-    validated: { label: "Validé", variant: "success" },
-    rejected: { label: "Rejeté", variant: "destructive" },
+    en_attente: { label: "En attente", variant: "warning" },
+    valide: { label: "Validé", variant: "success" },
+    rejete: { label: "Rejeté", variant: "destructive" },
+};
+
+// Mapping des niveaux d'étude
+const niveauEtudeMap = {
+    aucun: "Aucun",
+    primaire: "Primaire",
+    secondaire: "Secondaire",
+    superieur: "Universitaire",
+    arabe: "Arabe",
 };
 
 export function RegistrationManagement() {
-    const [registrations, setRegistrations] = useState(mockRegistrations);
+    const { user } = useAuth();
+    const [registrations, setRegistrations] = useState([]);
+    const [chefsQuartier, setChefsQuartier] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [selectedIds, setSelectedIds] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
@@ -95,6 +51,68 @@ export function RegistrationManagement() {
     });
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
+
+    // Charger les inscriptions depuis Supabase
+    useEffect(() => {
+        async function loadInscriptions() {
+            try {
+                setLoading(true);
+                const { data, error } = await supabase
+                    .from('inscriptions')
+                    .select(`
+                        *,
+                        chef_quartier:chefs_quartier(nom_complet, zone)
+                    `)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                // Formater les données pour l'affichage
+                const formatted = data.map(row => ({
+                    id: row.id,
+                    nom: row.nom,
+                    prenom: row.prenom,
+                    age: row.age,
+                    sexe: row.sexe === 'homme' ? 'H' : 'F',
+                    niveau: niveauEtudeMap[row.niveau_etude] || row.niveau_etude,
+                    chefQuartier: row.chef_quartier
+                        ? `${row.chef_quartier.nom_complet} (${row.chef_quartier.zone})`
+                        : 'Inscription Présentielle',
+                    statut: row.statut,
+                    date: new Date(row.created_at).toLocaleDateString('fr-FR'),
+                    type_inscription: row.type_inscription,
+                }));
+
+                setRegistrations(formatted);
+            } catch (error) {
+                console.error('Erreur chargement inscriptions:', error);
+                alert('Erreur lors du chargement des inscriptions');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (user) {
+            loadInscriptions();
+        }
+    }, [user]);
+
+    // Charger la liste des chefs de quartier pour le filtre
+    useEffect(() => {
+        async function loadChefs() {
+            const { data, error } = await supabase
+                .from('chefs_quartier')
+                .select('*')
+                .order('nom_complet');
+
+            if (error) {
+                console.error('Erreur chargement chefs:', error);
+            } else {
+                setChefsQuartier(data || []);
+            }
+        }
+        loadChefs();
+    }, []);
 
     const filteredRegistrations = registrations.filter((r) => {
         const matchesSearch =
@@ -123,28 +141,75 @@ export function RegistrationManagement() {
         }
     };
 
-    const handleValidateSelected = () => {
-        setRegistrations(
-            registrations.map((r) =>
-                selectedIds.includes(r.id) && r.statut === "pending" ? { ...r, statut: "validated" } : r
-            )
-        );
-        setSelectedIds([]);
+    const handleValidateSelected = async () => {
+        try {
+            // Filtrer uniquement les IDs en attente
+            const pendingIds = selectedIds.filter(
+                id => registrations.find(r => r.id === id)?.statut === 'en_attente'
+            );
+
+            if (pendingIds.length === 0) return;
+
+            const { error } = await supabase
+                .from('inscriptions')
+                .update({ statut: 'valide' })
+                .in('id', pendingIds);
+
+            if (error) throw error;
+
+            // Mettre à jour l'état local
+            setRegistrations(
+                registrations.map((r) =>
+                    pendingIds.includes(r.id) ? { ...r, statut: 'valide' } : r
+                )
+            );
+            setSelectedIds([]);
+        } catch (error) {
+            console.error('Erreur validation:', error);
+            alert('Erreur lors de la validation des inscriptions');
+        }
     };
 
-    const handleValidateOne = (id) => {
-        setRegistrations(
-            registrations.map((r) => (r.id === id ? { ...r, statut: "validated" } : r))
-        );
+    const handleValidateOne = async (id) => {
+        try {
+            const { error } = await supabase
+                .from('inscriptions')
+                .update({ statut: 'valide' })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            // Mettre à jour l'état local
+            setRegistrations(
+                registrations.map((r) => (r.id === id ? { ...r, statut: 'valide' } : r))
+            );
+        } catch (error) {
+            console.error('Erreur validation:', error);
+            alert('Erreur lors de la validation de l\'inscription');
+        }
     };
 
-    const handleDelete = (id) => {
-        setRegistrations(registrations.filter((r) => r.id !== id));
-        setDeleteModal({ open: false, registration: null });
+    const handleDelete = async (id) => {
+        try {
+            const { error } = await supabase
+                .from('inscriptions')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            // Mettre à jour l'état local
+            setRegistrations(registrations.filter((r) => r.id !== id));
+            setDeleteModal({ open: false, registration: null });
+        } catch (error) {
+            console.error('Erreur suppression:', error);
+            alert('Erreur lors de la suppression de l\'inscription');
+            setDeleteModal({ open: false, registration: null });
+        }
     };
 
     const pendingSelectedCount = selectedIds.filter(
-        (id) => registrations.find((r) => r.id === id)?.statut === "pending"
+        (id) => registrations.find((r) => r.id === id)?.statut === "en_attente"
     ).length;
 
     return (
@@ -193,9 +258,9 @@ export function RegistrationManagement() {
                                     onChange={(e) => setFilters({ ...filters, statut: e.target.value })}
                                 >
                                     <option value="">Tous les statuts</option>
-                                    <option value="pending">En attente</option>
-                                    <option value="validated">Validé</option>
-                                    <option value="rejected">Rejeté</option>
+                                    <option value="en_attente">En attente</option>
+                                    <option value="valide">Validé</option>
+                                    <option value="rejete">Rejeté</option>
                                 </Select>
                             </div>
 
@@ -207,9 +272,11 @@ export function RegistrationManagement() {
                                     onChange={(e) => setFilters({ ...filters, chefQuartier: e.target.value })}
                                 >
                                     <option value="">Tous les chefs</option>
-                                    <option value="Ahmed Koné">Ahmed Koné (Q1)</option>
-                                    <option value="Moussa Sidibé">Moussa Sidibé (Q2)</option>
-                                    <option value="Fatou Traoré">Fatou Traoré (Q3)</option>
+                                    {chefsQuartier.map(chef => (
+                                        <option key={chef.id} value={chef.nom_complet}>
+                                            {chef.nom_complet} ({chef.zone})
+                                        </option>
+                                    ))}
                                 </Select>
                             </div>
 
@@ -221,9 +288,11 @@ export function RegistrationManagement() {
                                     onChange={(e) => setFilters({ ...filters, niveau: e.target.value })}
                                 >
                                     <option value="">Tous les niveaux</option>
+                                    <option value="Aucun">Aucun</option>
                                     <option value="Primaire">Primaire</option>
                                     <option value="Secondaire">Secondaire</option>
                                     <option value="Universitaire">Universitaire</option>
+                                    <option value="Arabe">Arabe</option>
                                 </Select>
                             </div>
 
@@ -266,6 +335,22 @@ export function RegistrationManagement() {
 
                     {/* Data Table */}
                     <Card className="overflow-hidden">
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center py-16">
+                                <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+                                <p className="text-text-secondary dark:text-gray-400">Chargement des inscriptions...</p>
+                            </div>
+                        ) : filteredRegistrations.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16">
+                                <p className="text-text-secondary dark:text-gray-400 text-lg mb-2">Aucune inscription trouvée</p>
+                                <p className="text-text-secondary dark:text-gray-500 text-sm">
+                                    {registrations.length === 0
+                                        ? "Les inscriptions apparaîtront ici une fois soumises."
+                                        : "Essayez de modifier vos filtres de recherche."
+                                    }
+                                </p>
+                            </div>
+                        ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm border-collapse">
                                 <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
@@ -338,7 +423,7 @@ export function RegistrationManagement() {
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {registration.statut === "pending" && (
+                                                    {registration.statut === "en_attente" && (
                                                         <button
                                                             onClick={() => handleValidateOne(registration.id)}
                                                             className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
@@ -347,7 +432,7 @@ export function RegistrationManagement() {
                                                             <CheckCircle className="h-5 w-5" />
                                                         </button>
                                                     )}
-                                                    {registration.statut === "rejected" && (
+                                                    {registration.statut === "rejete" && (
                                                         <button
                                                             onClick={() => handleValidateOne(registration.id)}
                                                             className="p-1.5 text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
@@ -405,6 +490,8 @@ export function RegistrationManagement() {
                                 </Button>
                             </div>
                         </div>
+                        </div>
+                        )}
                     </Card>
                 </div>
             </div>

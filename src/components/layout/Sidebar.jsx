@@ -10,6 +10,7 @@ import {
 import { Mosque } from "@/components/icons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts";
 
 const navItems = [
     { to: "/admin/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
@@ -20,10 +21,16 @@ const navItems = [
 
 export function Sidebar() {
     const navigate = useNavigate();
+    const { user, signOut } = useAuth();
 
-    const handleLogout = () => {
-        // TODO: Implement logout logic with Supabase
-        navigate("/login");
+    const handleLogout = async () => {
+        try {
+            await signOut();
+            navigate("/login");
+        } catch (error) {
+            console.error('Erreur déconnexion:', error);
+            navigate("/login"); // Rediriger quand même en cas d'erreur
+        }
     };
 
     return (
@@ -103,12 +110,14 @@ export function Sidebar() {
             <div className="p-4 border-t border-border-light dark:border-border-dark">
                 <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
-                        AK
+                        {user?.email?.substring(0, 2).toUpperCase() || 'AD'}
                     </div>
                     <div className="flex flex-col overflow-hidden">
-                        <p className="text-sm font-medium truncate text-text-main dark:text-white">Admin Principal</p>
+                        <p className="text-sm font-medium truncate text-text-main dark:text-white">
+                            {user?.user_metadata?.full_name || 'Administrateur'}
+                        </p>
                         <p className="text-xs text-text-secondary dark:text-gray-400 truncate">
-                            admin@sefimap.ci
+                            {user?.email || 'Non connecté'}
                         </p>
                     </div>
                 </div>
