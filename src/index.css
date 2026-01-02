@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* Configure dark mode to use class selector */
+@variant dark (&:where(.dark, .dark *));
+
+/* Design System - SEFIMAP Theme */
+@theme {
+  /* Primary Colors */
+  --color-primary: #13ec5b;
+  --color-primary-hover: #0fd650;
+  --color-primary-dark: #0ea640;
+
+  /* Background Colors */
+  --color-background-light: #f6f8f6;
+  --color-background-dark: #102216;
+
+  /* Surface Colors */
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1a2e22;
+
+  /* Text Colors */
+  --color-text-main: #111813;
+  --color-text-secondary: #61896f;
+  --color-text-muted: #61896f;
+
+  /* Border Colors */
+  --color-border-light: #dbe6df;
+  --color-border-dark: #2a4a35;
+
+  /* Font Families */
+  --font-display: 'Inter', sans-serif;
+}
+
+/* Base Styles */
+html {
+  font-family: var(--font-display);
+}
+
+body {
+  @apply bg-background-light text-text-main antialiased transition-colors duration-200;
+}
+
+/* Dark mode support */
+html.dark body {
+  @apply bg-background-dark text-white;
+}
+
+/* Ensure smooth transitions */
+html {
+  @apply transition-colors duration-200;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border-light rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-text-secondary;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-border-dark;
+}
+
+/* Form focus states */
+input:focus,
+select:focus,
+textarea:focus {
+  @apply outline-none ring-2 ring-primary/50 border-primary;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
