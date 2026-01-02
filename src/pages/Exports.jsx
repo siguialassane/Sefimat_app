@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import {
     CheckCircle,
     Download,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export function Exports() {
     const [filters, setFilters] = useState({
@@ -22,9 +23,35 @@ export function Exports() {
         date: "",
     });
     const [isExporting, setIsExporting] = useState(null);
+    const [filteredCount, setFilteredCount] = useState(0);
 
-    // Mock filtered count
-    const filteredCount = 142;
+    // Charger le nombre d'inscriptions filtrées
+    useEffect(() => {
+        async function countFiltered() {
+            try {
+                let query = supabase.from('inscriptions').select('*', { count: 'exact', head: true });
+
+                if (filters.status) {
+                    query = query.eq('statut', filters.status);
+                }
+                if (filters.type) {
+                    query = query.eq('type_inscription', filters.type);
+                }
+                if (filters.neighborhood) {
+                    query = query.eq('chef_quartier_id', filters.neighborhood);
+                }
+
+                const { count, error } = await query;
+                if (error) throw error;
+
+                setFilteredCount(count || 0);
+            } catch (error) {
+                console.error('Erreur comptage:', error);
+            }
+        }
+
+        countFiltered();
+    }, [filters]);
 
     const handleExport = async (format, filtered = false) => {
         const exportKey = `${format}-${filtered ? "filtered" : "full"}`;

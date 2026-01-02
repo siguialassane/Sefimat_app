@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,6 @@ import {
     Users,
     CheckCircle,
     Clock,
-    TrendingUp,
     Download,
     Search,
     Filter,
@@ -16,114 +15,138 @@ import {
     ChevronRight,
 } from "lucide-react";
 import {
-    LineChart,
-    Line,
+    AreaChart,
+    Area,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    AreaChart,
-    Area,
 } from "recharts";
-
-// Mock data for charts
-const activityData = [
-    { day: "J1", inscriptions: 12 },
-    { day: "J5", inscriptions: 25 },
-    { day: "J10", inscriptions: 18 },
-    { day: "J15", inscriptions: 45 },
-    { day: "J20", inscriptions: 32 },
-    { day: "J25", inscriptions: 58 },
-    { day: "J30", inscriptions: 72 },
-];
-
-// Mock data for leaders
-const leadersData = [
-    {
-        id: 1,
-        name: "Amadou Koné",
-        zone: "Abobo - Zone 1",
-        total: 142,
-        validated: 120,
-        pending: 22,
-        progress: 85,
-        avatar: "AK",
-    },
-    {
-        id: 2,
-        name: "Moussa Diaby",
-        zone: "Cocody - Riviera",
-        total: 98,
-        validated: 45,
-        pending: 53,
-        progress: 45,
-        avatar: "MD",
-    },
-    {
-        id: 3,
-        name: "Fatima Touré",
-        zone: "Yopougon - Sideci",
-        total: 210,
-        validated: 200,
-        pending: 10,
-        progress: 95,
-        avatar: "FT",
-    },
-    {
-        id: 4,
-        name: "Ibrahim Coulibaly",
-        zone: "Marcory - Zone 4",
-        total: 76,
-        validated: 70,
-        pending: 6,
-        progress: 92,
-        avatar: "IC",
-    },
-];
-
-const stats = [
-    {
-        title: "Total Inscriptions",
-        value: "1,240",
-        change: "+12%",
-        changeType: "positive",
-        icon: Users,
-        iconBg: "bg-blue-50 dark:bg-blue-900/20",
-        iconColor: "text-blue-600 dark:text-blue-400",
-    },
-    {
-        title: "Validées",
-        value: "850",
-        change: "+5%",
-        changeType: "positive",
-        icon: CheckCircle,
-        iconBg: "bg-green-50 dark:bg-green-900/20",
-        iconColor: "text-green-600 dark:text-green-400",
-    },
-    {
-        title: "En attente",
-        value: "390",
-        change: "-2%",
-        changeType: "negative",
-        icon: Clock,
-        iconBg: "bg-amber-50 dark:bg-amber-900/20",
-        iconColor: "text-amber-600 dark:text-amber-400",
-    },
-    {
-        title: "Frais collectés (FCFA)",
-        value: "2.48M",
-        change: "+10%",
-        changeType: "positive",
-        icon: TrendingUp,
-        iconBg: "bg-purple-50 dark:bg-purple-900/20",
-        iconColor: "text-purple-600 dark:text-purple-400",
-    },
-];
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts";
 
 export function Dashboard() {
+    const { user } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState(null);
+    const [leadersData, setLeadersData] = useState([]);
+    const [demographics, setDemographics] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [timeRange, setTimeRange] = useState("30");
+
+    // Charger les statistiques globales
+    useEffect(() => {
+        async function loadStats() {
+            try {
+                setLoading(true);
+
+                // Compter toutes les inscriptions par statut
+                const { data: inscriptions, error } = await supabase
+                    .from('inscriptions')
+                    .select('statut, sexe, niveau_etude');
+
+                if (error) throw error;
+
+                const total = inscriptions.length;
+                const valide = inscriptions.filter(i => i.statut === 'valide').length;
+                const en_attente = inscriptions.filter(i => i.statut === 'en_attente').length;
+                const rejete = inscriptions.filter(i => i.statut === 'rejete').length;
+
+                // Calculer démographiques
+                const hommes = inscriptions.filter(i => i.sexe === 'homme').length;
+                const femmes = inscriptions.filter(i => i.sexe === 'femme').length;
+
+                const niveauCounts = inscriptions.reduce((acc, i) => {
+                    acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
+                    return acc;
+                }, {});
+
+                setStats([
+                    {
+                        title: "Total Inscriptions",
+                        value: total.toString(),
+                        icon: Users,
+                        iconBg: "bg-blue-50 dark:bg-blue-900/20",
+                        iconColor: "text-blue-600 dark:text-blue-400",
+                    },
+                    {
+                        title: "Validées",
+                        value: valide.toString(),
+                        icon: CheckCircle,
+                        iconBg: "bg-green-50 dark:bg-green-900/20",
+                        iconColor: "text-green-600 dark:text-green-400",
+                    },
+                    {
+                        title: "En attente",
+                        value: en_attente.toString(),
+                        icon: Clock,
+                        iconBg: "bg-amber-50 dark:bg-amber-900/20",
+                        iconColor: "text-amber-600 dark:text-amber-400",
+                    },
+                ]);
+
+                setDemographics({
+                    hommesPercent: total > 0 ? Math.round((hommes / total) * 100) : 0,
+                    femmesPercent: total > 0 ? Math.round((femmes / total) * 100) : 0,
+                    total,
+                    niveauPercent: {
+                        primaire: total > 0 ? Math.round(((niveauCounts.primaire || 0) / total) * 100) : 0,
+                        secondaire: total > 0 ? Math.round(((niveauCounts.secondaire || 0) / total) * 100) : 0,
+                        superieur: total > 0 ? Math.round(((niveauCounts.superieur || 0) / total) * 100) : 0,
+                    }
+                });
+
+            } catch (error) {
+                console.error('Erreur chargement stats:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadStats();
+    }, []);
+
+    // Charger la performance des chefs de quartier
+    useEffect(() => {
+        async function loadLeadersData() {
+            try {
+                const { data: chefs, error } = await supabase
+                    .from('chefs_quartier')
+                    .select(`
+                        id,
+                        nom_complet,
+                        zone,
+                        inscriptions:inscriptions(statut)
+                    `);
+
+                if (error) throw error;
+
+                const formattedLeaders = chefs.map(chef => {
+                    const total = chef.inscriptions.length;
+                    const validated = chef.inscriptions.filter(i => i.statut === 'valide').length;
+                    const pending = chef.inscriptions.filter(i => i.statut === 'en_attente').length;
+                    const progress = total > 0 ? Math.round((validated / total) * 100) : 0;
+
+                    return {
+                        id: chef.id,
+                        name: chef.nom_complet,
+                        zone: chef.zone,
+                        total,
+                        validated,
+                        pending,
+                        progress,
+                        avatar: chef.nom_complet.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+                    };
+                }).sort((a, b) => b.total - a.total); // Trier par total décroissant
+
+                setLeadersData(formattedLeaders);
+            } catch (error) {
+                console.error('Erreur chargement leaders:', error);
+            }
+        }
+
+        loadLeadersData();
+    }, []);
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex flex-col gap-8">
@@ -149,140 +172,114 @@ export function Dashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map((stat, index) => (
-                    <Card
-                        key={index}
-                        className="p-5 flex flex-col justify-between gap-4 hover:border-primary/50 transition-colors group"
-                    >
-                        <div className="flex justify-between items-start">
-                            <div className={`p-2 rounded-lg ${stat.iconBg}`}>
-                                <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {loading ? (
+                    Array.from({ length: 3 }).map((_, index) => (
+                        <Card key={index} className="p-5 flex flex-col gap-4 animate-pulse">
+                            <div className="flex justify-between items-start">
+                                <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-lg" />
                             </div>
-                            <Badge
-                                variant={stat.changeType === "positive" ? "success" : "destructive"}
-                                className="text-xs"
-                            >
-                                {stat.change}
-                            </Badge>
-                        </div>
-                        <div>
-                            <p className="text-text-secondary dark:text-gray-400 text-sm font-medium">
-                                {stat.title}
-                            </p>
-                            <p className="text-2xl font-bold text-text-main dark:text-white mt-1">
-                                {stat.value}
-                            </p>
-                        </div>
-                    </Card>
-                ))}
-            </div>
-
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Chart 1: Registrations Activity */}
-                <Card className="lg:col-span-2 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <CardTitle>Activité des inscriptions</CardTitle>
-                            <CardDescription>Inscriptions journalières sur les 30 derniers jours</CardDescription>
-                        </div>
-                        <select
-                            value={timeRange}
-                            onChange={(e) => setTimeRange(e.target.value)}
-                            className="bg-gray-50 dark:bg-white/5 border-none text-sm text-text-secondary dark:text-gray-300 rounded-lg py-1 px-3 focus:ring-1 focus:ring-primary outline-none"
+                            <div>
+                                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+                                <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
+                            </div>
+                        </Card>
+                    ))
+                ) : stats ? (
+                    stats.map((stat, index) => (
+                        <Card
+                            key={index}
+                            className="p-5 flex flex-col justify-between gap-4 hover:border-primary/50 transition-colors group"
                         >
-                            <option value="30">30 derniers jours</option>
-                            <option value="7">7 derniers jours</option>
-                        </select>
-                    </div>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={activityData}>
-                                <defs>
-                                    <linearGradient id="colorInscriptions" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#13ec5b" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#13ec5b" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
-                                <YAxis stroke="#94a3b8" fontSize={12} />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: "#fff",
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
-                                    }}
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="inscriptions"
-                                    stroke="#13ec5b"
-                                    strokeWidth={2}
-                                    fillOpacity={1}
-                                    fill="url(#colorInscriptions)"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-
-                {/* Chart 2: Demographics */}
-                <Card className="p-6 flex flex-col gap-6">
-                    <div>
-                        <CardTitle>Démographiques</CardTitle>
-                        <CardDescription>Répartition par genre et niveau d'étude</CardDescription>
-                    </div>
-
-                    {/* Gender Distribution */}
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between text-sm mb-1">
-                            <span className="font-medium text-text-main dark:text-gray-300">Ratio par genre</span>
-                            <span className="text-text-secondary text-xs">Total: 1,240</span>
-                        </div>
-                        <div className="flex h-4 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-white/10">
-                            <div className="bg-blue-500 h-full" style={{ width: "58%" }} />
-                            <div className="bg-pink-400 h-full" style={{ width: "42%" }} />
-                        </div>
-                        <div className="flex justify-between text-xs mt-1">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                <span className="text-text-secondary dark:text-gray-400">Hommes (58%)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rounded-full bg-pink-400" />
-                                <span className="text-text-secondary dark:text-gray-400">Femmes (42%)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Education Distribution */}
-                    <div className="flex flex-col gap-3 pt-4 border-t border-border-light dark:border-border-dark">
-                        <span className="font-medium text-sm text-text-main dark:text-gray-300 mb-1">
-                            Niveau d'étude
-                        </span>
-                        {[
-                            { label: "Primaire", value: 30 },
-                            { label: "Secondaire", value: 45 },
-                            { label: "Universitaire", value: 25 },
-                        ].map((item) => (
-                            <div key={item.label} className="grid grid-cols-[auto_1fr_auto] gap-3 items-center">
-                                <span className="text-xs font-medium text-text-secondary w-20">{item.label}</span>
-                                <div className="h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-primary rounded-full"
-                                        style={{ width: `${item.value}%` }}
-                                    />
+                            <div className="flex justify-between items-start">
+                                <div className={`p-2 rounded-lg ${stat.iconBg}`}>
+                                    <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
                                 </div>
-                                <span className="text-xs font-bold text-text-main dark:text-white">
-                                    {item.value}%
-                                </span>
                             </div>
-                        ))}
+                            <div>
+                                <p className="text-text-secondary dark:text-gray-400 text-sm font-medium">
+                                    {stat.title}
+                                </p>
+                                <p className="text-2xl font-bold text-text-main dark:text-white mt-1">
+                                    {stat.value}
+                                </p>
+                            </div>
+                        </Card>
+                    ))
+                ) : (
+                    <div className="col-span-full text-center py-8 text-text-secondary">
+                        Aucune donnée disponible
                     </div>
-                </Card>
+                )}
             </div>
+
+            {/* Demographics Section */}
+            <Card className="p-6 flex flex-col gap-6">
+                <div>
+                    <CardTitle>Démographiques</CardTitle>
+                    <CardDescription>Répartition par genre et niveau d'étude</CardDescription>
+                </div>
+
+                {loading || !demographics ? (
+                    <div className="flex flex-col gap-4 animate-pulse">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                    </div>
+                ) : (
+                    <>
+                        {/* Gender Distribution */}
+                        <div className="flex flex-col gap-2">
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="font-medium text-text-main dark:text-gray-300">Ratio par genre</span>
+                                <span className="text-text-secondary text-xs">Total: {demographics.total}</span>
+                            </div>
+                            <div className="flex h-4 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-white/10">
+                                <div className="bg-blue-500 h-full" style={{ width: `${demographics.hommesPercent}%` }} />
+                                <div className="bg-pink-400 h-full" style={{ width: `${demographics.femmesPercent}%` }} />
+                            </div>
+                            <div className="flex justify-between text-xs mt-1">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                    <span className="text-text-secondary dark:text-gray-400">
+                                        Hommes ({demographics.hommesPercent}%)
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 rounded-full bg-pink-400" />
+                                    <span className="text-text-secondary dark:text-gray-400">
+                                        Femmes ({demographics.femmesPercent}%)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Education Distribution */}
+                        <div className="flex flex-col gap-3 pt-4 border-t border-border-light dark:border-border-dark">
+                            <span className="font-medium text-sm text-text-main dark:text-gray-300 mb-1">
+                                Niveau d'étude
+                            </span>
+                            {[
+                                { label: "Primaire", value: demographics.niveauPercent.primaire },
+                                { label: "Secondaire", value: demographics.niveauPercent.secondaire },
+                                { label: "Universitaire", value: demographics.niveauPercent.superieur },
+                            ].map((item) => (
+                                <div key={item.label} className="grid grid-cols-[auto_1fr_auto] gap-3 items-center">
+                                    <span className="text-xs font-medium text-text-secondary w-20">{item.label}</span>
+                                    <div className="h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-primary rounded-full"
+                                            style={{ width: `${item.value}%` }}
+                                        />
+                                    </div>
+                                    <span className="text-xs font-bold text-text-main dark:text-white">
+                                        {item.value}%
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </Card>
 
             {/* Neighborhood Leaders Table */}
             <Card className="overflow-hidden">
