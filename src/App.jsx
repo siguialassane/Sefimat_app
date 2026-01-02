@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ThemeProvider } from "@/contexts";
+import { ThemeProvider, AuthProvider } from "@/contexts";
 import { AdminLayout } from "@/components/layout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import {
   PublicRegistration,
   Login,
@@ -13,7 +14,8 @@ import {
 function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Navigate to="/inscription" replace />} />
@@ -21,7 +23,11 @@ function App() {
           <Route path="/login" element={<Login />} />
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="inscriptions" element={<RegistrationManagement />} />
@@ -32,7 +38,8 @@ function App() {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/inscription" replace />} />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

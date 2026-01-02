@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { User, Users, Send, CheckCircle, Info } from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 const registrationSchema = z.object({
     nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
@@ -18,12 +19,14 @@ const registrationSchema = z.object({
     age: z.number().min(1, "L'âge est requis").max(120, "Âge invalide"),
     sexe: z.enum(["homme", "femme"], { required_error: "Veuillez sélectionner le sexe" }),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
-    chefQuartier: z.string().min(2, "Le nom du chef de quartier est requis"),
+    telephone: z.string().optional().or(z.literal("")),
+    chefQuartier: z.string().min(1, "Veuillez sélectionner un chef de quartier"),
 });
 
 export function PublicRegistration() {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [chefsQuartier, setChefsQuartier] = useState([]);
 
     const {
         register,
@@ -41,17 +44,49 @@ export function PublicRegistration() {
 
     const selectedSexe = watch("sexe");
 
+    // Charger les chefs de quartier
+    useEffect(() => {
+        async function loadChefs() {
+            const { data, error } = await supabase
+                .from('chefs_quartier')
+                .select('*')
+                .order('nom_complet');
+
+            if (error) {
+                console.error('Erreur chargement chefs:', error);
+            } else {
+                setChefsQuartier(data || []);
+            }
+        }
+        loadChefs();
+    }, []);
+
     const onSubmit = async (data) => {
         setIsLoading(true);
         try {
-            // TODO: Implement Supabase submission
-            console.log("Inscription soumise:", data);
-            await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulated delay
+            const { error } = await supabase
+                .from('inscriptions')
+                .insert({
+                    nom: data.nom,
+                    prenom: data.prenom,
+                    age: data.age,
+                    sexe: data.sexe,
+                    niveau_etude: data.niveauEtude,
+                    telephone: data.telephone || null,
+                    chef_quartier_id: data.chefQuartier,
+                    type_inscription: 'en_ligne',
+                    statut: 'en_attente',
+                    admin_id: null
+                });
+
+            if (error) throw error;
+
             setIsSubmitted(true);
             reset();
             setTimeout(() => setIsSubmitted(false), 5000);
         } catch (error) {
             console.error("Erreur lors de l'inscription:", error);
+            alert(`Erreur: ${error.message || 'Impossible de soumettre l\'inscription'}`);
         } finally {
             setIsLoading(false);
         }
@@ -214,19 +249,39 @@ export function PublicRegistration() {
                                 </div>
 
                                 <div className="flex flex-col gap-2">
-                                    <Label htmlFor="chefQuartier">Nom complet du Chef de Quartier</Label>
-                                    <Input
+                                    <Label htmlFor="chefQuartier">Chef de Quartier Référent</Label>
+                                    <Select
                                         id="chefQuartier"
-                                        placeholder="Entrez votre nom complet"
                                         {...register("chefQuartier")}
                                         className={errors.chefQuartier ? "border-red-500" : ""}
-                                    />
+                                    >
+                                        <option value="">Sélectionnez votre chef de quartier</option>
+                                        {chefsQuartier.map(chef => (
+                                            <option key={chef.id} value={chef.id}>
+                                                {chef.nom_complet} - {chef.zone}
+                                            </option>
+                                        ))}
+                                    </Select>
                                     <p className="text-xs text-text-secondary dark:text-gray-500 mt-1 flex items-center gap-1">
                                         <Info className="h-3 w-3" />
-                                        Ce nom sera utilisé pour valider l'inscription.
+                                        Sélectionnez le chef de quartier qui vous a référé.
                                     </p>
                                     {errors.chefQuartier && (
                                         <p className="text-red-500 text-xs mt-1">{errors.chefQuartier.message}</p>
+                                    )}
+                                </div>
+
+                                {/* Téléphone (optionnel) */}
+                                <div className="flex flex-col gap-2 mt-4">
+                                    <Label htmlFor="telephone">Téléphone (optionnel)</Label>
+                                    <Input
+                                        id="telephone"
+                                        type="tel"
+                                        placeholder="Ex: 07 00 00 00 00"
+                                        {...register("telephone")}
+                                    />
+                                    {errors.telephone && (
+                                        <p className="text-red-500 text-xs mt-1">{errors.telephone.message}</p>
                                     )}
                                 </div>
                             </div>

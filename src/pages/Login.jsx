@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAuth } from "@/contexts";
 
 const loginSchema = z.object({
     email: z.string().email("Adresse email invalide"),
@@ -16,6 +17,7 @@ const loginSchema = z.object({
 
 export function Login() {
     const navigate = useNavigate();
+    const { signIn, user } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -28,16 +30,22 @@ export function Login() {
         resolver: zodResolver(loginSchema),
     });
 
+    // Rediriger si déjà connecté
+    useEffect(() => {
+        if (user) {
+            navigate("/admin/dashboard");
+        }
+    }, [user, navigate]);
+
     const onSubmit = async (data) => {
         setIsLoading(true);
         setError(null);
         try {
-            // TODO: Implement Supabase authentication
-            console.log("Connexion:", data);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await signIn(data.email, data.password);
             navigate("/admin/dashboard");
         } catch (err) {
-            setError("L'email ou le mot de passe est incorrect.");
+            console.error("Erreur connexion:", err);
+            setError(err.message || "L'email ou le mot de passe est incorrect.");
         } finally {
             setIsLoading(false);
         }
