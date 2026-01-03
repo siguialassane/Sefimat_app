@@ -6,10 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { PhotoCapture } from "@/components/ui/photo-capture";
-import { User, Users, Send, CheckCircle, Info, Camera } from "lucide-react";
+import {
+    User,
+    Users,
+    Send,
+    CheckCircle,
+    Camera,
+    ArrowRight,
+    ArrowLeft,
+    Check
+} from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -25,7 +34,15 @@ const registrationSchema = z.object({
     chefQuartier: z.string().min(1, "Veuillez sélectionner un chef de quartier"),
 });
 
+// Configuration des étapes
+const steps = [
+    { id: 1, title: "Photo", icon: Camera, description: "Photo du participant" },
+    { id: 2, title: "Identité", icon: User, description: "Informations personnelles" },
+    { id: 3, title: "Référent", icon: Users, description: "Chef de quartier" },
+];
+
 export function PublicRegistration() {
+    const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [chefsQuartier, setChefsQuartier] = useState([]);
@@ -37,7 +54,7 @@ export function PublicRegistration() {
         handleSubmit,
         reset,
         watch,
-        setValue,
+        trigger,
         formState: { errors },
     } = useForm({
         resolver: zodResolver(registrationSchema),
@@ -47,6 +64,7 @@ export function PublicRegistration() {
     });
 
     const selectedSexe = watch("sexe");
+    const watchedValues = watch();
 
     // Charger les chefs de quartier
     useEffect(() => {
@@ -65,13 +83,60 @@ export function PublicRegistration() {
         loadChefs();
     }, []);
 
-    const onSubmit = async (data) => {
-        // Valider que la photo est fournie
-        if (!photoFile) {
-            setPhotoError("La photo est obligatoire");
+    // Validation par étape
+    const validateStep = async (step) => {
+        if (step === 1) {
+            if (!photoFile) {
+                setPhotoError("La photo est obligatoire");
+                return false;
+            }
+            setPhotoError(null);
+            return true;
+        }
+        if (step === 2) {
+            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude"]);
+            return isValid;
+        }
+        if (step === 3) {
+            const isValid = await trigger(["chefQuartier"]);
+            return isValid;
+        }
+        return true;
+    };
+
+    const nextStep = async () => {
+        const isValid = await validateStep(currentStep);
+        if (isValid && currentStep < 3) {
+            setCurrentStep(currentStep + 1);
+        }
+    };
+
+    const prevStep = () => {
+        if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
+        }
+    };
+
+    const goToStep = async (step) => {
+        // Permettre de revenir en arrière sans validation
+        if (step < currentStep) {
+            setCurrentStep(step);
             return;
         }
-        setPhotoError(null);
+        // Pour avancer, valider les étapes intermédiaires
+        for (let i = currentStep; i < step; i++) {
+            const isValid = await validateStep(i);
+            if (!isValid) return;
+        }
+        setCurrentStep(step);
+    };
+
+    const onSubmit = async (data) => {
+        if (!photoFile) {
+            setPhotoError("La photo est obligatoire");
+            setCurrentStep(1);
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -100,6 +165,7 @@ export function PublicRegistration() {
             setIsSubmitted(true);
             setPhotoFile(null);
             reset();
+            setCurrentStep(1);
             setTimeout(() => setIsSubmitted(false), 5000);
         } catch (error) {
             console.error("Erreur lors de l'inscription:", error);
@@ -107,6 +173,16 @@ export function PublicRegistration() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Vérifier si une étape est complète
+    const isStepComplete = (step) => {
+        if (step === 1) return !!photoFile;
+        if (step === 2) {
+            return watchedValues.nom && watchedValues.prenom && watchedValues.age && watchedValues.sexe && watchedValues.niveauEtude;
+        }
+        if (step === 3) return !!watchedValues.chefQuartier;
+        return false;
     };
 
     return (
@@ -125,7 +201,7 @@ export function PublicRegistration() {
                             <ThemeToggle />
                             <a
                                 href="/login"
-                                className="flex items-center justify-center rounded-lg h-10 px-4 bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 text-text-main dark:text-white text-sm font-bold transition-colors"
+                                className="hidden sm:flex items-center justify-center rounded-lg h-10 px-4 bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 text-text-main dark:text-white text-sm font-bold transition-colors"
                             >
                                 Connexion Admin
                             </a>
@@ -135,240 +211,370 @@ export function PublicRegistration() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 flex justify-center py-8 px-4 sm:px-6">
-                <div className="flex flex-col max-w-[960px] w-full gap-6">
+            <main className="flex-1 flex justify-center py-6 sm:py-8 px-4 sm:px-6">
+                <div className="flex flex-col max-w-[600px] w-full gap-6">
                     {/* Page Heading */}
-                    <div className="flex flex-col gap-3 px-4 sm:px-0">
-                        <h1 className="text-text-main dark:text-white text-3xl sm:text-4xl font-black leading-tight tracking-tight">
-                            Formulaire d'Inscription
+                    <div className="text-center">
+                        <h1 className="text-text-main dark:text-white text-2xl sm:text-3xl font-black leading-tight tracking-tight">
+                            Inscription au Séminaire
                         </h1>
-                        <p className="text-text-secondary dark:text-gray-400 text-base">
-                            Remplissez les informations ci-dessous pour inscrire un nouveau participant au séminaire.
+                        <p className="text-text-secondary dark:text-gray-400 text-sm mt-2">
+                            Remplissez le formulaire étape par étape
                         </p>
                     </div>
 
-                    {/* Form Card */}
-                    <Card className="p-0 overflow-hidden">
-                        <form onSubmit={handleSubmit(onSubmit)}>
-                            {/* Section 0: Photo du Participant */}
-                            <div className="p-6 sm:p-10 bg-gray-50/50 dark:bg-gray-800/30">
-                                <div className="flex items-center gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-3">
-                                    <Camera className="h-5 w-5 text-primary" />
-                                    <h3 className="text-text-main dark:text-white text-lg font-bold">
-                                        Photo du Participant
-                                    </h3>
-                                    <span className="text-red-500 text-sm ml-1">*</span>
-                                </div>
-
-                                <PhotoCapture
-                                    onPhotoCapture={setPhotoFile}
-                                    required={true}
-                                />
-                                {photoError && (
-                                    <p className="text-red-500 text-sm text-center mt-2">{photoError}</p>
+                    {/* Stepper */}
+                    <div className="flex items-center justify-center gap-2 sm:gap-4">
+                        {steps.map((step, index) => (
+                            <div key={step.id} className="flex items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => goToStep(step.id)}
+                                    className={cn(
+                                        "flex flex-col items-center gap-1 transition-all",
+                                        currentStep === step.id ? "scale-105" : "opacity-70 hover:opacity-100"
+                                    )}
+                                >
+                                    <div
+                                        className={cn(
+                                            "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all",
+                                            currentStep === step.id
+                                                ? "bg-primary text-white shadow-lg shadow-primary/30"
+                                                : isStepComplete(step.id)
+                                                    ? "bg-emerald-500 text-white"
+                                                    : "bg-gray-200 dark:bg-gray-700 text-text-secondary"
+                                        )}
+                                    >
+                                        {isStepComplete(step.id) && currentStep !== step.id ? (
+                                            <Check className="h-5 w-5" />
+                                        ) : (
+                                            <step.icon className="h-5 w-5" />
+                                        )}
+                                    </div>
+                                    <span className={cn(
+                                        "text-xs font-medium hidden sm:block",
+                                        currentStep === step.id ? "text-primary" : "text-text-secondary"
+                                    )}>
+                                        {step.title}
+                                    </span>
+                                </button>
+                                {index < steps.length - 1 && (
+                                    <div className={cn(
+                                        "w-8 sm:w-16 h-0.5 mx-2",
+                                        isStepComplete(step.id) ? "bg-emerald-500" : "bg-gray-200 dark:bg-gray-700"
+                                    )} />
                                 )}
                             </div>
+                        ))}
+                    </div>
 
-                            {/* Section 1: Participant Info */}
-                            <div className="p-6 sm:p-10">
-                                <div className="flex items-center gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-3">
-                                    <User className="h-5 w-5 text-primary" />
-                                    <h3 className="text-text-main dark:text-white text-lg font-bold">
-                                        Informations du Participant
-                                    </h3>
+                    {/* Form Card */}
+                    <Card className="overflow-hidden">
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            {/* Step 1: Photo */}
+                            <div className={cn(
+                                "transition-all duration-300",
+                                currentStep === 1 ? "block" : "hidden"
+                            )}>
+                                <div className="p-6 sm:p-8">
+                                    <div className="text-center mb-6">
+                                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                            <Camera className="h-7 w-7" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                            Photo du Participant
+                                        </h3>
+                                        <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                            Prenez une photo claire et récente
+                                        </p>
+                                    </div>
+
+                                    <PhotoCapture
+                                        onPhotoCapture={(file) => {
+                                            setPhotoFile(file);
+                                            if (file) setPhotoError(null);
+                                        }}
+                                        required={true}
+                                    />
+                                    {photoError && (
+                                        <p className="text-red-500 text-sm text-center mt-3">{photoError}</p>
+                                    )}
                                 </div>
+                            </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Nom */}
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="nom">Nom</Label>
-                                        <Input
-                                            id="nom"
-                                            placeholder="Entrez le nom"
-                                            {...register("nom")}
-                                            className={errors.nom ? "border-red-500" : ""}
-                                        />
-                                        {errors.nom && (
-                                            <p className="text-red-500 text-xs mt-1">{errors.nom.message}</p>
-                                        )}
+                            {/* Step 2: Identité */}
+                            <div className={cn(
+                                "transition-all duration-300",
+                                currentStep === 2 ? "block" : "hidden"
+                            )}>
+                                <div className="p-6 sm:p-8">
+                                    <div className="text-center mb-6">
+                                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                            <User className="h-7 w-7" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                            Informations Personnelles
+                                        </h3>
+                                        <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                            Renseignez vos informations
+                                        </p>
                                     </div>
 
-                                    {/* Prénom */}
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="prenom">Prénoms</Label>
-                                        <Input
-                                            id="prenom"
-                                            placeholder="Entrez les prénoms"
-                                            {...register("prenom")}
-                                            className={errors.prenom ? "border-red-500" : ""}
-                                        />
-                                        {errors.prenom && (
-                                            <p className="text-red-500 text-xs mt-1">{errors.prenom.message}</p>
-                                        )}
-                                    </div>
-
-                                    {/* Age */}
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="age">Âge</Label>
-                                        <Input
-                                            id="age"
-                                            type="number"
-                                            placeholder="Ex: 25"
-                                            {...register("age", { valueAsNumber: true })}
-                                            className={errors.age ? "border-red-500" : ""}
-                                        />
-                                        {errors.age && (
-                                            <p className="text-red-500 text-xs mt-1">{errors.age.message}</p>
-                                        )}
-                                    </div>
-
-                                    {/* Sexe */}
-                                    <div className="flex flex-col gap-2">
-                                        <Label>Sexe</Label>
-                                        <div className="flex gap-4 h-12 items-center">
-                                            <label className="inline-flex items-center cursor-pointer group">
-                                                <input
-                                                    type="radio"
-                                                    value="homme"
-                                                    {...register("sexe")}
-                                                    className="form-radio text-primary focus:ring-primary h-5 w-5 border-gray-300 dark:border-gray-600 dark:bg-gray-800"
+                                    <div className="space-y-4">
+                                        {/* Nom & Prénom */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="nom">Nom</Label>
+                                                <Input
+                                                    id="nom"
+                                                    placeholder="Ex: Kouassi"
+                                                    {...register("nom")}
+                                                    className={errors.nom ? "border-red-500" : ""}
                                                 />
-                                                <span className="ml-2 text-text-main dark:text-gray-300 text-base group-hover:text-primary transition-colors">
-                                                    Homme
-                                                </span>
-                                            </label>
-                                            <label className="inline-flex items-center cursor-pointer group">
-                                                <input
-                                                    type="radio"
-                                                    value="femme"
-                                                    {...register("sexe")}
-                                                    className="form-radio text-primary focus:ring-primary h-5 w-5 border-gray-300 dark:border-gray-600 dark:bg-gray-800"
+                                                {errors.nom && (
+                                                    <p className="text-red-500 text-xs">{errors.nom.message}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="prenom">Prénoms</Label>
+                                                <Input
+                                                    id="prenom"
+                                                    placeholder="Ex: Jean"
+                                                    {...register("prenom")}
+                                                    className={errors.prenom ? "border-red-500" : ""}
                                                 />
-                                                <span className="ml-2 text-text-main dark:text-gray-300 text-base group-hover:text-primary transition-colors">
-                                                    Femme
-                                                </span>
-                                            </label>
+                                                {errors.prenom && (
+                                                    <p className="text-red-500 text-xs">{errors.prenom.message}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Sexe */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Genre</Label>
+                                            <div className="flex gap-3">
+                                                <label
+                                                    className={cn(
+                                                        "flex-1 flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                                                        selectedSexe === "homme"
+                                                            ? "border-primary bg-primary/5 text-primary"
+                                                            : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"
+                                                    )}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        value="homme"
+                                                        {...register("sexe")}
+                                                        className="sr-only"
+                                                    />
+                                                    <span className="flex items-center gap-2">
+                                                        <span className="text-lg">♂</span> Homme
+                                                    </span>
+                                                </label>
+                                                <label
+                                                    className={cn(
+                                                        "flex-1 flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                                                        selectedSexe === "femme"
+                                                            ? "border-primary bg-primary/5 text-primary"
+                                                            : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"
+                                                    )}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        value="femme"
+                                                        {...register("sexe")}
+                                                        className="sr-only"
+                                                    />
+                                                    <span className="flex items-center gap-2">
+                                                        <span className="text-lg">♀</span> Femme
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Âge & Niveau */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="age">Âge</Label>
+                                                <Input
+                                                    id="age"
+                                                    type="number"
+                                                    placeholder="25"
+                                                    {...register("age", { valueAsNumber: true })}
+                                                    className={errors.age ? "border-red-500" : ""}
+                                                />
+                                                {errors.age && (
+                                                    <p className="text-red-500 text-xs">{errors.age.message}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="niveauEtude">Niveau d'étude</Label>
+                                                <Select
+                                                    id="niveauEtude"
+                                                    {...register("niveauEtude")}
+                                                    className={errors.niveauEtude ? "border-red-500" : ""}
+                                                >
+                                                    <option value="">Sélectionnez</option>
+                                                    <option value="aucun">Aucun</option>
+                                                    <option value="primaire">Primaire</option>
+                                                    <option value="secondaire">Secondaire</option>
+                                                    <option value="superieur">Universitaire</option>
+                                                    <option value="arabe">Arabe</option>
+                                                </Select>
+                                                {errors.niveauEtude && (
+                                                    <p className="text-red-500 text-xs">{errors.niveauEtude.message}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Téléphone */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="telephone">Téléphone (optionnel)</Label>
+                                            <Input
+                                                id="telephone"
+                                                type="tel"
+                                                placeholder="Ex: 07 00 00 00 00"
+                                                {...register("telephone")}
+                                            />
                                         </div>
                                     </div>
+                                </div>
+                            </div>
 
-                                    {/* Niveau d'étude */}
-                                    <div className="flex flex-col gap-2 md:col-span-2">
-                                        <Label htmlFor="niveauEtude">Niveau d'étude</Label>
-                                        <Select
-                                            id="niveauEtude"
-                                            {...register("niveauEtude")}
-                                            className={errors.niveauEtude ? "border-red-500" : ""}
-                                        >
-                                            <option value="" disabled>
-                                                Sélectionnez un niveau
-                                            </option>
-                                            <option value="aucun">Aucun</option>
-                                            <option value="primaire">Primaire</option>
-                                            <option value="secondaire">Secondaire</option>
-                                            <option value="superieur">Universitaire</option>
-                                            <option value="arabe">Arabe / Franco-arabe</option>
-                                        </Select>
-                                        {errors.niveauEtude && (
-                                            <p className="text-red-500 text-xs mt-1">{errors.niveauEtude.message}</p>
-                                        )}
+                            {/* Step 3: Référent */}
+                            <div className={cn(
+                                "transition-all duration-300",
+                                currentStep === 3 ? "block" : "hidden"
+                            )}>
+                                <div className="p-6 sm:p-8">
+                                    <div className="text-center mb-6">
+                                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                            <Users className="h-7 w-7" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                            Chef de Quartier Référent
+                                        </h3>
+                                        <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                            Sélectionnez votre chef de quartier
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="chefQuartier">Chef de Quartier</Label>
+                                            <Select
+                                                id="chefQuartier"
+                                                {...register("chefQuartier")}
+                                                className={cn(
+                                                    "h-12",
+                                                    errors.chefQuartier ? "border-red-500" : ""
+                                                )}
+                                            >
+                                                <option value="">Sélectionnez votre référent</option>
+                                                {chefsQuartier.map(chef => (
+                                                    <option key={chef.id} value={chef.id}>
+                                                        {chef.nom_complet} - {chef.zone}
+                                                    </option>
+                                                ))}
+                                            </Select>
+                                            {errors.chefQuartier && (
+                                                <p className="text-red-500 text-xs">{errors.chefQuartier.message}</p>
+                                            )}
+                                        </div>
+
+                                        {/* Résumé */}
+                                        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-border-light dark:border-border-dark">
+                                            <h4 className="font-semibold text-text-main dark:text-white text-sm mb-3">
+                                                Résumé de l'inscription
+                                            </h4>
+                                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                                <div className="text-text-secondary">Nom complet:</div>
+                                                <div className="text-text-main dark:text-white font-medium">
+                                                    {watchedValues.nom || "-"} {watchedValues.prenom || ""}
+                                                </div>
+                                                <div className="text-text-secondary">Âge:</div>
+                                                <div className="text-text-main dark:text-white font-medium">
+                                                    {watchedValues.age || "-"} ans
+                                                </div>
+                                                <div className="text-text-secondary">Genre:</div>
+                                                <div className="text-text-main dark:text-white font-medium capitalize">
+                                                    {watchedValues.sexe || "-"}
+                                                </div>
+                                                <div className="text-text-secondary">Photo:</div>
+                                                <div className={cn(
+                                                    "font-medium",
+                                                    photoFile ? "text-emerald-500" : "text-amber-500"
+                                                )}>
+                                                    {photoFile ? "✓ Capturée" : "✗ Manquante"}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Section 2: Référent Info */}
-                            <div className="px-6 sm:px-10 pb-6">
-                                <div className="flex items-center gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-3">
-                                    <Users className="h-5 w-5 text-primary" />
-                                    <h3 className="text-text-main dark:text-white text-lg font-bold">
-                                        Informations du Référent
-                                    </h3>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="chefQuartier">Chef de Quartier Référent</Label>
-                                    <Select
-                                        id="chefQuartier"
-                                        {...register("chefQuartier")}
-                                        className={errors.chefQuartier ? "border-red-500" : ""}
+                            {/* Navigation Buttons */}
+                            <div className="px-6 sm:px-8 pb-6 sm:pb-8 flex gap-3">
+                                {currentStep > 1 && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={prevStep}
+                                        className="flex-1 h-12"
                                     >
-                                        <option value="">Sélectionnez votre chef de quartier</option>
-                                        {chefsQuartier.map(chef => (
-                                            <option key={chef.id} value={chef.id}>
-                                                {chef.nom_complet} - {chef.zone}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                    <p className="text-xs text-text-secondary dark:text-gray-500 mt-1 flex items-center gap-1">
-                                        <Info className="h-3 w-3" />
-                                        Sélectionnez le chef de quartier qui vous a référé.
-                                    </p>
-                                    {errors.chefQuartier && (
-                                        <p className="text-red-500 text-xs mt-1">{errors.chefQuartier.message}</p>
-                                    )}
-                                </div>
-
-                                {/* Téléphone (optionnel) */}
-                                <div className="flex flex-col gap-2 mt-4">
-                                    <Label htmlFor="telephone">Téléphone (optionnel)</Label>
-                                    <Input
-                                        id="telephone"
-                                        type="tel"
-                                        placeholder="Ex: 07 00 00 00 00"
-                                        {...register("telephone")}
-                                    />
-                                    {errors.telephone && (
-                                        <p className="text-red-500 text-xs mt-1">{errors.telephone.message}</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Submit Button */}
-                            <div className="px-6 sm:px-10 pb-6 flex flex-col gap-4 pt-4 border-t border-border-light dark:border-border-dark">
-                                <Button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className="w-full h-14 text-base shadow-lg shadow-primary/20"
-                                >
-                                    {isLoading ? (
-                                        <span className="flex items-center gap-2">
-                                            <span className="h-5 w-5 border-2 border-text-main/30 border-t-text-main rounded-full animate-spin" />
-                                            Envoi en cours...
-                                        </span>
-                                    ) : (
-                                        <>
-                                            Soumettre l'inscription
-                                            <Send className="h-5 w-5" />
-                                        </>
-                                    )}
-                                </Button>
-                                <p className="text-center text-sm text-text-secondary dark:text-gray-500">
-                                    En soumettant ce formulaire, vous confirmez l'exactitude des informations.
-                                </p>
+                                        <ArrowLeft className="h-4 w-4 mr-2" />
+                                        Précédent
+                                    </Button>
+                                )}
+                                {currentStep < 3 ? (
+                                    <Button
+                                        type="button"
+                                        onClick={nextStep}
+                                        className="flex-1 h-12"
+                                    >
+                                        Suivant
+                                        <ArrowRight className="h-4 w-4 ml-2" />
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className="flex-1 h-12 shadow-lg shadow-primary/20"
+                                    >
+                                        {isLoading ? (
+                                            <span className="flex items-center gap-2">
+                                                <span className="h-5 w-5 border-2 border-text-main/30 border-t-text-main rounded-full animate-spin" />
+                                                Envoi...
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <Send className="h-4 w-4 mr-2" />
+                                                Soumettre
+                                            </>
+                                        )}
+                                    </Button>
+                                )}
                             </div>
                         </form>
                     </Card>
 
                     {/* Footer */}
-                    <div className="py-6 flex justify-center items-center gap-4 text-sm text-text-secondary dark:text-gray-500">
-                        <span>© SEFIMAP 2024</span>
-                        <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700" />
-                        <a href="#" className="hover:text-primary transition-colors">
-                            Besoin d'aide ?
-                        </a>
+                    <div className="py-4 text-center text-xs text-text-secondary dark:text-gray-500">
+                        <p>© SEFIMAP 2024 - Séminaire de Formation Islamique</p>
                     </div>
                 </div>
             </main>
 
             {/* Success Toast */}
             {isSubmitted && (
-                <div className="fixed bottom-6 right-6 max-w-sm w-full bg-surface-light dark:bg-surface-dark border-l-4 border-primary shadow-xl rounded-r-lg p-4 flex items-start gap-3 animate-fade-in z-50">
-                    <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
+                <div className="fixed bottom-6 right-6 left-6 sm:left-auto max-w-sm w-full bg-surface-light dark:bg-surface-dark border-l-4 border-primary shadow-xl rounded-lg p-4 flex items-start gap-3 animate-fade-in z-50">
+                    <CheckCircle className="h-6 w-6 text-primary flex-shrink-0" />
                     <div>
-                        <h4 className="font-bold text-text-main dark:text-white text-sm">
+                        <h4 className="font-bold text-text-main dark:text-white">
                             Inscription envoyée !
                         </h4>
-                        <p className="text-text-secondary dark:text-gray-400 text-xs mt-1">
-                            En attente de validation par un administrateur.
+                        <p className="text-text-secondary dark:text-gray-400 text-sm mt-1">
+                            Votre inscription est en attente de validation.
                         </p>
                     </div>
                 </div>
