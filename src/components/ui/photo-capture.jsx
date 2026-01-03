@@ -292,11 +292,9 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                         onChange={handleFileUpload}
                                         className="hidden"
                                     />
-                                    <Button type="button" variant="outline" className="gap-2 w-full" asChild>
-                                        <span>
-                                            <Camera className="h-4 w-4" />
-                                            Selfie
-                                        </span>
+                                    <Button type="button" variant="outline" className="gap-2 w-full">
+                                        <Camera className="h-4 w-4" />
+                                        Selfie
                                     </Button>
                                 </label>
                                 {/* Bouton Caméra arrière */}
@@ -309,11 +307,9 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                         onChange={handleFileUpload}
                                         className="hidden"
                                     />
-                                    <Button type="button" variant="default" className="gap-2 w-full" asChild>
-                                        <span>
-                                            <Camera className="h-4 w-4" />
-                                            Photo
-                                        </span>
+                                    <Button type="button" variant="default" className="gap-2 w-full">
+                                        <Camera className="h-4 w-4" />
+                                        Photo
                                     </Button>
                                 </label>
                             </div>
@@ -325,11 +321,9 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                     onChange={handleFileUpload}
                                     className="hidden"
                                 />
-                                <Button type="button" variant="outline" className="gap-2 w-full" asChild>
-                                    <span>
-                                        <Upload className="h-4 w-4" />
-                                        Choisir depuis la galerie
-                                    </span>
+                                <Button type="button" variant="outline" className="gap-2 w-full">
+                                    <Upload className="h-4 w-4" />
+                                    Choisir depuis la galerie
                                 </Button>
                             </label>
                         </>
@@ -352,11 +346,9 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                     onChange={handleFileUpload}
                                     className="hidden"
                                 />
-                                <Button type="button" variant="outline" className="gap-2" asChild>
-                                    <span>
-                                        <Upload className="h-4 w-4" />
-                                        Télécharger
-                                    </span>
+                                <Button type="button" variant="outline" className="gap-2">
+                                    <Upload className="h-4 w-4" />
+                                    Télécharger
                                 </Button>
                             </label>
                         </>
