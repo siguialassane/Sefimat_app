@@ -69,6 +69,7 @@ export function RegistrationManagement() {
             : 'Inscription Présentielle',
         statut: row.statut,
         date: new Date(row.created_at).toLocaleDateString('fr-FR'),
+        heure: new Date(row.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
         type_inscription: row.type_inscription,
         originalData: row,
     });
@@ -368,9 +369,9 @@ export function RegistrationManagement() {
                                 </Select>
                             </div>
 
-                            {/* Chef de quartier Filter */}
+                            {/* Président de section Filter */}
                             <div>
-                                <Label className="mb-1.5 block text-xs">Chef de quartier</Label>
+                                <Label className="mb-1.5 block text-xs">Président de section</Label>
                                 <Select
                                     value={filters.chefQuartier}
                                     onChange={(e) => setFilters({ ...filters, chefQuartier: e.target.value })}
@@ -462,7 +463,7 @@ export function RegistrationManagement() {
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Genre</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Niveau</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                    Chef de quartier
+                                                    Président de section
                                                 </th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Statut</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Date</th>
@@ -522,8 +523,11 @@ export function RegistrationManagement() {
                                                             {statusConfig[registration.statut].label}
                                                         </Badge>
                                                     </td>
-                                                    <td className="p-4 text-text-secondary dark:text-gray-400">
-                                                        {registration.date}
+                                                    <td className="p-4 text-text-secondary dark:text-gray-300">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-text-main dark:text-white font-medium">{registration.date}</span>
+                                                            <span className="text-xs text-text-secondary dark:text-gray-400">{registration.heure}</span>
+                                                        </div>
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <Button

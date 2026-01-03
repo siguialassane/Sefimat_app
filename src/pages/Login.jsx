@@ -231,7 +231,7 @@ export function Login() {
 
             {/* Footer */}
             <footer className="py-6 text-center text-sm text-text-secondary dark:text-gray-500">
-                <p>© 2024 SEFIMAP Côte d'Ivoire. Tous droits réservés.</p>
+                <p>© 2026 SEFIMAP Côte d'Ivoire. Tous droits réservés.</p>
             </footer>
         </div>
     );

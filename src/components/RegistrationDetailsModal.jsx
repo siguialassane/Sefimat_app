@@ -46,7 +46,7 @@ export function RegistrationDetailsModal({
     if (!isOpen || !registration) return null;
 
     // Vérifier si les champs obligatoires pour validation sont remplis
-    // Ces champs sont obligatoires UNIQUEMENT pour les inscriptions "en_ligne" (depuis chef de quartier)
+    // Ces champs sont obligatoires UNIQUEMENT pour les inscriptions "en_ligne" (depuis président de section)
     const isOnlineRegistration = registration.originalData?.type_inscription === 'en_ligne';
     const canValidate = !isOnlineRegistration || (formData.dortoir_id && formData.niveau_formation);
 
@@ -100,32 +100,32 @@ export function RegistrationDetailsModal({
                                 <LazyImage
                                     src={registration.originalData.photo_url}
                                     alt={`Photo de ${registration.originalData.nom} ${registration.originalData.prenom}`}
-                                    className="w-32 h-32 rounded-full border-4 border-primary/20 shadow-lg"
+                                    className="w-48 h-48 rounded-lg border-4 border-primary/20 shadow-lg object-cover"
                                     fallback={
-                                        <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center text-primary text-3xl font-bold">
+                                        <div className="w-48 h-48 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-3xl font-bold">
                                             {registration.originalData.nom?.[0]?.toUpperCase()}
                                             {registration.originalData.prenom?.[0]?.toUpperCase()}
                                         </div>
                                     }
                                 />
                             ) : (
-                                <div className="w-32 h-32 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-4 border-gray-100 dark:border-gray-600 shadow-md">
-                                    <User className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+                                <div className="w-48 h-48 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-4 border-gray-100 dark:border-gray-600 shadow-md">
+                                    <User className="w-16 h-16 text-gray-400 dark:text-gray-500" />
                                 </div>
                             )}
                             {/* Status Badge on Photo */}
-                            <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm ${registration.statut === 'valide'
+                            <div className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm ${registration.statut === 'valide'
                                 ? 'bg-emerald-500'
                                 : registration.statut === 'rejete'
                                     ? 'bg-red-500'
                                     : 'bg-amber-500'
                                 }`}>
                                 {registration.statut === 'valide' ? (
-                                    <CheckCircle className="w-4 h-4 text-white" />
+                                    <CheckCircle className="w-5 h-5 text-white" />
                                 ) : registration.statut === 'rejete' ? (
-                                    <X className="w-4 h-4 text-white" />
+                                    <X className="w-5 h-5 text-white" />
                                 ) : (
-                                    <span className="text-white text-xs font-bold">?</span>
+                                    <span className="text-white text-sm font-bold">?</span>
                                 )}
                             </div>
                         </div>
@@ -188,7 +188,7 @@ export function RegistrationDetailsModal({
                                 </Select>
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                                <Label>Chef de Quartier</Label>
+                                <Label>Président de Section</Label>
                                 <Select
                                     value={formData.chef_quartier_id || ""}
                                     onChange={e => handleChange("chef_quartier_id", e.target.value)}
@@ -321,7 +321,7 @@ export function RegistrationDetailsModal({
                                 <div className="flex items-start gap-3">
                                     <MapPin className="w-5 h-5 text-text-secondary mt-0.5" />
                                     <div>
-                                        <p className="text-sm text-text-secondary">Chef de quartier / Zone</p>
+                                        <p className="text-sm text-text-secondary">Président de section / Zone</p>
                                         <p className="font-medium text-text-main dark:text-white">
                                             {registration.chefQuartier}
                                         </p>

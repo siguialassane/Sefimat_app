@@ -285,7 +285,7 @@ export function Dashboard() {
             <Card className="overflow-hidden">
                 <div className="p-6 border-b border-border-light dark:border-border-dark flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <CardTitle>Performance des chefs de quartier</CardTitle>
+                        <CardTitle>Performance des présidents de section</CardTitle>
                         <CardDescription>Détails des inscriptions par zone</CardDescription>
                     </div>
                     <div className="flex gap-2">
@@ -308,7 +308,7 @@ export function Dashboard() {
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 dark:bg-white/5 text-text-secondary dark:text-gray-400 font-semibold uppercase text-xs tracking-wider">
                             <tr>
-                                <th className="px-6 py-4">Chef de quartier</th>
+                                <th className="px-6 py-4">Président de section</th>
                                 <th className="px-6 py-4">Zone</th>
                                 <th className="px-6 py-4 text-center">Total</th>
                                 <th className="px-6 py-4 text-center">Validées</th>

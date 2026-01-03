@@ -31,14 +31,14 @@ const registrationSchema = z.object({
     sexe: z.enum(["homme", "femme"], { required_error: "Veuillez sélectionner le sexe" }),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
     telephone: z.string().optional().or(z.literal("")),
-    chefQuartier: z.string().min(1, "Veuillez sélectionner un chef de quartier"),
+    chefQuartier: z.string().min(1, "Veuillez sélectionner un président de section"),
 });
 
 // Configuration des étapes
 const steps = [
     { id: 1, title: "Photo", icon: Camera, description: "Photo du participant" },
     { id: 2, title: "Identité", icon: User, description: "Informations personnelles" },
-    { id: 3, title: "Référent", icon: Users, description: "Chef de quartier" },
+    { id: 3, title: "Référent", icon: Users, description: "Président de section" },
 ];
 
 export function PublicRegistration() {
@@ -48,6 +48,7 @@ export function PublicRegistration() {
     const [chefsQuartier, setChefsQuartier] = useState([]);
     const [photoFile, setPhotoFile] = useState(null);
     const [photoError, setPhotoError] = useState(null);
+    const [photoKey, setPhotoKey] = useState(0);
 
     const {
         register,
@@ -164,6 +165,7 @@ export function PublicRegistration() {
 
             setIsSubmitted(true);
             setPhotoFile(null);
+            setPhotoKey(prev => prev + 1); // Force la réinitialisation du composant photo
             reset();
             setCurrentStep(1);
             setTimeout(() => setIsSubmitted(false), 5000);
@@ -195,7 +197,7 @@ export function PublicRegistration() {
                             <div className="h-8 w-8 flex items-center justify-center text-primary">
                                 <Mosque className="h-7 w-7" />
                             </div>
-                            <h2 className="text-lg font-bold leading-tight tracking-tight">SEFIMAP 2024</h2>
+                            <h2 className="text-lg font-bold leading-tight tracking-tight">SEFIMAP 2026</h2>
                         </div>
                         <div className="flex items-center gap-4">
                             <ThemeToggle />
@@ -290,6 +292,7 @@ export function PublicRegistration() {
                                     </div>
 
                                     <PhotoCapture
+                                        key={photoKey}
                                         onPhotoCapture={(file) => {
                                             setPhotoFile(file);
                                             if (file) setPhotoError(null);
@@ -452,16 +455,16 @@ export function PublicRegistration() {
                                             <Users className="h-7 w-7" />
                                         </div>
                                         <h3 className="text-lg font-bold text-text-main dark:text-white">
-                                            Chef de Quartier Référent
+                                            Président de Section Référent
                                         </h3>
                                         <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                            Sélectionnez votre chef de quartier
+                                            Sélectionnez votre président de section
                                         </p>
                                     </div>
 
                                     <div className="space-y-4">
                                         <div className="flex flex-col gap-2">
-                                            <Label htmlFor="chefQuartier">Chef de Quartier</Label>
+                                            <Label htmlFor="chefQuartier">Président de Section</Label>
                                             <Select
                                                 id="chefQuartier"
                                                 {...register("chefQuartier")}
@@ -560,7 +563,7 @@ export function PublicRegistration() {
 
                     {/* Footer */}
                     <div className="py-4 text-center text-xs text-text-secondary dark:text-gray-500">
-                        <p>© SEFIMAP 2024 - Séminaire de Formation Islamique</p>
+                        <p>© SEFIMAP 2026 - Séminaire de Formation Islamique</p>
                     </div>
                 </div>
             </main>
