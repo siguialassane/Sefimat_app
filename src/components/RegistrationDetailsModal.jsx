@@ -6,7 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { LazyImage } from "@/components/ui/lazy-image";
-import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap } from "lucide-react";
+import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap, Building, BookOpen } from "lucide-react";
+
+// Mapping niveau formation
+const niveauFormationMap = {
+    debutant: "Débutant",
+    normal: "Normal",
+    superieur: "Supérieur"
+};
 
 export function RegistrationDetailsModal({
     isOpen,
@@ -16,6 +23,7 @@ export function RegistrationDetailsModal({
     onDelete,
     onUpdate,
     chefsQuartier,
+    dortoirs = [],
     statusConfig
 }) {
     const [isEditing, setIsEditing] = useState(false);
@@ -27,13 +35,20 @@ export function RegistrationDetailsModal({
             setFormData({
                 ...registration.originalData,
                 niveau_etude: registration.originalData.niveau_etude || "aucun",
-                chef_quartier_id: registration.originalData.chef_quartier_id || ""
+                chef_quartier_id: registration.originalData.chef_quartier_id || "",
+                dortoir_id: registration.originalData.dortoir_id || "",
+                niveau_formation: registration.originalData.niveau_formation || ""
             });
         }
         setIsEditing(false);
     }, [registration]);
 
     if (!isOpen || !registration) return null;
+
+    // Vérifier si les champs obligatoires pour validation sont remplis
+    // Ces champs sont obligatoires UNIQUEMENT pour les inscriptions "en_ligne" (depuis chef de quartier)
+    const isOnlineRegistration = registration.originalData?.type_inscription === 'en_ligne';
+    const canValidate = !isOnlineRegistration || (formData.dortoir_id && formData.niveau_formation);
 
     const handleSave = async () => {
         await onUpdate(registration.id, formData);
@@ -42,6 +57,12 @@ export function RegistrationDetailsModal({
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Trouver le nom du dortoir
+    const getDortoirName = () => {
+        const dortoir = dortoirs.find(d => d.id === registration.originalData?.dortoir_id);
+        return dortoir?.nom || "Non assigné";
     };
 
     return (
@@ -59,7 +80,7 @@ export function RegistrationDetailsModal({
                             )}
                         </h3>
                         <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                            Créé le {registration.date}
+                            Créé le {registration.date} • {registration.originalData?.type_inscription === 'en_ligne' ? 'Inscription en ligne' : 'Inscription présentielle'}
                         </p>
                     </div>
                     <button
@@ -93,13 +114,12 @@ export function RegistrationDetailsModal({
                                 </div>
                             )}
                             {/* Status Badge on Photo */}
-                            <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm ${
-                                registration.statut === 'valide'
+                            <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm ${registration.statut === 'valide'
                                     ? 'bg-emerald-500'
                                     : registration.statut === 'rejete'
                                         ? 'bg-red-500'
                                         : 'bg-amber-500'
-                            }`}>
+                                }`}>
                                 {registration.statut === 'valide' ? (
                                     <CheckCircle className="w-4 h-4 text-white" />
                                 ) : registration.statut === 'rejete' ? (
@@ -181,6 +201,49 @@ export function RegistrationDetailsModal({
                                     ))}
                                 </Select>
                             </div>
+
+                            {/* Nouveaux champs obligatoires pour validation */}
+                            <div className="md:col-span-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
+                                <h4 className="font-semibold text-text-main dark:text-white mb-3 flex items-center gap-2">
+                                    <Building className="w-4 h-4 text-primary" />
+                                    Affectation (obligatoire pour valider)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>
+                                            Salle de dortoir <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Select
+                                            value={formData.dortoir_id || ""}
+                                            onChange={e => handleChange("dortoir_id", e.target.value)}
+                                            className={!formData.dortoir_id ? "border-amber-500" : ""}
+                                        >
+                                            <option value="">Sélectionner un dortoir</option>
+                                            {dortoirs?.map(dortoir => (
+                                                <option key={dortoir.id} value={dortoir.id}>
+                                                    {dortoir.nom}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>
+                                            Niveau de formation <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Select
+                                            value={formData.niveau_formation || ""}
+                                            onChange={e => handleChange("niveau_formation", e.target.value)}
+                                            className={!formData.niveau_formation ? "border-amber-500" : ""}
+                                        >
+                                            <option value="">Sélectionner un niveau</option>
+                                            <option value="debutant">Débutant</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="superieur">Supérieur</option>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="space-y-2 md:col-span-2">
                                 <Label>Statut</Label>
                                 <Select
@@ -263,6 +326,44 @@ export function RegistrationDetailsModal({
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Section Affectation */}
+                            <div className="md:col-span-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
+                                <h4 className="font-semibold text-text-main dark:text-white mb-3 flex items-center gap-2">
+                                    <Building className="w-4 h-4 text-primary" />
+                                    Affectation
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex items-start gap-3">
+                                        <Building className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">Salle de dortoir</p>
+                                            <p className={`font-medium ${registration.originalData?.dortoir_id ? 'text-text-main dark:text-white' : 'text-amber-500'}`}>
+                                                {getDortoirName()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <BookOpen className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">Niveau de formation</p>
+                                            <p className={`font-medium ${registration.originalData?.niveau_formation ? 'text-text-main dark:text-white' : 'text-amber-500'}`}>
+                                                {niveauFormationMap[registration.originalData?.niveau_formation] || "Non assigné"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Avertissement si champs manquants pour validation */}
+                            {isOnlineRegistration && registration.statut === 'en_attente' && !canValidate && (
+                                <div className="md:col-span-2 mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800">
+                                    <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                                        <span className="font-bold">⚠️ Action requise:</span>
+                                        Veuillez attribuer une salle de dortoir et un niveau de formation avant de valider cette inscription.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -283,11 +384,15 @@ export function RegistrationDetailsModal({
                         <>
                             {statusConfig && registration.statut === "en_attente" && (
                                 <Button
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                                    className={`gap-2 ${canValidate ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                                    disabled={!canValidate}
                                     onClick={() => {
-                                        onValidate(registration.id);
-                                        onClose();
+                                        if (canValidate) {
+                                            onValidate(registration.id);
+                                            onClose();
+                                        }
                                     }}
+                                    title={!canValidate ? "Attribuez d'abord un dortoir et un niveau de formation" : "Valider l'inscription"}
                                 >
                                     <CheckCircle className="w-4 h-4" />
                                     Valider

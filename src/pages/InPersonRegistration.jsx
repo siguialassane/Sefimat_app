@@ -18,6 +18,8 @@ import {
     TrendingUp,
     CheckCircle,
     Camera,
+    Building,
+    BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
@@ -30,6 +32,8 @@ const registrationSchema = z.object({
     sexe: z.enum(["homme", "femme"]),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
     telephone: z.string().optional().or(z.literal("")),
+    dortoirId: z.string().min(1, "Veuillez sélectionner un dortoir"),
+    niveauFormation: z.string().min(1, "Veuillez sélectionner un niveau de formation"),
 });
 
 export function InPersonRegistration() {
@@ -38,6 +42,7 @@ export function InPersonRegistration() {
     const [registrations, setRegistrations] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
     const [photoFile, setPhotoFile] = useState(null);
+    const [dortoirs, setDortoirs] = useState([]);
     const [photoError, setPhotoError] = useState(null);
 
     const {
@@ -91,6 +96,23 @@ export function InPersonRegistration() {
         loadRecentRegistrations();
     }, [user]);
 
+    // Charger la liste des dortoirs
+    useEffect(() => {
+        async function loadDortoirs() {
+            const { data, error } = await supabase
+                .from('dortoirs')
+                .select('*')
+                .order('nom');
+
+            if (error) {
+                console.error('Erreur chargement dortoirs:', error);
+            } else {
+                setDortoirs(data || []);
+            }
+        }
+        loadDortoirs();
+    }, []);
+
     const onSubmit = async (data) => {
         // Valider que la photo est fournie
         if (!photoFile) {
@@ -119,6 +141,8 @@ export function InPersonRegistration() {
                     statut: 'valide', // Automatiquement validé
                     chef_quartier_id: null,
                     photo_url: photoUrl,
+                    dortoir_id: data.dortoirId,
+                    niveau_formation: data.niveauFormation,
                 })
                 .select()
                 .single();
@@ -239,8 +263,8 @@ export function InPersonRegistration() {
                                         <div className="flex flex-wrap gap-3">
                                             <label
                                                 className={`group relative flex cursor-pointer items-center justify-center rounded-lg border px-6 py-2.5 text-sm font-medium transition-all ${selectedSexe === "homme"
-                                                        ? "border-primary bg-primary/5 text-primary"
-                                                        : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                    ? "border-primary bg-primary/5 text-primary"
+                                                    : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                                                     }`}
                                             >
                                                 <input
@@ -256,8 +280,8 @@ export function InPersonRegistration() {
                                             </label>
                                             <label
                                                 className={`group relative flex cursor-pointer items-center justify-center rounded-lg border px-6 py-2.5 text-sm font-medium transition-all ${selectedSexe === "femme"
-                                                        ? "border-primary bg-primary/5 text-primary"
-                                                        : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                    ? "border-primary bg-primary/5 text-primary"
+                                                    : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                                                     }`}
                                             >
                                                 <input
@@ -325,6 +349,56 @@ export function InPersonRegistration() {
                                         {errors.telephone && (
                                             <p className="text-red-500 text-xs">{errors.telephone.message}</p>
                                         )}
+                                    </div>
+
+                                    {/* Affectation Formation */}
+                                    <div className="flex flex-col gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                                        <div className="flex items-center gap-2 border-b border-primary/20 pb-2">
+                                            <Building className="h-5 w-5 text-primary" />
+                                            <Label className="font-semibold text-text-main dark:text-white">
+                                                Affectation
+                                            </Label>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="dortoirId">
+                                                    Salle de dortoir <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Select
+                                                    id="dortoirId"
+                                                    {...register("dortoirId")}
+                                                    className={errors.dortoirId ? "border-red-500" : ""}
+                                                >
+                                                    <option value="">Sélectionnez un dortoir</option>
+                                                    {dortoirs.map(dortoir => (
+                                                        <option key={dortoir.id} value={dortoir.id}>
+                                                            {dortoir.nom}
+                                                        </option>
+                                                    ))}
+                                                </Select>
+                                                {errors.dortoirId && (
+                                                    <p className="text-red-500 text-xs">{errors.dortoirId.message}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="niveauFormation">
+                                                    Niveau de formation <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Select
+                                                    id="niveauFormation"
+                                                    {...register("niveauFormation")}
+                                                    className={errors.niveauFormation ? "border-red-500" : ""}
+                                                >
+                                                    <option value="">Sélectionnez un niveau</option>
+                                                    <option value="debutant">Débutant</option>
+                                                    <option value="normal">Normal</option>
+                                                    <option value="superieur">Supérieur</option>
+                                                </Select>
+                                                {errors.niveauFormation && (
+                                                    <p className="text-red-500 text-xs">{errors.niveauFormation.message}</p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* System Note */}

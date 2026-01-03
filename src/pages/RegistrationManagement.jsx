@@ -42,6 +42,7 @@ export function RegistrationManagement() {
     const { user } = useAuth();
     const [registrations, setRegistrations] = useState([]);
     const [chefsQuartier, setChefsQuartier] = useState([]);
+    const [dortoirs, setDortoirs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedIds, setSelectedIds] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
@@ -115,6 +116,23 @@ export function RegistrationManagement() {
             }
         }
         loadChefs();
+    }, []);
+
+    // Charger la liste des dortoirs
+    useEffect(() => {
+        async function loadDortoirs() {
+            const { data, error } = await supabase
+                .from('dortoirs')
+                .select('*')
+                .order('nom');
+
+            if (error) {
+                console.error('Erreur chargement dortoirs:', error);
+            } else {
+                setDortoirs(data || []);
+            }
+        }
+        loadDortoirs();
     }, []);
 
     const filteredRegistrations = registrations.filter((r) => {
@@ -223,6 +241,8 @@ export function RegistrationManagement() {
                 telephone: formData.telephone || null,
                 chef_quartier_id: formData.chef_quartier_id || null,
                 statut: formData.statut,
+                dortoir_id: formData.dortoir_id || null,
+                niveau_formation: formData.niveau_formation || null,
             };
 
             const { error } = await supabase
@@ -547,6 +567,7 @@ export function RegistrationManagement() {
                 }}
                 onUpdate={handleUpdate}
                 chefsQuartier={chefsQuartier}
+                dortoirs={dortoirs}
                 statusConfig={statusConfig}
             />
 

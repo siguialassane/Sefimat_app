@@ -27,6 +27,7 @@ const compressionOptions = {
 export function PhotoCapture({ onPhotoCapture, existingPhoto, className, required = true }) {
     const [preview, setPreview] = useState(existingPhoto || null);
     const [isWebcamActive, setIsWebcamActive] = useState(false);
+    const [isWebcamReady, setIsWebcamReady] = useState(false);
     const [isCompressing, setIsCompressing] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [error, setError] = useState(null);
@@ -54,6 +55,21 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
             }
         };
     }, []);
+
+    // Effet pour initialiser la webcam quand le composant vidéo est rendu
+    useEffect(() => {
+        if (isWebcamActive && videoRef.current && streamRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+            videoRef.current.onloadedmetadata = () => {
+                videoRef.current.play()
+                    .then(() => setIsWebcamReady(true))
+                    .catch(err => {
+                        console.error("Erreur lecture vidéo:", err);
+                        setIsWebcamReady(true); // Continuer quand même
+                    });
+            };
+        }
+    }, [isWebcamActive]);
 
     // Compresser l'image si nécessaire
     const compressImage = async (file) => {
@@ -85,6 +101,7 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
         }
 
         setError(null);
+        setIsCompressing(true);
         try {
             const compressedFile = await compressImage(file);
             const previewUrl = URL.createObjectURL(compressedFile);
@@ -92,37 +109,46 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
             onPhotoCapture(compressedFile);
         } catch (err) {
             setError(err.message);
+        } finally {
+            setIsCompressing(false);
+        }
+    };
+
+    // Ouvrir le sélecteur de fichier directement
+    const openFilePicker = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
         }
     };
 
     // Démarrer la webcam (desktop)
     const startWebcam = async () => {
         setError(null);
+        setIsWebcamReady(false);
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                }
             });
             streamRef.current = stream;
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                // Attendre que la vidéo soit prête avant d'activer la webcam
-                await new Promise((resolve) => {
-                    videoRef.current.onloadedmetadata = () => {
-                        videoRef.current.play().then(resolve).catch(resolve);
-                    };
-                });
-            }
+            // D'abord activer l'affichage, le useEffect s'occupera du reste
             setIsWebcamActive(true);
         } catch (err) {
             console.error("Erreur webcam:", err);
             let errorMessage = "Impossible d'accéder à la caméra.";
 
             if (err.name === 'NotAllowedError') {
-                errorMessage = "Permission refusée. Veuillez autoriser l'accès à la caméra.";
+                errorMessage = "Permission refusée. Veuillez autoriser l'accès à la caméra dans les paramètres du navigateur.";
             } else if (err.name === 'NotFoundError') {
                 errorMessage = "Aucune caméra détectée sur cet appareil.";
             } else if (err.name === 'NotReadableError') {
                 errorMessage = "La caméra est déjà utilisée par une autre application.";
+            } else if (err.name === 'OverconstrainedError') {
+                errorMessage = "La résolution demandée n'est pas supportée par votre caméra.";
             }
 
             setError(errorMessage);
@@ -135,7 +161,11 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
             streamRef.current.getTracks().forEach(track => track.stop());
             streamRef.current = null;
         }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
         setIsWebcamActive(false);
+        setIsWebcamReady(false);
     }, []);
 
     // Capturer depuis la webcam
@@ -146,16 +176,26 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
         const canvas = canvasRef.current;
         const context = canvas.getContext("2d");
 
+        // S'assurer que la vidéo a des dimensions valides
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            setError("La vidéo n'est pas encore prête. Réessayez.");
+            return;
+        }
+
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0);
 
         canvas.toBlob(async (blob) => {
-            if (!blob) return;
+            if (!blob) {
+                setError("Erreur lors de la capture de l'image.");
+                return;
+            }
 
             const file = new File([blob], `photo_${Date.now()}.jpg`, { type: "image/jpeg" });
 
             try {
+                setIsCompressing(true);
                 const compressedFile = await compressImage(file);
                 const previewUrl = URL.createObjectURL(compressedFile);
                 setPreview(previewUrl);
@@ -163,6 +203,8 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                 stopWebcam();
             } catch (err) {
                 setError(err.message);
+            } finally {
+                setIsCompressing(false);
             }
         }, "image/jpeg", 0.9);
     };
@@ -180,6 +222,15 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
         <div className={cn("flex flex-col gap-3", className)}>
             {/* Canvas caché pour la capture */}
             <canvas ref={canvasRef} className="hidden" />
+
+            {/* Input file caché */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+            />
 
             {/* Prévisualisation ou zone de capture */}
             <div className="relative">
@@ -213,14 +264,21 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                     </div>
                 ) : isWebcamActive ? (
                     // Mode webcam actif
-                    <div className="relative w-full aspect-[4/3] sm:w-64 sm:h-48 mx-auto rounded-xl overflow-hidden border-2 border-primary shadow-lg">
+                    <div className="relative w-full aspect-[4/3] sm:w-64 sm:h-48 mx-auto rounded-xl overflow-hidden border-2 border-primary shadow-lg bg-black">
                         <video
                             ref={videoRef}
                             autoPlay
                             playsInline
                             muted
                             className="w-full h-full object-cover"
+                            style={{ transform: 'scaleX(-1)' }} // Effet miroir
                         />
+                        {/* Indicateur de chargement si pas prêt */}
+                        {!isWebcamReady && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                <Loader2 className="h-8 w-8 text-white animate-spin" />
+                            </div>
+                        )}
                         {/* Overlay avec guide */}
                         <div className="absolute inset-0 pointer-events-none">
                             <div className="absolute inset-4 border-2 border-white/50 rounded-lg" />
@@ -231,7 +289,7 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                 type="button"
                                 onClick={captureFromWebcam}
                                 className="gap-2 shadow-lg"
-                                disabled={isCompressing}
+                                disabled={isCompressing || !isWebcamReady}
                             >
                                 {isCompressing ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -272,7 +330,7 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
             {isCompressing && (
                 <div className="flex items-center justify-center gap-2 text-sm text-text-secondary">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Compression en cours...
+                    Traitement en cours...
                 </div>
             )}
 
@@ -292,7 +350,7 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                         onChange={handleFileUpload}
                                         className="hidden"
                                     />
-                                    <Button type="button" variant="outline" className="gap-2 w-full">
+                                    <Button type="button" variant="outline" className="gap-2 w-full pointer-events-none">
                                         <Camera className="h-4 w-4" />
                                         Selfie
                                     </Button>
@@ -300,32 +358,28 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                 {/* Bouton Caméra arrière */}
                                 <label className="cursor-pointer flex-1">
                                     <input
-                                        ref={fileInputRef}
                                         type="file"
                                         accept="image/*"
                                         capture="environment"
                                         onChange={handleFileUpload}
                                         className="hidden"
                                     />
-                                    <Button type="button" variant="default" className="gap-2 w-full">
+                                    <Button type="button" variant="default" className="gap-2 w-full pointer-events-none">
                                         <Camera className="h-4 w-4" />
                                         Photo
                                     </Button>
                                 </label>
                             </div>
                             {/* Bouton Galerie */}
-                            <label className="cursor-pointer">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                />
-                                <Button type="button" variant="outline" className="gap-2 w-full">
-                                    <Upload className="h-4 w-4" />
-                                    Choisir depuis la galerie
-                                </Button>
-                            </label>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="gap-2 w-full"
+                                onClick={openFilePicker}
+                            >
+                                <Upload className="h-4 w-4" />
+                                Choisir depuis la galerie
+                            </Button>
                         </>
                     ) : (
                         // Mode desktop: webcam + upload
@@ -338,19 +392,15 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                 <Camera className="h-4 w-4" />
                                 Utiliser la webcam
                             </Button>
-                            <label className="cursor-pointer">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                />
-                                <Button type="button" variant="outline" className="gap-2">
-                                    <Upload className="h-4 w-4" />
-                                    Télécharger
-                                </Button>
-                            </label>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="gap-2"
+                                onClick={openFilePicker}
+                            >
+                                <Upload className="h-4 w-4" />
+                                Télécharger une photo
+                            </Button>
                         </>
                     )}
                 </div>
