@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { PhotoCapture } from "@/components/ui/photo-capture";
 import {
     FileEdit,
     Save,
@@ -16,9 +17,11 @@ import {
     History,
     TrendingUp,
     CheckCircle,
+    Camera,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
+import { uploadPhoto } from "@/lib/storage";
 
 const registrationSchema = z.object({
     nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
@@ -34,6 +37,8 @@ export function InPersonRegistration() {
     const [isLoading, setIsLoading] = useState(false);
     const [registrations, setRegistrations] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [photoFile, setPhotoFile] = useState(null);
+    const [photoError, setPhotoError] = useState(null);
 
     const {
         register,
@@ -87,8 +92,19 @@ export function InPersonRegistration() {
     }, [user]);
 
     const onSubmit = async (data) => {
+        // Valider que la photo est fournie
+        if (!photoFile) {
+            setPhotoError("La photo est obligatoire");
+            return;
+        }
+        setPhotoError(null);
+
         setIsLoading(true);
         try {
+            // 1. Upload la photo vers Supabase Storage
+            const photoUrl = await uploadPhoto(photoFile, 'presentiel');
+
+            // 2. Créer l'inscription avec l'URL de la photo
             const { data: inscription, error } = await supabase
                 .from('inscriptions')
                 .insert({
@@ -102,6 +118,7 @@ export function InPersonRegistration() {
                     type_inscription: 'presentielle',
                     statut: 'valide', // Automatiquement validé
                     chef_quartier_id: null,
+                    photo_url: photoUrl,
                 })
                 .select()
                 .single();
@@ -115,10 +132,12 @@ export function InPersonRegistration() {
                 phone: data.telephone || 'N/A',
                 time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
                 recent: true,
+                photo_url: photoUrl,
             };
             setRegistrations([newRegistration, ...registrations.slice(0, 9)]);
 
             reset();
+            setPhotoFile(null);
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (error) {
@@ -168,6 +187,24 @@ export function InPersonRegistration() {
                             </CardHeader>
                             <CardContent className="p-6">
                                 <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
+                                    {/* Photo Section */}
+                                    <div className="flex flex-col gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-border-light dark:border-border-dark">
+                                        <div className="flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-2">
+                                            <Camera className="h-5 w-5 text-primary" />
+                                            <Label className="font-semibold text-text-main dark:text-white">
+                                                Photo du Participant
+                                            </Label>
+                                            <span className="text-red-500 text-sm">*</span>
+                                        </div>
+                                        <PhotoCapture
+                                            onPhotoCapture={setPhotoFile}
+                                            required={true}
+                                        />
+                                        {photoError && (
+                                            <p className="text-red-500 text-sm text-center">{photoError}</p>
+                                        )}
+                                    </div>
+
                                     {/* Name Row */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-2">

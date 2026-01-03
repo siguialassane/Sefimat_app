@@ -8,10 +8,12 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { User, Users, Send, CheckCircle, Info } from "lucide-react";
+import { PhotoCapture } from "@/components/ui/photo-capture";
+import { User, Users, Send, CheckCircle, Info, Camera } from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { uploadPhoto } from "@/lib/storage";
 
 const registrationSchema = z.object({
     nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
@@ -27,6 +29,8 @@ export function PublicRegistration() {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [chefsQuartier, setChefsQuartier] = useState([]);
+    const [photoFile, setPhotoFile] = useState(null);
+    const [photoError, setPhotoError] = useState(null);
 
     const {
         register,
@@ -62,8 +66,19 @@ export function PublicRegistration() {
     }, []);
 
     const onSubmit = async (data) => {
+        // Valider que la photo est fournie
+        if (!photoFile) {
+            setPhotoError("La photo est obligatoire");
+            return;
+        }
+        setPhotoError(null);
+
         setIsLoading(true);
         try {
+            // 1. Upload la photo vers Supabase Storage
+            const photoUrl = await uploadPhoto(photoFile, 'inscription');
+
+            // 2. Créer l'inscription avec l'URL de la photo
             const { error } = await supabase
                 .from('inscriptions')
                 .insert({
@@ -76,12 +91,14 @@ export function PublicRegistration() {
                     chef_quartier_id: data.chefQuartier,
                     type_inscription: 'en_ligne',
                     statut: 'en_attente',
-                    admin_id: null
+                    admin_id: null,
+                    photo_url: photoUrl
                 });
 
             if (error) throw error;
 
             setIsSubmitted(true);
+            setPhotoFile(null);
             reset();
             setTimeout(() => setIsSubmitted(false), 5000);
         } catch (error) {
@@ -133,6 +150,25 @@ export function PublicRegistration() {
                     {/* Form Card */}
                     <Card className="p-0 overflow-hidden">
                         <form onSubmit={handleSubmit(onSubmit)}>
+                            {/* Section 0: Photo du Participant */}
+                            <div className="p-6 sm:p-10 bg-gray-50/50 dark:bg-gray-800/30">
+                                <div className="flex items-center gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-3">
+                                    <Camera className="h-5 w-5 text-primary" />
+                                    <h3 className="text-text-main dark:text-white text-lg font-bold">
+                                        Photo du Participant
+                                    </h3>
+                                    <span className="text-red-500 text-sm ml-1">*</span>
+                                </div>
+
+                                <PhotoCapture
+                                    onPhotoCapture={setPhotoFile}
+                                    required={true}
+                                />
+                                {photoError && (
+                                    <p className="text-red-500 text-sm text-center mt-2">{photoError}</p>
+                                )}
+                            </div>
+
                             {/* Section 1: Participant Info */}
                             <div className="p-6 sm:p-10">
                                 <div className="flex items-center gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-3">
@@ -229,7 +265,7 @@ export function PublicRegistration() {
                                             <option value="aucun">Aucun</option>
                                             <option value="primaire">Primaire</option>
                                             <option value="secondaire">Secondaire</option>
-                                            <option value="universitaire">Universitaire</option>
+                                            <option value="superieur">Universitaire</option>
                                             <option value="arabe">Arabe / Franco-arabe</option>
                                         </Select>
                                         {errors.niveauEtude && (
