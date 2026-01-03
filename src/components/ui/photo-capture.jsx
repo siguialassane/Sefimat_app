@@ -105,11 +105,27 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
+                // Attendre que la vidéo soit prête avant d'activer la webcam
+                await new Promise((resolve) => {
+                    videoRef.current.onloadedmetadata = () => {
+                        videoRef.current.play().then(resolve).catch(resolve);
+                    };
+                });
             }
             setIsWebcamActive(true);
         } catch (err) {
             console.error("Erreur webcam:", err);
-            setError("Impossible d'accéder à la caméra. Vérifiez les permissions.");
+            let errorMessage = "Impossible d'accéder à la caméra.";
+
+            if (err.name === 'NotAllowedError') {
+                errorMessage = "Permission refusée. Veuillez autoriser l'accès à la caméra.";
+            } else if (err.name === 'NotFoundError') {
+                errorMessage = "Aucune caméra détectée sur cet appareil.";
+            } else if (err.name === 'NotReadableError') {
+                errorMessage = "La caméra est déjà utilisée par une autre application.";
+            }
+
+            setError(errorMessage);
         }
     };
 
@@ -264,14 +280,14 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
             {!preview && !isWebcamActive && (
                 <div className="flex flex-col sm:flex-row gap-2 justify-center">
                     {isMobile ? (
-                        // Mode mobile: input avec capture
+                        // Mode mobile: input avec capture (caméra arrière pour meilleure qualité)
                         <>
                             <label className="cursor-pointer">
                                 <input
                                     ref={fileInputRef}
                                     type="file"
                                     accept="image/*"
-                                    capture="user"
+                                    capture="environment"
                                     onChange={handleFileUpload}
                                     className="hidden"
                                 />
