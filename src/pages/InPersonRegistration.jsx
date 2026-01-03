@@ -42,6 +42,7 @@ export function InPersonRegistration() {
     const [photoFile, setPhotoFile] = useState(null);
     const [dortoirs, setDortoirs] = useState([]);
     const [photoError, setPhotoError] = useState(null);
+    const [photoKey, setPhotoKey] = useState(0);
 
     const {
         register,
@@ -160,6 +161,7 @@ export function InPersonRegistration() {
 
             reset();
             setPhotoFile(null);
+            setPhotoKey(prev => prev + 1); // Force la réinitialisation du composant photo
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (error) {
@@ -217,6 +219,7 @@ export function InPersonRegistration() {
                                 </div>
 
                                 <PhotoCapture
+                                    key={photoKey}
                                     onPhotoCapture={setPhotoFile}
                                     required={true}
                                 />
@@ -449,6 +452,7 @@ export function InPersonRegistration() {
                                     <Button type="button" variant="outline" className="h-12" onClick={() => {
                                         reset();
                                         setPhotoFile(null);
+                                        setPhotoKey(prev => prev + 1);
                                     }}>
                                         Annuler
                                     </Button>

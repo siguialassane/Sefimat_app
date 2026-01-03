@@ -44,7 +44,6 @@ export function RegistrationManagement() {
     const [chefsQuartier, setChefsQuartier] = useState([]);
     const [dortoirs, setDortoirs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedIds, setSelectedIds] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
         statut: "",
@@ -58,10 +57,12 @@ export function RegistrationManagement() {
     // Fonction pour formater une inscription
     const formatRegistration = (row) => ({
         id: row.id,
+        reference_id: row.reference_id,
         nom: row.nom,
         prenom: row.prenom,
         age: row.age,
         sexe: row.sexe === 'homme' ? 'H' : 'F',
+        sexeRaw: row.sexe,
         niveau: niveauEtudeMap[row.niveau_etude] || row.niveau_etude,
         chefQuartier: row.chef_quartier
             ? `${row.chef_quartier.nom_complet} (${row.chef_quartier.zone})`
@@ -221,50 +222,6 @@ export function RegistrationManagement() {
         return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
     });
 
-    const handleSelectAll = (checked) => {
-        if (checked) {
-            setSelectedIds(filteredRegistrations.map((r) => r.id));
-        } else {
-            setSelectedIds([]);
-        }
-    };
-
-    const handleSelectOne = (id, checked) => {
-        if (checked) {
-            setSelectedIds([...selectedIds, id]);
-        } else {
-            setSelectedIds(selectedIds.filter((sid) => sid !== id));
-        }
-    };
-
-    const handleValidateSelected = async () => {
-        try {
-            // Filtrer uniquement les IDs en attente
-            const pendingIds = selectedIds.filter(
-                id => registrations.find(r => r.id === id)?.statut === 'en_attente'
-            );
-
-            if (pendingIds.length === 0) return;
-
-            const { error } = await supabase
-                .from('inscriptions')
-                .update({ statut: 'valide' })
-                .in('id', pendingIds);
-
-            if (error) throw error;
-
-            // Mettre à jour l'état local
-            setRegistrations(
-                registrations.map((r) =>
-                    pendingIds.includes(r.id) ? { ...r, statut: 'valide' } : r
-                )
-            );
-            setSelectedIds([]);
-        } catch (error) {
-            console.error('Erreur validation:', error);
-            alert('Erreur lors de la validation des inscriptions');
-        }
-    };
 
     const handleValidateOne = async (id) => {
         try {
@@ -358,10 +315,6 @@ export function RegistrationManagement() {
             alert('Erreur lors de la mise à jour de l\'inscription');
         }
     };
-
-    const pendingSelectedCount = selectedIds.filter(
-        (id) => registrations.find((r) => r.id === id)?.statut === "en_attente"
-    ).length;
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
@@ -475,12 +428,6 @@ export function RegistrationManagement() {
                                 <Download className="h-4 w-4" />
                                 Export Excel
                             </Button>
-                            {pendingSelectedCount > 0 && (
-                                <Button variant="secondary" className="gap-2" onClick={handleValidateSelected}>
-                                    <CheckCircle className="h-4 w-4" />
-                                    Valider la sélection ({pendingSelectedCount})
-                                </Button>
-                            )}
                         </div>
                     </div>
 
@@ -507,17 +454,7 @@ export function RegistrationManagement() {
                                     <table className="w-full text-left text-sm border-collapse">
                                         <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
                                             <tr>
-                                                <th className="p-4 w-12 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={
-                                                            selectedIds.length === filteredRegistrations.length &&
-                                                            filteredRegistrations.length > 0
-                                                        }
-                                                        onChange={(e) => handleSelectAll(e.target.checked)}
-                                                        className="w-4 h-4 text-primary accent-primary rounded cursor-pointer"
-                                                    />
-                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">ID</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Photo</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Nom</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Prénoms</th>
@@ -538,15 +475,14 @@ export function RegistrationManagement() {
                                             {filteredRegistrations.map((registration) => (
                                                 <tr
                                                     key={registration.id}
-                                                    className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                                    className={`group hover:opacity-90 transition-colors ${
+                                                        registration.sexeRaw === 'homme'
+                                                            ? 'bg-blue-50/40 dark:bg-blue-900/10'
+                                                            : 'bg-pink-50/40 dark:bg-pink-900/10'
+                                                    }`}
                                                 >
-                                                    <td className="p-4 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedIds.includes(registration.id)}
-                                                            onChange={(e) => handleSelectOne(registration.id, e.target.checked)}
-                                                            className="w-4 h-4 text-primary accent-primary rounded cursor-pointer"
-                                                        />
+                                                    <td className="p-4 font-semibold text-primary">
+                                                        {registration.reference_id || '-'}
                                                     </td>
                                                     <td className="p-4">
                                                         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">

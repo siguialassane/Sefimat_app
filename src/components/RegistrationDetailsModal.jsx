@@ -267,6 +267,17 @@ export function RegistrationDetailsModal({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
+                                    <span className="w-5 h-5 flex items-center justify-center text-primary font-bold text-xs mt-0.5 border-2 rounded border-primary">
+                                        ID
+                                    </span>
+                                    <div>
+                                        <p className="text-sm text-text-secondary">Identifiant</p>
+                                        <p className="font-semibold text-lg text-primary">
+                                            {registration.reference_id || '-'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
                                     <User className="w-5 h-5 text-text-secondary mt-0.5" />
                                     <div>
                                         <p className="text-sm text-text-secondary">Nom complet</p>
