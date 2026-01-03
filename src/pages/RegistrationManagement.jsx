@@ -17,6 +17,7 @@ import {
     ChevronLeft,
     ChevronRight,
     X,
+    Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
@@ -485,40 +486,15 @@ export function RegistrationManagement() {
                                                         {registration.date}
                                                     </td>
                                                     <td className="p-4 text-right">
-                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            {registration.statut === "en_attente" && (
-                                                                <button
-                                                                    onClick={() => handleValidateOne(registration.id)}
-                                                                    className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
-                                                                    title="Valider"
-                                                                >
-                                                                    <CheckCircle className="h-5 w-5" />
-                                                                </button>
-                                                            )}
-                                                            {registration.statut === "rejete" && (
-                                                                <button
-                                                                    onClick={() => handleValidateOne(registration.id)}
-                                                                    className="p-1.5 text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                                                                    title="Rétablir"
-                                                                >
-                                                                    <RefreshCw className="h-5 w-5" />
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                onClick={() => setEditModal({ open: true, registration })}
-                                                                className="p-1.5 text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                                                                title="Éditer"
-                                                            >
-                                                                <Edit className="h-5 w-5" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setDeleteModal({ open: true, registration })}
-                                                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                                                                title="Supprimer"
-                                                            >
-                                                                <Trash2 className="h-5 w-5" />
-                                                            </button>
-                                                        </div>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setEditModal({ open: true, registration })}
+                                                            className="gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                            Voir détails
+                                                        </Button>
                                                     </td>
                                                 </tr>
                                             ))}
