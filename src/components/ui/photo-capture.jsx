@@ -237,7 +237,7 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                 {preview ? (
                     // Affichage de la photo capturée
                     <div className="relative group">
-                        <div className="w-full aspect-[4/3] sm:w-48 sm:h-48 mx-auto rounded-xl overflow-hidden border-2 border-primary/30 shadow-lg">
+                        <div className="w-full max-w-sm aspect-square mx-auto rounded-xl overflow-hidden border-2 border-primary/30 shadow-lg">
                             <img
                                 src={preview}
                                 alt="Photo du participant"
@@ -263,56 +263,59 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                         </div>
                     </div>
                 ) : isWebcamActive ? (
-                    // Mode webcam actif
-                    <div className="relative w-full aspect-[4/3] sm:w-64 sm:h-48 mx-auto rounded-xl overflow-hidden border-2 border-primary shadow-lg bg-black">
-                        <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-full object-cover"
-                            style={{ transform: 'scaleX(-1)' }} // Effet miroir
-                        />
-                        {/* Indicateur de chargement si pas prêt */}
-                        {!isWebcamReady && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                <Loader2 className="h-8 w-8 text-white animate-spin" />
+                    // Mode webcam actif - Vidéo + Boutons en dessous
+                    <div className="flex flex-col gap-4">
+                        <div className="relative w-full aspect-[4/3] mx-auto rounded-xl overflow-hidden border-2 border-primary shadow-lg bg-black">
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                                style={{ transform: 'scaleX(-1)' }} // Effet miroir
+                            />
+                            {/* Indicateur de chargement si pas prêt */}
+                            {!isWebcamReady && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                    <Loader2 className="h-10 w-10 text-white animate-spin" />
+                                </div>
+                            )}
+                            {/* Overlay avec guide visage */}
+                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                                <div className="w-40 h-52 border-2 border-white/40 rounded-full" />
                             </div>
-                        )}
-                        {/* Overlay avec guide */}
-                        <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute inset-4 border-2 border-white/50 rounded-lg" />
                         </div>
-                        {/* Contrôles webcam */}
-                        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+                        {/* Boutons EN DESSOUS de la vidéo */}
+                        <div className="flex justify-center gap-3">
                             <Button
                                 type="button"
                                 onClick={captureFromWebcam}
-                                className="gap-2 shadow-lg"
+                                className="gap-2 h-12 px-8 shadow-lg"
                                 disabled={isCompressing || !isWebcamReady}
                             >
                                 {isCompressing ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <Loader2 className="h-5 w-5 animate-spin" />
                                 ) : (
-                                    <Camera className="h-4 w-4" />
+                                    <Camera className="h-5 w-5" />
                                 )}
-                                Capturer
+                                Capturer la photo
                             </Button>
                             <Button
                                 type="button"
                                 variant="destructive"
-                                size="icon"
+                                className="h-12 px-6"
                                 onClick={stopWebcam}
                             >
-                                <X className="h-4 w-4" />
+                                <X className="h-5 w-5 mr-2" />
+                                Annuler
                             </Button>
                         </div>
                     </div>
                 ) : (
                     // Zone de sélection (pas de photo)
-                    <div className="w-full aspect-[4/3] sm:w-48 sm:h-48 mx-auto rounded-xl border-2 border-dashed border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-800/50 flex flex-col items-center justify-center gap-3 p-4 transition-colors hover:border-primary/50">
-                        <div className="h-16 w-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                            <Camera className="h-8 w-8 text-gray-400" />
+                    <div className="w-full max-w-sm aspect-square mx-auto rounded-xl border-2 border-dashed border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-800/50 flex flex-col items-center justify-center gap-4 p-6 transition-colors hover:border-primary/50">
+                        <div className="h-20 w-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <Camera className="h-10 w-10 text-gray-400" />
                         </div>
                         <p className="text-sm text-text-secondary dark:text-gray-400 text-center">
                             {required ? "Photo obligatoire" : "Photo (optionnelle)"}

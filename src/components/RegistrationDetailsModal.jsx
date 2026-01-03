@@ -115,10 +115,10 @@ export function RegistrationDetailsModal({
                             )}
                             {/* Status Badge on Photo */}
                             <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm ${registration.statut === 'valide'
-                                    ? 'bg-emerald-500'
-                                    : registration.statut === 'rejete'
-                                        ? 'bg-red-500'
-                                        : 'bg-amber-500'
+                                ? 'bg-emerald-500'
+                                : registration.statut === 'rejete'
+                                    ? 'bg-red-500'
+                                    : 'bg-amber-500'
                                 }`}>
                                 {registration.statut === 'valide' ? (
                                     <CheckCircle className="w-4 h-4 text-white" />
@@ -327,32 +327,78 @@ export function RegistrationDetailsModal({
                                 </div>
                             </div>
 
-                            {/* Section Affectation */}
+                            {/* Section Affectation - ÉDITABLE DIRECTEMENT */}
                             <div className="md:col-span-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
-                                <h4 className="font-semibold text-text-main dark:text-white mb-3 flex items-center gap-2">
+                                <h4 className="font-semibold text-text-main dark:text-white mb-4 flex items-center gap-2">
                                     <Building className="w-4 h-4 text-primary" />
                                     Affectation
+                                    {isOnlineRegistration && registration.statut === 'en_attente' && (
+                                        <span className="text-xs font-normal text-amber-500 ml-2">
+                                            (Requis pour valider)
+                                        </span>
+                                    )}
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="flex items-start gap-3">
-                                        <Building className="w-5 h-5 text-text-secondary mt-0.5" />
-                                        <div>
-                                            <p className="text-sm text-text-secondary">Salle de dortoir</p>
-                                            <p className={`font-medium ${registration.originalData?.dortoir_id ? 'text-text-main dark:text-white' : 'text-amber-500'}`}>
-                                                {getDortoirName()}
-                                            </p>
-                                        </div>
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2 text-text-secondary">
+                                            <Building className="w-4 h-4" />
+                                            Salle de dortoir
+                                            {isOnlineRegistration && <span className="text-red-500">*</span>}
+                                        </Label>
+                                        <Select
+                                            value={formData.dortoir_id || ""}
+                                            onChange={async (e) => {
+                                                const newValue = e.target.value;
+                                                handleChange("dortoir_id", newValue);
+                                                // Sauvegarder immédiatement sans fermer le modal
+                                                await onUpdate(registration.id, {
+                                                    ...formData,
+                                                    dortoir_id: newValue
+                                                }, false);
+                                            }}
+                                            className={!formData.dortoir_id && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/10" : ""}
+                                        >
+                                            <option value="">Non assigné</option>
+                                            {dortoirs?.map(dortoir => (
+                                                <option key={dortoir.id} value={dortoir.id}>
+                                                    {dortoir.nom}
+                                                </option>
+                                            ))}
+                                        </Select>
                                     </div>
-                                    <div className="flex items-start gap-3">
-                                        <BookOpen className="w-5 h-5 text-text-secondary mt-0.5" />
-                                        <div>
-                                            <p className="text-sm text-text-secondary">Niveau de formation</p>
-                                            <p className={`font-medium ${registration.originalData?.niveau_formation ? 'text-text-main dark:text-white' : 'text-amber-500'}`}>
-                                                {niveauFormationMap[registration.originalData?.niveau_formation] || "Non assigné"}
-                                            </p>
-                                        </div>
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2 text-text-secondary">
+                                            <BookOpen className="w-4 h-4" />
+                                            Niveau de formation
+                                            {isOnlineRegistration && <span className="text-red-500">*</span>}
+                                        </Label>
+                                        <Select
+                                            value={formData.niveau_formation || ""}
+                                            onChange={async (e) => {
+                                                const newValue = e.target.value;
+                                                handleChange("niveau_formation", newValue);
+                                                // Sauvegarder immédiatement sans fermer le modal
+                                                await onUpdate(registration.id, {
+                                                    ...formData,
+                                                    niveau_formation: newValue
+                                                }, false);
+                                            }}
+                                            className={!formData.niveau_formation && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/10" : ""}
+                                        >
+                                            <option value="">Non assigné</option>
+                                            <option value="debutant">Débutant</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="superieur">Supérieur</option>
+                                        </Select>
                                     </div>
                                 </div>
+                                {/* Message de confirmation */}
+                                {formData.dortoir_id && formData.niveau_formation && (
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Affectation complète - Vous pouvez valider cette inscription
+                                    </p>
+                                )}
                             </div>
 
                             {/* Avertissement si champs manquants pour validation */}

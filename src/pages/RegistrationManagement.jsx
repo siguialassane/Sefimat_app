@@ -55,6 +55,23 @@ export function RegistrationManagement() {
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
 
+    // Fonction pour formater une inscription
+    const formatRegistration = (row) => ({
+        id: row.id,
+        nom: row.nom,
+        prenom: row.prenom,
+        age: row.age,
+        sexe: row.sexe === 'homme' ? 'H' : 'F',
+        niveau: niveauEtudeMap[row.niveau_etude] || row.niveau_etude,
+        chefQuartier: row.chef_quartier
+            ? `${row.chef_quartier.nom_complet} (${row.chef_quartier.zone})`
+            : 'Inscription Présentielle',
+        statut: row.statut,
+        date: new Date(row.created_at).toLocaleDateString('fr-FR'),
+        type_inscription: row.type_inscription,
+        originalData: row,
+    });
+
     // Charger les inscriptions depuis Supabase
     useEffect(() => {
         async function loadInscriptions() {
@@ -70,23 +87,7 @@ export function RegistrationManagement() {
 
                 if (error) throw error;
 
-                // Formater les données pour l'affichage
-                const formatted = data.map(row => ({
-                    id: row.id,
-                    nom: row.nom,
-                    prenom: row.prenom,
-                    age: row.age,
-                    sexe: row.sexe === 'homme' ? 'H' : 'F',
-                    niveau: niveauEtudeMap[row.niveau_etude] || row.niveau_etude,
-                    chefQuartier: row.chef_quartier
-                        ? `${row.chef_quartier.nom_complet} (${row.chef_quartier.zone})`
-                        : 'Inscription Présentielle',
-                    statut: row.statut,
-                    date: new Date(row.created_at).toLocaleDateString('fr-FR'),
-                    type_inscription: row.type_inscription,
-                    originalData: row, // Pour l'édition et l'affichage complet
-                }));
-
+                const formatted = data.map(formatRegistration);
                 setRegistrations(formatted);
             } catch (error) {
                 console.error('Erreur chargement inscriptions:', error);
@@ -99,6 +100,80 @@ export function RegistrationManagement() {
         if (user) {
             loadInscriptions();
         }
+
+        // Souscription temps réel pour les nouvelles inscriptions
+        const channel = supabase
+            .channel('inscriptions-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'inscriptions'
+                },
+                async (payload) => {
+                    console.log('Nouvelle inscription reçue:', payload.new);
+                    // Récupérer les données complètes avec le chef de quartier
+                    const { data, error } = await supabase
+                        .from('inscriptions')
+                        .select(`
+                            *,
+                            chef_quartier:chefs_quartier(nom_complet, zone)
+                        `)
+                        .eq('id', payload.new.id)
+                        .single();
+
+                    if (!error && data) {
+                        const newRegistration = formatRegistration(data);
+                        setRegistrations(prev => [newRegistration, ...prev]);
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'inscriptions'
+                },
+                async (payload) => {
+                    console.log('Inscription mise à jour:', payload.new);
+                    // Récupérer les données complètes
+                    const { data, error } = await supabase
+                        .from('inscriptions')
+                        .select(`
+                            *,
+                            chef_quartier:chefs_quartier(nom_complet, zone)
+                        `)
+                        .eq('id', payload.new.id)
+                        .single();
+
+                    if (!error && data) {
+                        const updatedRegistration = formatRegistration(data);
+                        setRegistrations(prev =>
+                            prev.map(r => r.id === payload.new.id ? updatedRegistration : r)
+                        );
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'inscriptions'
+                },
+                (payload) => {
+                    console.log('Inscription supprimée:', payload.old);
+                    setRegistrations(prev => prev.filter(r => r.id !== payload.old.id));
+                }
+            )
+            .subscribe();
+
+        // Cleanup: se désabonner quand le composant est démonté
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user]);
 
     // Charger la liste des chefs de quartier pour le filtre
@@ -230,7 +305,7 @@ export function RegistrationManagement() {
         }
     };
 
-    const handleUpdate = async (id, formData) => {
+    const handleUpdate = async (id, formData, closeModal = true) => {
         try {
             const updateData = {
                 nom: formData.nom,
@@ -265,26 +340,19 @@ export function RegistrationManagement() {
             if (fetchError) throw fetchError;
 
             // Mettre à jour l'état local
-            const updatedRegistration = {
-                id: data.id,
-                nom: data.nom,
-                prenom: data.prenom,
-                age: data.age,
-                sexe: data.sexe === 'homme' ? 'H' : 'F',
-                niveau: niveauEtudeMap[data.niveau_etude] || data.niveau_etude,
-                chefQuartier: data.chef_quartier
-                    ? `${data.chef_quartier.nom_complet} (${data.chef_quartier.zone})`
-                    : 'Inscription Présentielle',
-                statut: data.statut,
-                date: new Date(data.created_at).toLocaleDateString('fr-FR'),
-                type_inscription: data.type_inscription,
-                originalData: data,
-            };
+            const updatedRegistration = formatRegistration(data);
 
             setRegistrations(
                 registrations.map((r) => (r.id === id ? updatedRegistration : r))
             );
-            setEditModal({ open: false, registration: null });
+
+            // Fermer le modal seulement si demandé
+            if (closeModal) {
+                setEditModal({ open: false, registration: null });
+            } else {
+                // Mettre à jour le modal avec les nouvelles données
+                setEditModal(prev => ({ ...prev, registration: updatedRegistration }));
+            }
         } catch (error) {
             console.error('Erreur mise à jour:', error);
             alert('Erreur lors de la mise à jour de l\'inscription');
@@ -450,6 +518,7 @@ export function RegistrationManagement() {
                                                         className="w-4 h-4 text-primary accent-primary rounded cursor-pointer"
                                                     />
                                                 </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">Photo</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Nom</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Prénoms</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Âge</th>
@@ -478,6 +547,21 @@ export function RegistrationManagement() {
                                                             onChange={(e) => handleSelectOne(registration.id, e.target.checked)}
                                                             className="w-4 h-4 text-primary accent-primary rounded cursor-pointer"
                                                         />
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                                            {registration.originalData?.photo_url ? (
+                                                                <img
+                                                                    src={registration.originalData.photo_url}
+                                                                    alt={`${registration.nom} ${registration.prenom}`}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <span className="text-lg text-gray-400">
+                                                                    {registration.nom?.charAt(0)?.toUpperCase() || '?'}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="p-4 font-medium text-text-main dark:text-white">
                                                         {registration.nom}
