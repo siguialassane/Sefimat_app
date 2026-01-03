@@ -278,26 +278,46 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
 
             {/* Boutons d'action (si pas de photo et pas de webcam) */}
             {!preview && !isWebcamActive && (
-                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <div className="flex flex-col gap-2 justify-center">
                     {isMobile ? (
-                        // Mode mobile: input avec capture (caméra arrière pour meilleure qualité)
+                        // Mode mobile: Selfie, Caméra arrière, et Galerie
                         <>
-                            <label className="cursor-pointer">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                />
-                                <Button type="button" variant="default" className="gap-2 w-full" asChild>
-                                    <span>
-                                        <Camera className="h-4 w-4" />
-                                        Prendre une photo
-                                    </span>
-                                </Button>
-                            </label>
+                            <div className="flex gap-2">
+                                {/* Bouton Selfie (caméra frontale) */}
+                                <label className="cursor-pointer flex-1">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="user"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                    />
+                                    <Button type="button" variant="outline" className="gap-2 w-full" asChild>
+                                        <span>
+                                            <Camera className="h-4 w-4" />
+                                            Selfie
+                                        </span>
+                                    </Button>
+                                </label>
+                                {/* Bouton Caméra arrière */}
+                                <label className="cursor-pointer flex-1">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                    />
+                                    <Button type="button" variant="default" className="gap-2 w-full" asChild>
+                                        <span>
+                                            <Camera className="h-4 w-4" />
+                                            Photo
+                                        </span>
+                                    </Button>
+                                </label>
+                            </div>
+                            {/* Bouton Galerie */}
                             <label className="cursor-pointer">
                                 <input
                                     type="file"
@@ -308,7 +328,7 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
                                 <Button type="button" variant="outline" className="gap-2 w-full" asChild>
                                     <span>
                                         <Upload className="h-4 w-4" />
-                                        Galerie
+                                        Choisir depuis la galerie
                                     </span>
                                 </Button>
                             </label>
