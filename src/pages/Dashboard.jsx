@@ -13,6 +13,8 @@ import {
     MoreVertical,
     ChevronLeft,
     ChevronRight,
+    Building,
+    BookOpen,
 } from "lucide-react";
 import {
     AreaChart,
@@ -32,6 +34,8 @@ export function Dashboard() {
     const [stats, setStats] = useState(null);
     const [leadersData, setLeadersData] = useState([]);
     const [demographics, setDemographics] = useState(null);
+    const [dortoirStats, setDortoirStats] = useState([]);
+    const [niveauFormationStats, setNiveauFormationStats] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
 
     // Charger les statistiques globales
@@ -146,6 +150,43 @@ export function Dashboard() {
         }
 
         loadLeadersData();
+    }, []);
+
+    // Charger les statistiques des dortoirs
+    useEffect(() => {
+        async function loadDortoirStats() {
+            try {
+                const { data, error } = await supabase
+                    .from('vue_statistiques_dortoirs')
+                    .select('*')
+                    .order('nom');
+
+                if (error) throw error;
+                setDortoirStats(data || []);
+            } catch (error) {
+                console.error('Erreur chargement stats dortoirs:', error);
+            }
+        }
+
+        loadDortoirStats();
+    }, []);
+
+    // Charger les statistiques des niveaux de formation
+    useEffect(() => {
+        async function loadNiveauFormationStats() {
+            try {
+                const { data, error } = await supabase
+                    .from('vue_statistiques_niveaux_formation')
+                    .select('*');
+
+                if (error) throw error;
+                setNiveauFormationStats(data || []);
+            } catch (error) {
+                console.error('Erreur chargement stats niveaux:', error);
+            }
+        }
+
+        loadNiveauFormationStats();
     }, []);
 
     return (
@@ -280,6 +321,124 @@ export function Dashboard() {
                     </>
                 )}
             </Card>
+
+            {/* Statistiques Dortoirs et Niveaux de Formation */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Occupation des Dortoirs */}
+                <Card className="p-6 flex flex-col gap-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <Building className="w-5 h-5 text-primary" />
+                            <CardTitle>Occupation des Dortoirs</CardTitle>
+                        </div>
+                        <CardDescription>Répartition des participants par salle</CardDescription>
+                    </div>
+
+                    {loading ? (
+                        <div className="flex flex-col gap-4 animate-pulse">
+                            <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                            <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                        </div>
+                    ) : dortoirStats.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-3">
+                            {dortoirStats.map(stat => {
+                                const tauxNum = parseFloat(stat.taux_remplissage);
+                                return (
+                                    <div key={stat.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-border-light dark:border-border-dark">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-semibold text-text-main dark:text-white">{stat.nom}</span>
+                                            <Badge variant={tauxNum >= 90 ? "destructive" : tauxNum >= 70 ? "warning" : "success"}>
+                                                {stat.taux_remplissage}%
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm text-text-secondary dark:text-gray-400 mb-2">
+                                            <span>{stat.nombre_inscrits} / {stat.capacite} places</span>
+                                            <span className="font-medium">{stat.places_disponibles} disponibles</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all ${
+                                                    tauxNum >= 90 ? 'bg-red-500' :
+                                                    tauxNum >= 70 ? 'bg-orange-500' :
+                                                    'bg-emerald-500'
+                                                }`}
+                                                style={{ width: `${Math.min(tauxNum, 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-center text-text-secondary py-8">Aucune donnée disponible</p>
+                    )}
+                </Card>
+
+                {/* Niveaux de Formation */}
+                <Card className="p-6 flex flex-col gap-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <BookOpen className="w-5 h-5 text-primary" />
+                            <CardTitle>Niveaux de Formation</CardTitle>
+                        </div>
+                        <CardDescription>Répartition par niveau de connaissance</CardDescription>
+                    </div>
+
+                    {loading ? (
+                        <div className="flex flex-col gap-4 animate-pulse">
+                            <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                            <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                        </div>
+                    ) : niveauFormationStats.length > 0 ? (
+                        <div className="flex flex-col gap-4">
+                            {niveauFormationStats.map(stat => {
+                                const niveauLabels = {
+                                    debutant: "Débutant",
+                                    normal: "Normal",
+                                    superieur: "Supérieur"
+                                };
+                                const niveauColors = {
+                                    debutant: "bg-blue-500",
+                                    normal: "bg-purple-500",
+                                    superieur: "bg-amber-500"
+                                };
+
+                                return (
+                                    <div key={stat.niveau_formation} className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-medium text-text-main dark:text-white">
+                                                {niveauLabels[stat.niveau_formation]}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-lg font-bold text-primary">{stat.nombre_inscrits}</span>
+                                                <span className="text-xs text-text-secondary">({stat.pourcentage}%)</span>
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${niveauColors[stat.niveau_formation]}`}
+                                                style={{ width: `${stat.pourcentage}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Total */}
+                            <div className="pt-4 border-t border-border-light dark:border-border-dark">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-text-main dark:text-white">Total Affectés</span>
+                                    <span className="text-2xl font-bold text-primary">
+                                        {niveauFormationStats.reduce((acc, curr) => acc + curr.nombre_inscrits, 0)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-center text-text-secondary py-8">Aucune donnée disponible</p>
+                    )}
+                </Card>
+            </div>
 
             {/* Neighborhood Leaders Table */}
             <Card className="overflow-hidden">
