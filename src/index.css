@@ -79,6 +79,18 @@ textarea:focus {
   @apply outline-none ring-2 ring-primary/50 border-primary;
 }
 
+/* Select options dark mode fix */
+.dark select option {
+  background-color: #1a2e22;
+  color: #ffffff;
+}
+
+.dark select option:hover,
+.dark select option:checked {
+  background-color: #2a4a35;
+  color: #13ec5b;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-10px); }
