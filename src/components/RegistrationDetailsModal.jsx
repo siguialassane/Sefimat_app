@@ -161,6 +161,7 @@ export function RegistrationDetailsModal({
                                 <Select
                                     value={formData.sexe || ""}
                                     onChange={e => handleChange("sexe", e.target.value)}
+                                    className="bg-white dark:bg-gray-800 text-text-main dark:text-white"
                                 >
                                     <option value="homme">Homme</option>
                                     <option value="femme">Femme</option>
@@ -179,6 +180,7 @@ export function RegistrationDetailsModal({
                                 <Select
                                     value={formData.niveau_etude || ""}
                                     onChange={e => handleChange("niveau_etude", e.target.value)}
+                                    className="bg-white dark:bg-gray-800 text-text-main dark:text-white"
                                 >
                                     <option value="aucun">Aucun</option>
                                     <option value="primaire">Primaire</option>
@@ -192,8 +194,9 @@ export function RegistrationDetailsModal({
                                 <Select
                                     value={formData.chef_quartier_id || ""}
                                     onChange={e => handleChange("chef_quartier_id", e.target.value)}
+                                    className="bg-white dark:bg-gray-800 text-text-main dark:text-white"
                                 >
-                                    <option value="">Sélectionner un chef</option>
+                                    <option value="">Sélectionner un président</option>
                                     {chefsQuartier?.map(chef => (
                                         <option key={chef.id} value={chef.id}>
                                             {chef.nom_complet} ({chef.zone})
@@ -216,7 +219,7 @@ export function RegistrationDetailsModal({
                                         <Select
                                             value={formData.dortoir_id || ""}
                                             onChange={e => handleChange("dortoir_id", e.target.value)}
-                                            className={!formData.dortoir_id ? "border-amber-500" : ""}
+                                            className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.dortoir_id ? "border-amber-500" : ""}`}
                                         >
                                             <option value="">Sélectionner un dortoir</option>
                                             {dortoirs?.map(dortoir => (
@@ -233,7 +236,7 @@ export function RegistrationDetailsModal({
                                         <Select
                                             value={formData.niveau_formation || ""}
                                             onChange={e => handleChange("niveau_formation", e.target.value)}
-                                            className={!formData.niveau_formation ? "border-amber-500" : ""}
+                                            className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.niveau_formation ? "border-amber-500" : ""}`}
                                         >
                                             <option value="">Sélectionner un niveau</option>
                                             <option value="debutant">Débutant</option>
@@ -249,6 +252,7 @@ export function RegistrationDetailsModal({
                                 <Select
                                     value={formData.statut || ""}
                                     onChange={e => handleChange("statut", e.target.value)}
+                                    className="bg-white dark:bg-gray-800 text-text-main dark:text-white"
                                 >
                                     <option value="en_attente">En attente</option>
                                     <option value="valide">Validé</option>
@@ -367,7 +371,7 @@ export function RegistrationDetailsModal({
                                                     dortoir_id: newValue
                                                 }, false);
                                             }}
-                                            className={!formData.dortoir_id && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/10" : ""}
+                                            className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.dortoir_id && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20" : ""}`}
                                         >
                                             <option value="">Non assigné</option>
                                             {dortoirs?.map(dortoir => (
@@ -394,7 +398,7 @@ export function RegistrationDetailsModal({
                                                     niveau_formation: newValue
                                                 }, false);
                                             }}
-                                            className={!formData.niveau_formation && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/10" : ""}
+                                            className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.niveau_formation && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20" : ""}`}
                                         >
                                             <option value="">Non assigné</option>
                                             <option value="debutant">Débutant</option>
