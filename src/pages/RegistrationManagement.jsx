@@ -10,7 +10,6 @@ import {
     Search,
     Plus,
     Download,
-    CheckCircle,
     Edit,
     Trash2,
     RefreshCw,
@@ -57,7 +56,7 @@ export function RegistrationManagement() {
     // Fonction pour formater une inscription
     const formatRegistration = (row) => ({
         id: row.id,
-        reference_id: row.reference_id,
+        reference_id: row.reference_id || 'N/A',
         nom: row.nom,
         prenom: row.prenom,
         age: row.age,
@@ -69,7 +68,13 @@ export function RegistrationManagement() {
             : 'Inscription Présentielle',
         statut: row.statut,
         date: new Date(row.created_at).toLocaleDateString('fr-FR'),
-        heure: new Date(row.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        dateTime: new Date(row.created_at).toLocaleString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }),
         type_inscription: row.type_inscription,
         originalData: row,
     });
@@ -222,7 +227,6 @@ export function RegistrationManagement() {
         const matchesSexe = !filters.sexe || r.sexe === filters.sexe;
         return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
     });
-
 
     const handleValidateOne = async (id) => {
         try {
@@ -482,8 +486,8 @@ export function RegistrationManagement() {
                                                             : 'bg-pink-50/40 dark:bg-pink-900/10'
                                                     }`}
                                                 >
-                                                    <td className="p-4 font-semibold text-primary">
-                                                        {registration.reference_id || '-'}
+                                                    <td className="p-4 font-mono text-sm font-semibold text-primary">
+                                                        {registration.reference_id}
                                                     </td>
                                                     <td className="p-4">
                                                         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
@@ -523,11 +527,8 @@ export function RegistrationManagement() {
                                                             {statusConfig[registration.statut].label}
                                                         </Badge>
                                                     </td>
-                                                    <td className="p-4 text-text-secondary dark:text-gray-300">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-text-main dark:text-white font-medium">{registration.date}</span>
-                                                            <span className="text-xs text-text-secondary dark:text-gray-400">{registration.heure}</span>
-                                                        </div>
+                                                    <td className="p-4 text-text-secondary dark:text-gray-400 text-xs">
+                                                        {registration.dateTime}
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <Button

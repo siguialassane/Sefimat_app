@@ -102,7 +102,7 @@ export function RegistrationDetailsModal({
                                     alt={`Photo de ${registration.originalData.nom} ${registration.originalData.prenom}`}
                                     className="w-48 h-48 rounded-lg border-4 border-primary/20 shadow-lg object-cover"
                                     fallback={
-                                        <div className="w-48 h-48 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-3xl font-bold">
+                                        <div className="w-48 h-48 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-5xl font-bold">
                                             {registration.originalData.nom?.[0]?.toUpperCase()}
                                             {registration.originalData.prenom?.[0]?.toUpperCase()}
                                         </div>
@@ -110,7 +110,7 @@ export function RegistrationDetailsModal({
                                 />
                             ) : (
                                 <div className="w-48 h-48 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-4 border-gray-100 dark:border-gray-600 shadow-md">
-                                    <User className="w-16 h-16 text-gray-400 dark:text-gray-500" />
+                                    <User className="w-20 h-20 text-gray-400 dark:text-gray-500" />
                                 </div>
                             )}
                             {/* Status Badge on Photo */}
@@ -336,7 +336,7 @@ export function RegistrationDetailsModal({
                                     <div>
                                         <p className="text-sm text-text-secondary">Date d'inscription</p>
                                         <p className="font-medium text-text-main dark:text-white">
-                                            {registration.date}
+                                            {registration.dateTime || registration.date}
                                         </p>
                                     </div>
                                 </div>
