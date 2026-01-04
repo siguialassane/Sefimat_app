@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { LazyImage } from "@/components/ui/lazy-image";
-import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap, Building, BookOpen } from "lucide-react";
+import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap, Building, BookOpen, Users } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 // Mapping niveau formation
 const niveauFormationMap = {
@@ -28,6 +29,7 @@ export function RegistrationDetailsModal({
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({});
+    const [dortoirStats, setDortoirStats] = useState([]);
 
     // Initialiser les données du formulaire quand l'inscription change
     useEffect(() => {
@@ -42,6 +44,26 @@ export function RegistrationDetailsModal({
         }
         setIsEditing(false);
     }, [registration]);
+
+    // Charger les statistiques des dortoirs
+    useEffect(() => {
+        async function loadDortoirStats() {
+            const { data, error } = await supabase
+                .from('vue_statistiques_dortoirs')
+                .select('*')
+                .order('nom');
+
+            if (error) {
+                console.error('Erreur chargement stats dortoirs:', error);
+            } else {
+                setDortoirStats(data || []);
+            }
+        }
+
+        if (isOpen) {
+            loadDortoirStats();
+        }
+    }, [isOpen, formData.dortoir_id]);
 
     if (!isOpen || !registration) return null;
 
@@ -353,6 +375,60 @@ export function RegistrationDetailsModal({
                                         </span>
                                     )}
                                 </h4>
+
+                                {/* Vue compacte des statistiques des dortoirs */}
+                                {dortoirStats.length > 0 && (
+                                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                            <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                                                Occupation des dortoirs
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {dortoirStats.map(stat => {
+                                                const isSelected = formData.dortoir_id === stat.id;
+                                                const tauxNum = parseFloat(stat.taux_remplissage);
+                                                const colorClass = tauxNum >= 90
+                                                    ? 'bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                                                    : tauxNum >= 70
+                                                    ? 'bg-orange-100 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700'
+                                                    : 'bg-emerald-100 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700';
+
+                                                return (
+                                                    <div
+                                                        key={stat.id}
+                                                        className={`p-2 rounded border ${isSelected ? 'ring-2 ring-primary' : colorClass}`}
+                                                    >
+                                                        <div className="text-xs font-semibold text-text-main dark:text-white truncate">
+                                                            {stat.nom}
+                                                        </div>
+                                                        <div className="text-lg font-bold text-primary mt-1">
+                                                            {stat.nombre_inscrits}
+                                                            <span className="text-xs text-text-secondary dark:text-gray-400 font-normal">
+                                                                /{stat.capacite}
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1">
+                                                            <div
+                                                                className={`h-1.5 rounded-full ${
+                                                                    tauxNum >= 90 ? 'bg-red-500' :
+                                                                    tauxNum >= 70 ? 'bg-orange-500' :
+                                                                    'bg-emerald-500'
+                                                                }`}
+                                                                style={{ width: `${Math.min(tauxNum, 100)}%` }}
+                                                            />
+                                                        </div>
+                                                        <div className="text-xs text-text-secondary dark:text-gray-400 mt-1">
+                                                            {stat.places_disponibles} places
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label className="flex items-center gap-2 text-text-secondary">
