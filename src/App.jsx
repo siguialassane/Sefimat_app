@@ -8,6 +8,7 @@ import {
   Dashboard,
   RegistrationManagement,
   InPersonRegistration,
+  BadgeManagement,
   Exports,
 } from "@/pages";
 
@@ -32,6 +33,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="inscriptions" element={<RegistrationManagement />} />
             <Route path="inscription-presentielle" element={<InPersonRegistration />} />
+            <Route path="badges" element={<BadgeManagement />} />
             <Route path="exports" element={<Exports />} />
           </Route>
 
