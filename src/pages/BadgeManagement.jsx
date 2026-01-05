@@ -79,21 +79,20 @@ function BadgePreview({ participant, badgeRef }) {
                 crossOrigin="anonymous"
             />
 
-            {/* Photo du participant */}
+            {/* Photo du participant - centrage sans transform pour html2canvas */}
             <div
                 style={{
                     position: "absolute",
-                    top: "105px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    width: "165px",
-                    height: "165px",
-                    borderRadius: "8px",
+                    top: "72px",
+                    left: "101px",
+                    width: "148px",
+                    height: "178px",
+                    borderRadius: "6px",
                     overflow: "hidden",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: "#e5e7eb",
+                    backgroundColor: "transparent",
                 }}
             >
                 {participant.photo_url ? (
