@@ -30,11 +30,15 @@ const niveauFormationMap = {
 // Composant Badge - Design avec styles inline (pas de Tailwind pour éviter oklch)
 function BadgePreview({ participant, badgeRef }) {
     if (!participant) {
+        // Même ratio que le badge réel (A6: 105/148)
+        const placeholderWidth = 350;
+        const placeholderHeight = Math.round(placeholderWidth / (105 / 148));
+
         return (
             <div
                 style={{
-                    width: "350px",
-                    height: "495px",
+                    width: `${placeholderWidth}px`,
+                    height: `${placeholderHeight}px`,
                     backgroundColor: "#f3f4f6",
                     borderRadius: "12px",
                     display: "flex",
@@ -51,12 +55,18 @@ function BadgePreview({ participant, badgeRef }) {
         );
     }
 
+    // Dimensions du badge basées exactement sur le ratio A6 (105mm x 148mm)
+    // Ratio A6 = 105/148 = 0.7094594...
+    // En utilisant une hauteur de 494px: 494 * 0.7095 ≈ 350px
+    const badgeWidth = 350;
+    const badgeHeight = Math.round(badgeWidth / (105 / 148)); // = 493.33 ≈ 493px
+
     return (
         <div
             ref={badgeRef}
             style={{
-                width: "350px",
-                height: "495px",
+                width: `${badgeWidth}px`,
+                height: `${badgeHeight}px`,
                 position: "relative",
                 backgroundColor: "#ffffff",
                 fontFamily: "Arial, sans-serif",
@@ -103,7 +113,7 @@ function BadgePreview({ participant, badgeRef }) {
                             width: "100%",
                             height: "100%",
                             objectFit: "cover",
-                            objectPosition: "center top",
+                            objectPosition: "center 20%",
                         }}
                         crossOrigin="anonymous"
                     />
@@ -465,11 +475,10 @@ export function BadgeManagement() {
                                     <div
                                         key={participant.id}
                                         onClick={() => setSelectedParticipant(participant)}
-                                        className={`p-4 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-4 ${
-                                            selectedParticipant?.id === participant.id
-                                                ? "bg-primary/5 border-l-4 border-primary"
-                                                : ""
-                                        }`}
+                                        className={`p-4 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-4 ${selectedParticipant?.id === participant.id
+                                            ? "bg-primary/5 border-l-4 border-primary"
+                                            : ""
+                                            }`}
                                     >
                                         {/* Photo */}
                                         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
