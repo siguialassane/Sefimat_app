@@ -31,6 +31,7 @@ const registrationSchema = z.object({
     sexe: z.enum(["homme", "femme"], { required_error: "Veuillez sélectionner le sexe" }),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
     telephone: z.string().optional().or(z.literal("")),
+    numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     chefQuartier: z.string().min(1, "Veuillez sélectionner un président de section"),
 });
 
@@ -95,7 +96,7 @@ export function PublicRegistration() {
             return true;
         }
         if (step === 2) {
-            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude"]);
+            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude", "numeroUrgence"]);
             return isValid;
         }
         if (step === 3) {
@@ -154,6 +155,7 @@ export function PublicRegistration() {
                     sexe: data.sexe,
                     niveau_etude: data.niveauEtude,
                     telephone: data.telephone || null,
+                    numero_urgence: data.numeroUrgence,
                     chef_quartier_id: data.chefQuartier,
                     type_inscription: 'en_ligne',
                     statut: 'en_attente',
@@ -181,7 +183,7 @@ export function PublicRegistration() {
     const isStepComplete = (step) => {
         if (step === 1) return !!photoFile;
         if (step === 2) {
-            return watchedValues.nom && watchedValues.prenom && watchedValues.age && watchedValues.sexe && watchedValues.niveauEtude;
+            return watchedValues.nom && watchedValues.prenom && watchedValues.age && watchedValues.sexe && watchedValues.niveauEtude && watchedValues.numeroUrgence;
         }
         if (step === 3) return !!watchedValues.chefQuartier;
         return false;
@@ -430,15 +432,32 @@ export function PublicRegistration() {
                                             </div>
                                         </div>
 
-                                        {/* Téléphone */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="telephone">Téléphone (optionnel)</Label>
-                                            <Input
-                                                id="telephone"
-                                                type="tel"
-                                                placeholder="Ex: 07 00 00 00 00"
-                                                {...register("telephone")}
-                                            />
+                                        {/* Téléphone & Numéro d'urgence */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="telephone">Téléphone (optionnel)</Label>
+                                                <Input
+                                                    id="telephone"
+                                                    type="tel"
+                                                    placeholder="Ex: 07 00 00 00 00"
+                                                    {...register("telephone")}
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="numeroUrgence">
+                                                    N° Urgence <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Input
+                                                    id="numeroUrgence"
+                                                    type="tel"
+                                                    placeholder="Ex: 01 00 00 00 00"
+                                                    {...register("numeroUrgence")}
+                                                    className={errors.numeroUrgence ? "border-red-500" : ""}
+                                                />
+                                                {errors.numeroUrgence && (
+                                                    <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

@@ -31,6 +31,7 @@ const registrationSchema = z.object({
     sexe: z.enum(["homme", "femme"]),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
     telephone: z.string().optional().or(z.literal("")),
+    numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     dortoirId: z.string().min(1, "Veuillez sélectionner un dortoir"),
     niveauFormation: z.string().min(1, "Veuillez sélectionner un niveau de formation"),
 });
@@ -159,6 +160,7 @@ export function InPersonRegistration() {
                     sexe: data.sexe,
                     niveau_etude: data.niveauEtude,
                     telephone: data.telephone || null,
+                    numero_urgence: data.numeroUrgence,
                     admin_id: user.id,
                     type_inscription: 'presentielle',
                     statut: 'valide', // Automatiquement validé
@@ -390,18 +392,38 @@ export function InPersonRegistration() {
                                     </div>
                                 </div>
 
-                                {/* Téléphone */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="telephone">Téléphone (Optionnel)</Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                                        <Input
-                                            id="telephone"
-                                            type="tel"
-                                            placeholder="Ex: 07 00 00 00 00"
-                                            {...register("telephone")}
-                                            className="pl-10"
-                                        />
+                                {/* Téléphone & Numéro d'urgence */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="telephone">Téléphone (Optionnel)</Label>
+                                        <div className="relative">
+                                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                            <Input
+                                                id="telephone"
+                                                type="tel"
+                                                placeholder="Ex: 07 00 00 00 00"
+                                                {...register("telephone")}
+                                                className="pl-10"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="numeroUrgence">
+                                            N° Urgence <span className="text-red-500">*</span>
+                                        </Label>
+                                        <div className="relative">
+                                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                                            <Input
+                                                id="numeroUrgence"
+                                                type="tel"
+                                                placeholder="Ex: 01 00 00 00 00"
+                                                {...register("numeroUrgence")}
+                                                className={`pl-10 ${errors.numeroUrgence ? "border-red-500" : ""}`}
+                                            />
+                                        </div>
+                                        {errors.numeroUrgence && (
+                                            <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                        )}
                                     </div>
                                 </div>
 

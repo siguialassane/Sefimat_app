@@ -79,15 +79,15 @@ function BadgePreview({ participant, badgeRef }) {
                 crossOrigin="anonymous"
             />
 
-            {/* Photo du participant - centrage sans transform pour html2canvas */}
+            {/* Photo du participant - décalé à droite et rogné */}
             <div
                 style={{
                     position: "absolute",
-                    top: "72px",
-                    left: "101px",
-                    width: "148px",
-                    height: "178px",
-                    borderRadius: "6px",
+                    top: "74px",
+                    left: "105px",
+                    width: "140px",
+                    height: "170px",
+                    borderRadius: "4px",
                     overflow: "hidden",
                     display: "flex",
                     alignItems: "center",
@@ -103,13 +103,14 @@ function BadgePreview({ participant, badgeRef }) {
                             width: "100%",
                             height: "100%",
                             objectFit: "cover",
+                            objectPosition: "center top",
                         }}
                         crossOrigin="anonymous"
                     />
                 ) : (
                     <span
                         style={{
-                            fontSize: "48px",
+                            fontSize: "42px",
                             fontWeight: "bold",
                             color: "#9ca3af",
                         }}
@@ -119,92 +120,79 @@ function BadgePreview({ participant, badgeRef }) {
                 )}
             </div>
 
-            {/* Zone informations */}
+            {/* Zone informations - Format selon format.png */}
             <div
                 style={{
                     position: "absolute",
-                    bottom: "15px",
-                    left: "22px",
-                    right: "22px",
-                    height: "145px",
+                    bottom: "12px",
+                    left: "25px",
+                    right: "25px",
+                    height: "148px",
                     display: "flex",
                     flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 16px",
+                    justifyContent: "space-between",
+                    padding: "12px 16px 8px 16px",
                 }}
             >
-                {/* ID */}
-                <div style={{ textAlign: "center", marginBottom: "4px" }}>
-                    <span
-                        style={{
-                            fontWeight: "bold",
-                            color: "#15803d",
-                            fontSize: "16px",
-                        }}
-                    >
-                        {participant.reference_id || "SEFI-00"}
-                    </span>
+                {/* Liste des infos */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                    {/* NOM */}
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#111827", marginRight: "4px" }}>•</span>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
+                            NOM :
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                            {participant.nom || "..."}
+                        </span>
+                    </div>
+
+                    {/* PRENOM(S) */}
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#111827", marginRight: "4px" }}>•</span>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
+                            PRENOM(S) :
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                            {participant.prenom || "..."}
+                        </span>
+                    </div>
+
+                    {/* DORTOIR */}
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#111827", marginRight: "4px" }}>•</span>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
+                            DORTOIR :
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                            {participant.dortoir_nom || "..."}
+                        </span>
+                    </div>
+
+                    {/* NUMÉRO URGENT */}
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#111827", marginRight: "4px" }}>•</span>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
+                            NUMÉRO URGENT :
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                            {participant.numero_urgence || "..."}
+                        </span>
+                    </div>
                 </div>
 
-                {/* Nom */}
-                <div style={{ textAlign: "center" }}>
+                {/* N° TICKET (ID) - en orange, centré */}
+                <div style={{ textAlign: "center", marginTop: "8px" }}>
                     <span
                         style={{
                             fontWeight: "bold",
-                            color: "#111827",
-                            fontSize: "20px",
+                            color: "#ea580c",
+                            fontSize: "13px",
                             textTransform: "uppercase",
                             letterSpacing: "1px",
                         }}
                     >
-                        {participant.nom || "NOM"}
-                    </span>
-                </div>
-
-                {/* Prénom */}
-                <div style={{ textAlign: "center" }}>
-                    <span
-                        style={{
-                            fontWeight: "600",
-                            color: "#374151",
-                            fontSize: "16px",
-                        }}
-                    >
-                        {participant.prenom || "Prénom"}
-                    </span>
-                </div>
-
-                {/* Dortoir */}
-                <div
-                    style={{
-                        textAlign: "center",
-                        marginTop: "8px",
-                        padding: "4px 16px",
-                        backgroundColor: "#16a34a",
-                        borderRadius: "9999px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontWeight: "bold",
-                            color: "#ffffff",
-                            fontSize: "12px",
-                        }}
-                    >
-                        {participant.dortoir_nom || "Non assigné"}
-                    </span>
-                </div>
-
-                {/* Niveau de formation */}
-                <div style={{ textAlign: "center", marginTop: "4px" }}>
-                    <span
-                        style={{
-                            color: "#4b5563",
-                            fontSize: "11px",
-                        }}
-                    >
-                        Niveau: {niveauFormationMap[participant.niveau_formation] || "Non défini"}
+                        N° TICKET : {participant.reference_id || "SEFI-00"}
                     </span>
                 </div>
             </div>
