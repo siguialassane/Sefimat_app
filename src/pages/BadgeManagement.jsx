@@ -314,7 +314,7 @@ export function BadgeManagement() {
                 throw new Error("Élément badge non trouvé");
             }
 
-            // Capturer le badge en canvas
+            // Capturer le badge en canvas avec haute résolution
             const canvas = await html2canvas(element, {
                 scale: 3,
                 useCORS: true,
@@ -323,16 +323,43 @@ export function BadgeManagement() {
                 logging: false,
             });
 
-            // Créer le PDF en format A6 (105mm x 148mm)
+            // Dimensions de l'image capturée
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            const imgRatio = imgWidth / imgHeight;
+
+            // Format A6 : 105mm x 148mm
+            const pdfWidth = 105;
+            const pdfHeight = 148;
+            const pdfRatio = pdfWidth / pdfHeight;
+
+            // Calculer les dimensions pour que l'image remplisse le PDF sans déformation
+            let finalWidth, finalHeight, offsetX, offsetY;
+
+            if (imgRatio > pdfRatio) {
+                // L'image est plus large proportionnellement - on ajuste par la largeur
+                finalWidth = pdfWidth;
+                finalHeight = pdfWidth / imgRatio;
+                offsetX = 0;
+                offsetY = (pdfHeight - finalHeight) / 2;
+            } else {
+                // L'image est plus haute proportionnellement - on ajuste par la hauteur
+                finalHeight = pdfHeight;
+                finalWidth = pdfHeight * imgRatio;
+                offsetX = (pdfWidth - finalWidth) / 2;
+                offsetY = 0;
+            }
+
+            // Créer le PDF en format A6
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "mm",
-                format: [105, 148],
+                format: [pdfWidth, pdfHeight],
             });
 
-            // Ajouter l'image au PDF
+            // Ajouter l'image au PDF avec les bonnes dimensions (sans étirement)
             const imgData = canvas.toDataURL("image/jpeg", 1.0);
-            pdf.addImage(imgData, "JPEG", 0, 0, 105, 148);
+            pdf.addImage(imgData, "JPEG", offsetX, offsetY, finalWidth, finalHeight);
 
             // Télécharger le PDF
             const fileName = `badge_${selectedParticipant.reference_id || selectedParticipant.id}_${selectedParticipant.nom}_${selectedParticipant.prenom}.pdf`;
@@ -356,10 +383,15 @@ export function BadgeManagement() {
         setGenerating(true);
 
         try {
+            // Format A6 : 105mm x 148mm
+            const pdfWidth = 105;
+            const pdfHeight = 148;
+            const pdfRatio = pdfWidth / pdfHeight;
+
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "mm",
-                format: [105, 148],
+                format: [pdfWidth, pdfHeight],
             });
 
             for (let i = 0; i < filteredParticipants.length; i++) {
@@ -380,13 +412,32 @@ export function BadgeManagement() {
                     logging: false,
                 });
 
+                // Calculer les dimensions pour respecter le ratio
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+                const imgRatio = imgWidth / imgHeight;
+
+                let finalWidth, finalHeight, offsetX, offsetY;
+
+                if (imgRatio > pdfRatio) {
+                    finalWidth = pdfWidth;
+                    finalHeight = pdfWidth / imgRatio;
+                    offsetX = 0;
+                    offsetY = (pdfHeight - finalHeight) / 2;
+                } else {
+                    finalHeight = pdfHeight;
+                    finalWidth = pdfHeight * imgRatio;
+                    offsetX = (pdfWidth - finalWidth) / 2;
+                    offsetY = 0;
+                }
+
                 const imgData = canvas.toDataURL("image/jpeg", 1.0);
 
                 if (i > 0) {
-                    pdf.addPage([105, 148]);
+                    pdf.addPage([pdfWidth, pdfHeight]);
                 }
 
-                pdf.addImage(imgData, "JPEG", 0, 0, 105, 148);
+                pdf.addImage(imgData, "JPEG", offsetX, offsetY, finalWidth, finalHeight);
             }
 
             pdf.save(`badges_sefimap_${new Date().toISOString().split("T")[0]}.pdf`);
