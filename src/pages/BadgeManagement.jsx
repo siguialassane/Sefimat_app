@@ -55,11 +55,10 @@ function BadgePreview({ participant, badgeRef }) {
         );
     }
 
-    // Dimensions du badge basées exactement sur le ratio A6 (105mm x 148mm)
-    // Ratio A6 = 105/148 = 0.7094594...
-    // En utilisant une hauteur de 494px: 494 * 0.7095 ≈ 350px
+    // Dimensions du badge basées sur le ratio A6 exact (105mm x 148mm)
+    // Pour éviter l'étirement, on utilise le ratio A6 précis
     const badgeWidth = 350;
-    const badgeHeight = Math.round(badgeWidth / (105 / 148)); // = 493.33 ≈ 493px
+    const badgeHeight = Math.round(badgeWidth * (148 / 105)); // = 493px (ratio A6)
 
     return (
         <div
@@ -74,17 +73,21 @@ function BadgePreview({ participant, badgeRef }) {
                 borderRadius: "0px",
             }}
         >
-            {/* Image de fond */}
+            {/* Image de fond - remplir entièrement sans déformation */}
             <img
                 src="/images/badge.jpeg"
                 alt="Badge background"
                 style={{
                     position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    minWidth: "100%",
+                    minHeight: "100%",
+                    width: "auto",
                     height: "100%",
                     objectFit: "cover",
+                    objectPosition: "center center",
                 }}
                 crossOrigin="anonymous"
             />
