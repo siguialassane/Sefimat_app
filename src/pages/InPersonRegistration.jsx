@@ -55,12 +55,33 @@ export function InPersonRegistration() {
     const [dortoirStats, setDortoirStats] = useState([]);
     const [photoError, setPhotoError] = useState(null);
     const [photoKey, setPhotoKey] = useState(0);
+    const [currentStep, setCurrentStep] = useState(1);
+
+    const steps = [
+        { id: 1, title: "Identité", fields: ["nom", "prenom", "sexe", "age", "niveauEtude", "telephone", "ecole"] },
+        { id: 2, title: "Parents & Contact", fields: ["nomParent", "prenomParent", "numeroParent", "lieuHabitation", "numeroUrgence"] },
+        { id: 3, title: "Finalisation", fields: ["nombreParticipations", "dortoirId"] }
+    ];
+
+    const nextStep = async () => {
+        const fields = steps[currentStep - 1].fields;
+        const isValid = await trigger(fields);
+
+        if (isValid) {
+            setCurrentStep(prev => Math.min(prev + 1, steps.length));
+        }
+    };
+
+    const prevStep = () => {
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+    };
 
     const {
         register,
         handleSubmit,
         reset,
         watch,
+        trigger,
         formState: { errors },
     } = useForm({
         resolver: zodResolver(registrationSchema),
@@ -206,6 +227,7 @@ export function InPersonRegistration() {
             setPhotoFile(null);
             setPhotoKey(prev => prev + 1); // Force la réinitialisation du composant photo
             setShowSuccess(true);
+            setCurrentStep(1);
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (error) {
             console.error("Erreur inscription:", error);
@@ -296,327 +318,380 @@ export function InPersonRegistration() {
                         {/* Right Side: Form */}
                         <div className="p-8 lg:p-12">
                             <div className="mb-6">
-                                <h2 className="text-xl font-bold text-text-main dark:text-white">
-                                    Informations du Participant
-                                </h2>
-                                <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                    Remplissez les champs ci-dessous
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-text-main dark:text-white">
+                                        Informations du Participant
+                                    </h2>
+                                    <span className="text-sm font-medium px-3 py-1 bg-primary/10 text-primary rounded-full">
+                                        Étape {currentStep}/{steps.length}
+                                    </span>
+                                </div>
+
+                                {/* Stepper Visual */}
+                                <div className="flex gap-2 mb-6">
+                                    {steps.map((step) => (
+                                        <div
+                                            key={step.id}
+                                            className={`h-2 flex-1 rounded-full transition-all duration-300 ${step.id <= currentStep ? "bg-primary" : "bg-gray-200 dark:bg-gray-700"
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+
+                                <p className="text-sm text-text-secondary dark:text-gray-400 mt-1 font-medium">
+                                    {steps[currentStep - 1].title}
                                 </p>
                             </div>
 
                             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                                {/* Nom & Prénom */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="nom">Nom</Label>
-                                        <Input
-                                            id="nom"
-                                            placeholder="Ex: Kouassi"
-                                            {...register("nom")}
-                                            className={errors.nom ? "border-red-500" : ""}
-                                        />
-                                        {errors.nom && (
-                                            <p className="text-red-500 text-xs">{errors.nom.message}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="prenom">Prénoms</Label>
-                                        <Input
-                                            id="prenom"
-                                            placeholder="Ex: Jean-Marc"
-                                            {...register("prenom")}
-                                            className={errors.prenom ? "border-red-500" : ""}
-                                        />
-                                        {errors.prenom && (
-                                            <p className="text-red-500 text-xs">{errors.prenom.message}</p>
-                                        )}
-                                    </div>
-                                </div>
+                                <div className="overflow-hidden mx-[-4px]">
+                                    <div
+                                        className="flex transition-transform duration-500 ease-in-out"
+                                        style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}
+                                    >
+                                        {/* ÉTAGE 1 : Identité */}
+                                        <div className="w-full flex-shrink-0 px-1">
+                                            <div className="space-y-5">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="nom">Nom</Label>
+                                                        <Input
+                                                            id="nom"
+                                                            placeholder="Ex: Kouassi"
+                                                            {...register("nom")}
+                                                            className={errors.nom ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.nom && (
+                                                            <p className="text-red-500 text-xs">{errors.nom.message}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="prenom">Prénoms</Label>
+                                                        <Input
+                                                            id="prenom"
+                                                            placeholder="Ex: Jean-Marc"
+                                                            {...register("prenom")}
+                                                            className={errors.prenom ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.prenom && (
+                                                            <p className="text-red-500 text-xs">{errors.prenom.message}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                {/* Genre */}
-                                <div className="flex flex-col gap-2">
-                                    <Label>Genre</Label>
-                                    <div className="flex gap-3">
-                                        <label
-                                            className={`flex-1 group relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${selectedSexe === "homme"
-                                                ? "border-primary bg-primary/5 text-primary"
-                                                : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                                                }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                value="homme"
-                                                {...register("sexe")}
-                                                className="sr-only"
-                                            />
-                                            <span className="flex items-center gap-2">
-                                                <span className="text-lg">♂</span>
-                                                Homme
-                                            </span>
-                                        </label>
-                                        <label
-                                            className={`flex-1 group relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${selectedSexe === "femme"
-                                                ? "border-primary bg-primary/5 text-primary"
-                                                : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                                                }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                value="femme"
-                                                {...register("sexe")}
-                                                className="sr-only"
-                                            />
-                                            <span className="flex items-center gap-2">
-                                                <span className="text-lg">♀</span>
-                                                Femme
-                                            </span>
-                                        </label>
-                                    </div>
-                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Label>Genre</Label>
+                                                    <div className="flex gap-3">
+                                                        <label
+                                                            className={`flex-1 group relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${selectedSexe === "homme"
+                                                                ? "border-primary bg-primary/5 text-primary"
+                                                                : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                                }`}
+                                                        >
+                                                            <input
+                                                                type="radio"
+                                                                value="homme"
+                                                                {...register("sexe")}
+                                                                className="sr-only"
+                                                            />
+                                                            <span className="flex items-center gap-2">
+                                                                <span className="text-lg">♂</span>
+                                                                Homme
+                                                            </span>
+                                                        </label>
+                                                        <label
+                                                            className={`flex-1 group relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${selectedSexe === "femme"
+                                                                ? "border-primary bg-primary/5 text-primary"
+                                                                : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                                }`}
+                                                        >
+                                                            <input
+                                                                type="radio"
+                                                                value="femme"
+                                                                {...register("sexe")}
+                                                                className="sr-only"
+                                                            />
+                                                            <span className="flex items-center gap-2">
+                                                                <span className="text-lg">♀</span>
+                                                                Femme
+                                                            </span>
+                                                        </label>
+                                                    </div>
+                                                </div>
 
-                                {/* Âge & Niveau d'étude */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="age">Âge</Label>
-                                        <Input
-                                            id="age"
-                                            type="number"
-                                            placeholder="Ex: 25"
-                                            {...register("age", { valueAsNumber: true })}
-                                            className={errors.age ? "border-red-500" : ""}
-                                        />
-                                        {errors.age && (
-                                            <p className="text-red-500 text-xs">{errors.age.message}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="niveauEtude">Niveau d'étude</Label>
-                                        <Select
-                                            id="niveauEtude"
-                                            {...register("niveauEtude")}
-                                            className={errors.niveauEtude ? "border-red-500" : ""}
-                                        >
-                                            <option value="">Sélectionnez</option>
-                                            <option value="aucun">Aucun</option>
-                                            <option value="primaire">Primaire</option>
-                                            <option value="secondaire">Secondaire</option>
-                                            <option value="superieur">Universitaire</option>
-                                            <option value="arabe">Arabe</option>
-                                        </Select>
-                                        {errors.niveauEtude && (
-                                            <p className="text-red-500 text-xs">{errors.niveauEtude.message}</p>
-                                        )}
-                                    </div>
-                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="age">Âge</Label>
+                                                        <Input
+                                                            id="age"
+                                                            type="number"
+                                                            placeholder="Ex: 25"
+                                                            {...register("age", { valueAsNumber: true })}
+                                                            className={errors.age ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.age && (
+                                                            <p className="text-red-500 text-xs">{errors.age.message}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="niveauEtude">Niveau d'étude</Label>
+                                                        <Select
+                                                            id="niveauEtude"
+                                                            {...register("niveauEtude")}
+                                                            className={errors.niveauEtude ? "border-red-500" : ""}
+                                                        >
+                                                            <option value="">Sélectionnez</option>
+                                                            <option value="aucun">Aucun</option>
+                                                            <option value="primaire">Primaire</option>
+                                                            <option value="secondaire">Secondaire</option>
+                                                            <option value="superieur">Universitaire</option>
+                                                            <option value="arabe">Arabe</option>
+                                                        </Select>
+                                                        {errors.niveauEtude && (
+                                                            <p className="text-red-500 text-xs">{errors.niveauEtude.message}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                {/* Téléphone du séminariste */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="telephone">
-                                        Numéro de téléphone du séminariste <span className="text-red-500">*</span>
-                                    </Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                                        <Input
-                                            id="telephone"
-                                            type="tel"
-                                            placeholder="Ex: 07 00 00 00 00"
-                                            {...register("telephone")}
-                                            className={`pl-10 ${errors.telephone ? "border-red-500" : ""}`}
-                                        />
-                                    </div>
-                                    {errors.telephone && (
-                                        <p className="text-red-500 text-xs">{errors.telephone.message}</p>
-                                    )}
-                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="telephone">
+                                                        Numéro de téléphone du séminariste <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                                        <Input
+                                                            id="telephone"
+                                                            type="tel"
+                                                            placeholder="Ex: 07 00 00 00 00"
+                                                            {...register("telephone")}
+                                                            className={`pl-10 ${errors.telephone ? "border-red-500" : ""}`}
+                                                        />
+                                                    </div>
+                                                    {errors.telephone && (
+                                                        <p className="text-red-500 text-xs">{errors.telephone.message}</p>
+                                                    )}
+                                                </div>
 
-                                {/* École */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="ecole">École</Label>
-                                    <Input
-                                        id="ecole"
-                                        placeholder="Ex: Lycée Moderne de Yopougon"
-                                        {...register("ecole")}
-                                    />
-                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="ecole">École</Label>
+                                                    <Input
+                                                        id="ecole"
+                                                        placeholder="Ex: Lycée Moderne de Yopougon"
+                                                        {...register("ecole")}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                {/* Nom et Prénom du parent */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="nomParent">
-                                            Nom du parent <span className="text-red-500">*</span>
-                                        </Label>
-                                        <Input
-                                            id="nomParent"
-                                            placeholder="Ex: Traoré"
-                                            {...register("nomParent")}
-                                            className={errors.nomParent ? "border-red-500" : ""}
-                                        />
-                                        {errors.nomParent && (
-                                            <p className="text-red-500 text-xs">{errors.nomParent.message}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="prenomParent">
-                                            Prénom(s) du parent <span className="text-red-500">*</span>
-                                        </Label>
-                                        <Input
-                                            id="prenomParent"
-                                            placeholder="Ex: Aminata"
-                                            {...register("prenomParent")}
-                                            className={errors.prenomParent ? "border-red-500" : ""}
-                                        />
-                                        {errors.prenomParent && (
-                                            <p className="text-red-500 text-xs">{errors.prenomParent.message}</p>
-                                        )}
-                                    </div>
-                                </div>
+                                        {/* ÉTAGE 2 : Parent & Contact */}
+                                        <div className="w-full flex-shrink-0 px-1">
+                                            <div className="space-y-5">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="nomParent">
+                                                            Nom du parent <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <Input
+                                                            id="nomParent"
+                                                            placeholder="Ex: Traoré"
+                                                            {...register("nomParent")}
+                                                            className={errors.nomParent ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.nomParent && (
+                                                            <p className="text-red-500 text-xs">{errors.nomParent.message}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="prenomParent">
+                                                            Prénom(s) du parent <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <Input
+                                                            id="prenomParent"
+                                                            placeholder="Ex: Aminata"
+                                                            {...register("prenomParent")}
+                                                            className={errors.prenomParent ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.prenomParent && (
+                                                            <p className="text-red-500 text-xs">{errors.prenomParent.message}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                {/* Numéro du parent */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="numeroParent">
-                                        Numéro du parent <span className="text-red-500">*</span>
-                                    </Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                                        <Input
-                                            id="numeroParent"
-                                            type="tel"
-                                            placeholder="Ex: 01 00 00 00 00"
-                                            {...register("numeroParent")}
-                                            className={`pl-10 ${errors.numeroParent ? "border-red-500" : ""}`}
-                                        />
-                                    </div>
-                                    {errors.numeroParent && (
-                                        <p className="text-red-500 text-xs">{errors.numeroParent.message}</p>
-                                    )}
-                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="numeroParent">
+                                                        Numéro du parent <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                                        <Input
+                                                            id="numeroParent"
+                                                            type="tel"
+                                                            placeholder="Ex: 01 00 00 00 00"
+                                                            {...register("numeroParent")}
+                                                            className={`pl-10 ${errors.numeroParent ? "border-red-500" : ""}`}
+                                                        />
+                                                    </div>
+                                                    {errors.numeroParent && (
+                                                        <p className="text-red-500 text-xs">{errors.numeroParent.message}</p>
+                                                    )}
+                                                </div>
 
-                                {/* Lieu d'habitation */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="lieuHabitation">
-                                        Lieu d'habitation <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="lieuHabitation"
-                                        placeholder="Ex: Yopougon, Mamie Adjoua"
-                                        {...register("lieuHabitation")}
-                                        className={errors.lieuHabitation ? "border-red-500" : ""}
-                                    />
-                                    {errors.lieuHabitation && (
-                                        <p className="text-red-500 text-xs">{errors.lieuHabitation.message}</p>
-                                    )}
-                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="numeroUrgence">
+                                                        N° Urgence <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                                                        <Input
+                                                            id="numeroUrgence"
+                                                            type="tel"
+                                                            placeholder="Ex: 05 00 00 00 00"
+                                                            {...register("numeroUrgence")}
+                                                            className={`pl-10 ${errors.numeroUrgence ? "border-red-500" : ""}`}
+                                                        />
+                                                    </div>
+                                                    {errors.numeroUrgence && (
+                                                        <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                                    )}
+                                                </div>
 
-                                {/* Nombre de participations */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="nombreParticipations">
-                                        Nombre de participation au SEFIMAP
-                                    </Label>
-                                    <Input
-                                        id="nombreParticipations"
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        {...register("nombreParticipations", { valueAsNumber: true })}
-                                        className={errors.nombreParticipations ? "border-red-500" : ""}
-                                    />
-                                    {errors.nombreParticipations && (
-                                        <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
-                                    )}
-                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="lieuHabitation">
+                                                        Lieu d'habitation <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input
+                                                        id="lieuHabitation"
+                                                        placeholder="Ex: Yopougon, Mamie Adjoua"
+                                                        {...register("lieuHabitation")}
+                                                        className={errors.lieuHabitation ? "border-red-500" : ""}
+                                                    />
+                                                    {errors.lieuHabitation && (
+                                                        <p className="text-red-500 text-xs">{errors.lieuHabitation.message}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                {/* Numéro d'urgence */}
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="numeroUrgence">
-                                        N° Urgence <span className="text-red-500">*</span>
-                                    </Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
-                                        <Input
-                                            id="numeroUrgence"
-                                            type="tel"
-                                            placeholder="Ex: 05 00 00 00 00"
-                                            {...register("numeroUrgence")}
-                                            className={`pl-10 ${errors.numeroUrgence ? "border-red-500" : ""}`}
-                                        />
-                                    </div>
-                                    {errors.numeroUrgence && (
-                                        <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
-                                    )}
-                                </div>
+                                        {/* ÉTAGE 3 : Finalisation */}
+                                        <div className="w-full flex-shrink-0 px-1">
+                                            <div className="space-y-5">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="nombreParticipations">
+                                                        Nombre de participation au SEFIMAP
+                                                    </Label>
+                                                    <Input
+                                                        id="nombreParticipations"
+                                                        type="number"
+                                                        min="0"
+                                                        placeholder="0"
+                                                        {...register("nombreParticipations", { valueAsNumber: true })}
+                                                        className={errors.nombreParticipations ? "border-red-500" : ""}
+                                                    />
+                                                    {errors.nombreParticipations && (
+                                                        <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
+                                                    )}
+                                                </div>
 
-                                {/* Affectation */}
-                                <div className="pt-4 border-t border-border-light dark:border-border-dark">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Building className="h-4 w-4 text-primary" />
-                                        <span className="font-semibold text-text-main dark:text-white">Affectation</span>
-                                    </div>
+                                                {/* Affectation */}
+                                                <div className="pt-4 border-t border-border-light dark:border-border-dark">
+                                                    <div className="flex items-center gap-2 mb-4">
+                                                        <Building className="h-4 w-4 text-primary" />
+                                                        <span className="font-semibold text-text-main dark:text-white">Affectation</span>
+                                                    </div>
 
-                                    {/* Vue compacte des statistiques des dortoirs */}
-                                    {/* Vue compacte des statistiques des dortoirs */}
-                                    {dortoirStats.length > 0 && (
-                                        <DormitoryDropdown stats={dortoirStats} />
-                                    )}
+                                                    {/* Vue compacte des statistiques des dortoirs (Dropdown) */}
+                                                    {dortoirStats.length > 0 && (
+                                                        <DormitoryDropdown stats={dortoirStats} />
+                                                    )}
 
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="dortoirId">
-                                            Dortoir <span className="text-red-500">*</span>
-                                        </Label>
-                                        <Select
-                                            id="dortoirId"
-                                            {...register("dortoirId")}
-                                            className={errors.dortoirId ? "border-red-500" : ""}
-                                        >
-                                            <option value="">Sélectionnez</option>
-                                            {dortoirs.map(dortoir => (
-                                                <option key={dortoir.id} value={dortoir.id}>
-                                                    {dortoir.nom}
-                                                </option>
-                                            ))}
-                                        </Select>
-                                        {errors.dortoirId && (
-                                            <p className="text-red-500 text-xs">{errors.dortoirId.message}</p>
-                                        )}
-                                    </div>
+                                                    <div className="flex flex-col gap-2 mt-4">
+                                                        <Label htmlFor="dortoirId">
+                                                            Dortoir <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <Select
+                                                            id="dortoirId"
+                                                            {...register("dortoirId")}
+                                                            className={errors.dortoirId ? "border-red-500" : ""}
+                                                        >
+                                                            <option value="">Sélectionnez</option>
+                                                            {dortoirs.map(dortoir => (
+                                                                <option key={dortoir.id} value={dortoir.id}>
+                                                                    {dortoir.nom}
+                                                                </option>
+                                                            ))}
+                                                        </Select>
+                                                        {errors.dortoirId && (
+                                                            <p className="text-red-500 text-xs">{errors.dortoirId.message}</p>
+                                                        )}
+                                                    </div>
 
-                                    {/* Note sur le niveau de formation */}
-                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
-                                        <p className="text-sm text-blue-900 dark:text-blue-200 flex items-center gap-2">
-                                            <BookOpen className="w-4 h-4" />
-                                            <span>
-                                                <span className="font-semibold">Niveau de formation :</span> Sera attribué par la section scientifique
-                                            </span>
-                                        </p>
+                                                    {/* Note sur le niveau de formation */}
+                                                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
+                                                        <p className="text-sm text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                                                            <BookOpen className="w-4 h-4" />
+                                                            <span>
+                                                                <span className="font-semibold">Niveau de formation :</span> Sera attribué par la section scientifique
+                                                            </span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex items-center gap-3 pt-4">
-                                    <Button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        className="flex-1 h-12 shadow-md shadow-primary/20"
-                                    >
-                                        {isLoading ? (
-                                            <span className="flex items-center gap-2">
-                                                <span className="h-5 w-5 border-2 border-text-main/30 border-t-text-main rounded-full animate-spin" />
-                                                Enregistrement...
-                                            </span>
-                                        ) : (
-                                            <>
-                                                <Save className="h-5 w-5 mr-2" />
-                                                Enregistrer
-                                                <ArrowRight className="h-4 w-4 ml-1" />
-                                            </>
-                                        )}
-                                    </Button>
-                                    <Button type="button" variant="outline" className="h-12" onClick={() => {
-                                        reset();
-                                        setPhotoFile(null);
-                                        setPhotoKey(prev => prev + 1);
-                                    }}>
-                                        Annuler
-                                    </Button>
+                                <div className="flex items-center gap-3 pt-4 border-t border-border-light dark:border-border-dark mt-6">
+                                    {currentStep > 1 && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={prevStep}
+                                            className="h-12 px-6"
+                                        >
+                                            Précédent
+                                        </Button>
+                                    )}
+
+                                    {currentStep < steps.length ? (
+                                        <Button
+                                            type="button"
+                                            onClick={nextStep}
+                                            className="h-12 flex-1"
+                                        >
+                                            Suivant
+                                            <ArrowRight className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="submit"
+                                            disabled={isLoading}
+                                            className="h-12 flex-1 shadow-md shadow-primary/20"
+                                        >
+                                            {isLoading ? (
+                                                <span className="flex items-center gap-2">
+                                                    <span className="h-5 w-5 border-2 border-text-main/30 border-t-text-main rounded-full animate-spin" />
+                                                    Enregistrement...
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    <Save className="h-5 w-5 mr-2" />
+                                                    Enregistrer
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+
+                                    {currentStep === 1 && (
+                                        <Button type="button" variant="ghost" className="h-12 ml-auto text-text-secondary" onClick={() => {
+                                            reset();
+                                            setPhotoFile(null);
+                                            setPhotoKey(prev => prev + 1);
+                                            setCurrentStep(1);
+                                        }}>
+                                            Annuler
+                                        </Button>
+                                    )}
                                 </div>
                             </form>
                         </div>
