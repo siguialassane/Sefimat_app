@@ -1,46 +1,80 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
-    LayoutDashboard,
-    CheckCircle,
-    FileSpreadsheet,
+    UserPlus,
+    CreditCard,
     LogOut,
     Menu,
     X,
-    DollarSign,
+    Users,
 } from "lucide-react";
-import { Mosque } from "@/components/icons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { useAuth } from "@/contexts";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
-const menuItems = [
-    {
-        icon: LayoutDashboard,
-        label: "Tableau de bord",
-        path: "/finance/dashboard",
-    },
-    {
-        icon: CheckCircle,
-        label: "Validations",
-        path: "/finance/validation",
-    },
-    {
-        icon: FileSpreadsheet,
-        label: "Récapitulatif",
-        path: "/finance/synthese",
-    },
-];
-
-export function FinanceLayout() {
+export function PresidentLayout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const { signOut, userProfile } = useAuth();
+    const [president, setPresident] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const { lienUnique } = useParams();
     const navigate = useNavigate();
 
-    const handleSignOut = async () => {
-        await signOut();
-        navigate("/login");
+    useEffect(() => {
+        if (lienUnique) {
+            loadPresidentInfo();
+        }
+    }, [lienUnique]);
+
+    const loadPresidentInfo = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("chefs_quartier")
+                .select("*")
+                .eq("lien_unique", lienUnique.toUpperCase())
+                .single();
+
+            if (error || !data) {
+                console.error("Président non trouvé:", error);
+                navigate("/inscription");
+                return;
+            }
+
+            setPresident(data);
+        } catch (err) {
+            console.error("Erreur:", err);
+            navigate("/inscription");
+        } finally {
+            setLoading(false);
+        }
     };
+
+    const menuItems = [
+        {
+            icon: UserPlus,
+            label: "Nouvelle Inscription",
+            path: `/president/${lienUnique}/inscription`,
+        },
+        {
+            icon: CreditCard,
+            label: "Suivi des Paiements",
+            path: `/president/${lienUnique}/paiements`,
+        },
+    ];
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+                <div className="text-center">
+                    <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-text-secondary">Chargement...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!president) {
+        return null;
+    }
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark">
@@ -50,20 +84,33 @@ export function FinanceLayout() {
                 <div className="p-6 border-b border-border-light dark:border-border-dark">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">
-                                <DollarSign className="h-6 w-6" />
+                            <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600">
+                                <Users className="h-6 w-6" />
                             </div>
                             <div>
                                 <h1 className="font-bold text-lg text-text-main dark:text-white">
                                     SEFIMAP
                                 </h1>
-                                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                    Cellule Financier
+                                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                    Espace Président
                                 </p>
                             </div>
                         </div>
                         <ThemeToggle />
                     </div>
+                </div>
+
+                {/* President Info */}
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 mx-4 mt-4 rounded-lg">
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">
+                        Président de section
+                    </p>
+                    <p className="font-bold text-text-main dark:text-white">
+                        {president.nom_complet}
+                    </p>
+                    <p className="text-sm text-text-secondary">
+                        Zone: {president.zone}
+                    </p>
                 </div>
 
                 {/* Navigation */}
@@ -76,7 +123,7 @@ export function FinanceLayout() {
                                 cn(
                                     "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                                     isActive
-                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                                         : "text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                                 )
                             }
@@ -87,28 +134,15 @@ export function FinanceLayout() {
                     ))}
                 </nav>
 
-                {/* User Info & Logout */}
+                {/* Footer */}
                 <div className="p-4 border-t border-border-light dark:border-border-dark">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-600 font-bold text-sm">
-                            {userProfile?.nom_complet?.charAt(0) || "F"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-text-main dark:text-white truncate">
-                                {userProfile?.nom_complet || "Admin Financier"}
-                            </p>
-                            <p className="text-xs text-text-secondary truncate">
-                                {userProfile?.email || "Cellule Financier"}
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleSignOut}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    <a
+                        href="/inscription"
+                        className="flex items-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                     >
                         <LogOut className="h-4 w-4" />
-                        Déconnexion
-                    </button>
+                        Retour au site public
+                    </a>
                 </div>
             </aside>
 
@@ -123,15 +157,15 @@ export function FinanceLayout() {
                         {/* Logo */}
                         <div className="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">
-                                    <DollarSign className="h-6 w-6" />
+                                <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600">
+                                    <Users className="h-6 w-6" />
                                 </div>
                                 <div>
                                     <h1 className="font-bold text-lg text-text-main dark:text-white">
                                         SEFIMAP
                                     </h1>
-                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                        Cellule Financier
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                        Espace Président
                                     </p>
                                 </div>
                             </div>
@@ -141,6 +175,19 @@ export function FinanceLayout() {
                             >
                                 <X className="h-6 w-6" />
                             </button>
+                        </div>
+
+                        {/* President Info */}
+                        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 mx-4 mt-4 rounded-lg">
+                            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">
+                                Président de section
+                            </p>
+                            <p className="font-bold text-text-main dark:text-white">
+                                {president.nom_complet}
+                            </p>
+                            <p className="text-sm text-text-secondary">
+                                Zone: {president.zone}
+                            </p>
                         </div>
 
                         {/* Navigation */}
@@ -154,7 +201,7 @@ export function FinanceLayout() {
                                         cn(
                                             "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                                             isActive
-                                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                                                 : "text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                                         )
                                     }
@@ -165,15 +212,15 @@ export function FinanceLayout() {
                             ))}
                         </nav>
 
-                        {/* Logout */}
+                        {/* Footer */}
                         <div className="p-4 border-t border-border-light dark:border-border-dark">
-                            <button
-                                onClick={handleSignOut}
-                                className="flex items-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            <a
+                                href="/inscription"
+                                className="flex items-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                             >
                                 <LogOut className="h-4 w-4" />
-                                Déconnexion
-                            </button>
+                                Retour au site public
+                            </a>
                         </div>
                     </aside>
                 </>
@@ -191,25 +238,25 @@ export function FinanceLayout() {
                             <Menu className="h-6 w-6" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-500">
-                                <DollarSign className="h-5 w-5" />
+                            <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-500">
+                                <Users className="h-5 w-5" />
                             </div>
-                            <span className="font-bold text-lg text-text-main dark:text-white">
-                                Financier
-                            </span>
+                            <div>
+                                <span className="font-bold text-sm text-text-main dark:text-white block">
+                                    {president.nom_complet}
+                                </span>
+                                <span className="text-xs text-text-secondary">
+                                    {president.zone}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <ThemeToggle />
-                        <div className="h-8 w-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-600 font-bold text-xs">
-                            {userProfile?.nom_complet?.charAt(0) || "F"}
-                        </div>
-                    </div>
+                    <ThemeToggle />
                 </header>
 
                 {/* Page Content */}
                 <div className="flex-1 overflow-y-auto">
-                    <Outlet />
+                    <Outlet context={{ president }} />
                 </div>
             </main>
         </div>

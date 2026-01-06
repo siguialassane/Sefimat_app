@@ -123,7 +123,7 @@ export function PaymentValidation() {
                         Paiements inférieurs à 4.000 FCFA en attente de votre validation
                     </p>
                 </div>
-                <Badge variant="warning" className="text-lg px-4 py-2">
+                <Badge variant="outline" className="text-lg px-4 py-2 border-emerald-500 text-emerald-600">
                     {inscriptions.length} en attente
                 </Badge>
             </header>
@@ -148,7 +148,7 @@ export function PaymentValidation() {
                     <Card className="overflow-hidden">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-16">
-                                <div className="h-12 w-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+                                <div className="h-12 w-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
                                 <p className="text-text-secondary">Chargement des validations...</p>
                             </div>
                         ) : filteredInscriptions.length === 0 ? (
@@ -190,7 +190,7 @@ export function PaymentValidation() {
                                         {filteredInscriptions.map((inscription) => (
                                             <tr
                                                 key={inscription.id}
-                                                className="hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors"
+                                                className="hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors"
                                             >
                                                 <td className="p-4">
                                                     <div className="flex items-center gap-3">
@@ -224,7 +224,7 @@ export function PaymentValidation() {
                                                     {inscription.chef_quartier?.nom_complet || "Présentiel"}
                                                 </td>
                                                 <td className="p-4 text-center">
-                                                    <span className="font-bold text-amber-600">
+                                                    <span className="font-bold text-emerald-600">
                                                         {formatMontant(inscription.montant_total_paye)}
                                                     </span>
                                                 </td>
@@ -344,29 +344,29 @@ export function PaymentValidation() {
                             </div>
 
                             {/* Payment Info */}
-                            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <DollarSign className="h-5 w-5 text-amber-600" />
-                                    <span className="font-semibold text-amber-800 dark:text-amber-300">
+                                    <DollarSign className="h-5 w-5 text-emerald-600" />
+                                    <span className="font-semibold text-emerald-800 dark:text-emerald-300">
                                         Détails du paiement
                                     </span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                     <div>
-                                        <p className="text-amber-700 dark:text-amber-400">Montant payé</p>
-                                        <p className="font-bold text-amber-800 dark:text-amber-300 text-lg">
+                                        <p className="text-emerald-700 dark:text-emerald-400">Montant payé</p>
+                                        <p className="font-bold text-emerald-800 dark:text-emerald-300 text-lg">
                                             {formatMontant(selectedInscription.montant_total_paye)}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-amber-700 dark:text-amber-400">Montant requis</p>
-                                        <p className="font-bold text-amber-800 dark:text-amber-300 text-lg">
+                                        <p className="text-emerald-700 dark:text-emerald-400">Montant requis</p>
+                                        <p className="font-bold text-emerald-800 dark:text-emerald-300 text-lg">
                                             {formatMontant(selectedInscription.montant_requis || 4000)}
                                         </p>
                                     </div>
                                 </div>
-                                <div className="mt-3 pt-3 border-t border-amber-300 dark:border-amber-700">
-                                    <p className="text-amber-700 dark:text-amber-400 text-sm">Reste à payer</p>
+                                <div className="mt-3 pt-3 border-t border-emerald-300 dark:border-emerald-700">
+                                    <p className="text-emerald-700 dark:text-emerald-400 text-sm">Reste à payer</p>
                                     <p className="font-bold text-red-600 text-xl">
                                         {formatMontant(
                                             (selectedInscription.montant_requis || 4000) -

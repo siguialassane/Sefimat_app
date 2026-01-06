@@ -15,9 +15,23 @@ const loginSchema = z.object({
     password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
 });
 
+// Fonction pour rediriger selon le rôle
+const getRedirectPath = (role) => {
+    switch (role) {
+        case "financier":
+            return "/finance/dashboard";
+        case "secretariat":
+            return "/admin/dashboard";
+        case "president_section":
+            return "/president";
+        default:
+            return "/admin/dashboard";
+    }
+};
+
 export function Login() {
     const navigate = useNavigate();
-    const { signIn, user } = useAuth();
+    const { signIn, user, userRole } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -32,17 +46,19 @@ export function Login() {
 
     // Rediriger si déjà connecté
     useEffect(() => {
-        if (user) {
-            navigate("/admin/dashboard");
+        if (user && userRole) {
+            navigate(getRedirectPath(userRole));
         }
-    }, [user, navigate]);
+    }, [user, userRole, navigate]);
 
     const onSubmit = async (data) => {
         setIsLoading(true);
         setError(null);
         try {
-            await signIn(data.email, data.password);
-            navigate("/admin/dashboard");
+            const result = await signIn(data.email, data.password);
+            // Utiliser le rôle du profil pour rediriger
+            const role = result?.profile?.role;
+            navigate(getRedirectPath(role));
         } catch (err) {
             console.error("Erreur connexion:", err);
             setError(err.message || "L'email ou le mot de passe est incorrect.");

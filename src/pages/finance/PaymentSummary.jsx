@@ -151,7 +151,7 @@ export function PaymentSummary() {
             <header className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark py-4 px-8 flex justify-between items-center z-10 flex-shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold text-text-main dark:text-white tracking-tight flex items-center gap-2">
-                        <FileSpreadsheet className="h-6 w-6 text-amber-500" />
+                        <FileSpreadsheet className="h-6 w-6 text-emerald-500" />
                         Récapitulatif des Paiements
                     </h1>
                     <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
@@ -208,12 +208,12 @@ export function PaymentSummary() {
                         </Card>
                         <Card className="p-5">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20">
-                                    <DollarSign className="h-5 w-5 text-amber-600" />
+                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                    <DollarSign className="h-5 w-5 text-blue-600" />
                                 </div>
                                 <div>
                                     <p className="text-sm text-text-secondary">Paiements partiels</p>
-                                    <p className="text-xl font-bold text-amber-600">{totals.nombrePartiel}</p>
+                                    <p className="text-xl font-bold text-blue-600">{totals.nombrePartiel}</p>
                                 </div>
                             </div>
                         </Card>
@@ -273,7 +273,7 @@ export function PaymentSummary() {
                     <Card className="overflow-hidden">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-16">
-                                <div className="h-12 w-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+                                <div className="h-12 w-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
                                 <p className="text-text-secondary">Chargement...</p>
                             </div>
                         ) : (

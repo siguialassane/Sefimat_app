@@ -18,6 +18,7 @@ import {
     ArrowRight,
     User,
     GraduationCap,
+    DollarSign,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
@@ -42,6 +43,9 @@ const registrationSchema = z.object({
     nombreParticipations: z.number().min(0, "Le nombre doit être positif ou zéro"),
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     dortoirId: z.string().min(1, "Veuillez sélectionner un dortoir"),
+    montantPaye: z.number()
+        .min(0, "Le montant doit être positif")
+        .max(4000, "Le montant ne peut pas dépasser 4000 FCFA"),
     // niveauFormation retiré - géré par la section scientifique uniquement
 });
 
@@ -60,7 +64,7 @@ export function InPersonRegistration() {
     const steps = [
         { id: 1, title: "Identité", fields: ["nom", "prenom", "sexe", "age", "niveauEtude", "telephone", "ecole"] },
         { id: 2, title: "Parents & Contact", fields: ["nomParent", "prenomParent", "numeroParent", "lieuHabitation", "numeroUrgence"] },
-        { id: 3, title: "Finalisation", fields: ["nombreParticipations", "dortoirId"] }
+        { id: 3, title: "Finalisation", fields: ["nombreParticipations", "dortoirId", "montantPaye"] }
     ];
 
     const nextStep = async () => {
@@ -88,6 +92,7 @@ export function InPersonRegistration() {
         defaultValues: {
             sexe: "homme",
             nombreParticipations: 0,
+            montantPaye: 0,
         },
     });
 
@@ -205,6 +210,8 @@ export function InPersonRegistration() {
                     chef_quartier_id: null,
                     photo_url: photoUrl,
                     dortoir_id: data.dortoirId,
+                    montant_total_paye: data.montantPaye,
+                    statut_paiement: data.montantPaye >= 4000 ? "complet" : (data.montantPaye > 0 ? "partiel" : "non_paye"),
                     niveau_formation: null, // Sera complété par la section scientifique
                 })
                 .select()
@@ -589,6 +596,35 @@ export function InPersonRegistration() {
                                                     />
                                                     {errors.nombreParticipations && (
                                                         <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Montant Payé */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="montantPaye" className="flex items-center gap-2">
+                                                        <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                        Montant perçu (FCFA)
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            id="montantPaye"
+                                                            type="number"
+                                                            min="0"
+                                                            max="4000"
+                                                            step="100"
+                                                            placeholder="0"
+                                                            {...register("montantPaye", { valueAsNumber: true })}
+                                                            className={`pl-10 font-bold text-lg ${errors.montantPaye ? "border-red-500" : "border-emerald-200 focus:border-emerald-500"}`}
+                                                        />
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">
+                                                            FCFA
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-text-secondary">
+                                                        Montant maximum : 4.000 FCFA. Ce montant sera enregistré comme payé.
+                                                    </p>
+                                                    {errors.montantPaye && (
+                                                        <p className="text-red-500 text-xs">{errors.montantPaye.message}</p>
                                                     )}
                                                 </div>
 

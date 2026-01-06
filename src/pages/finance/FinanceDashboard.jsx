@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
 
 export function FinanceDashboard() {
+    const navigate = useNavigate();
     const { userProfile } = useAuth();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
@@ -129,15 +131,15 @@ export function FinanceDashboard() {
             title: "En attente de validation",
             value: stats.paiementsEnAttente.toString(),
             icon: Clock,
-            iconBg: "bg-amber-50 dark:bg-amber-900/20",
-            iconColor: "text-amber-600 dark:text-amber-400",
+            iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
+            iconColor: "text-indigo-600 dark:text-indigo-400",
         },
         {
             title: "Paiements Partiels",
             value: stats.paiementsPartiels.toString(),
             icon: AlertCircle,
-            iconBg: "bg-orange-50 dark:bg-orange-900/20",
-            iconColor: "text-orange-600 dark:text-orange-400",
+            iconBg: "bg-blue-50 dark:bg-blue-900/20",
+            iconColor: "text-blue-600 dark:text-blue-400",
         },
         {
             title: "Paiements Complets",
@@ -194,7 +196,7 @@ export function FinanceDashboard() {
                     : statCards.map((stat, index) => (
                         <Card
                             key={index}
-                            className="p-5 flex flex-col justify-between gap-4 hover:border-amber-500/50 transition-colors group"
+                            className="p-5 flex flex-col justify-between gap-4 hover:border-emerald-500/50 transition-colors group"
                         >
                             <div className="flex justify-between items-start">
                                 <div className={`p-2 rounded-lg ${stat.iconBg}`}>
@@ -229,14 +231,14 @@ export function FinanceDashboard() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Clock className="h-5 w-5 text-amber-500" />
+                                    <Clock className="h-5 w-5 text-indigo-500" />
                                     Validations en attente
                                 </CardTitle>
                                 <CardDescription>
                                     Paiements inférieurs à 4.000 FCFA
                                 </CardDescription>
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => window.location.href = "/finance/validations"}>
+                            <Button variant="outline" size="sm" onClick={() => navigate("/finance/validation")}>
                                 Voir tout
                             </Button>
                         </div>
@@ -244,7 +246,7 @@ export function FinanceDashboard() {
                     <CardContent className="p-0">
                         {loading ? (
                             <div className="p-8 text-center">
-                                <div className="h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                                <div className="h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
                             </div>
                         ) : pendingValidations.length === 0 ? (
                             <div className="p-8 text-center text-text-secondary">
@@ -259,7 +261,7 @@ export function FinanceDashboard() {
                                         className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center overflow-hidden">
+                                            <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center overflow-hidden">
                                                 {item.photo_url ? (
                                                     <img
                                                         src={item.photo_url}
@@ -267,7 +269,7 @@ export function FinanceDashboard() {
                                                         className="h-full w-full object-cover"
                                                     />
                                                 ) : (
-                                                    <span className="text-amber-600 font-bold">
+                                                    <span className="text-emerald-600 font-bold">
                                                         {item.nom?.charAt(0)}
                                                     </span>
                                                 )}
@@ -282,7 +284,7 @@ export function FinanceDashboard() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-bold text-amber-600">
+                                            <p className="font-bold text-emerald-600">
                                                 {formatMontant(item.montant_total_paye || 0)}
                                             </p>
                                             <p className="text-xs text-text-secondary">
@@ -309,7 +311,7 @@ export function FinanceDashboard() {
                                     Transactions récentes
                                 </CardDescription>
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => window.location.href = "/finance/recapitulatif"}>
+                            <Button variant="outline" size="sm" onClick={() => navigate("/finance/synthese")}>
                                 Voir tout
                             </Button>
                         </div>

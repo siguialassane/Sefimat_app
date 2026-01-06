@@ -18,7 +18,8 @@ import {
     ArrowRight,
     ArrowLeft,
     Check,
-    Phone
+    Phone,
+    DollarSign,
 } from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,10 @@ const registrationSchema = z.object({
     nombreParticipations: z.number().min(0, "Le nombre doit être positif ou zéro"),
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     chefQuartier: z.string().min(1, "Veuillez sélectionner un président de section"),
+    montantPaye: z.number()
+        .min(0, "Le montant doit être positif")
+        .max(4000, "Le montant ne peut pas dépasser 4000 FCFA")
+        .optional(),
 });
 
 // Configuration des étapes
@@ -71,6 +76,7 @@ export function PublicRegistration() {
         defaultValues: {
             sexe: "homme",
             nombreParticipations: 0,
+            montantPaye: 0,
         },
     });
 
@@ -113,7 +119,7 @@ export function PublicRegistration() {
             return isValid;
         }
         if (step === 4) {
-            const isValid = await trigger(["chefQuartier"]);
+            const isValid = await trigger(["chefQuartier", "montantPaye"]);
             return isValid;
         }
         return true;
@@ -179,7 +185,9 @@ export function PublicRegistration() {
                     type_inscription: 'en_ligne',
                     statut: 'en_attente',
                     admin_id: null,
-                    photo_url: photoUrl
+                    photo_url: photoUrl,
+                    montant_total_paye: data.montantPaye || 0,
+                    statut_paiement: data.montantPaye >= 4000 ? "complet" : (data.montantPaye > 0 ? "partiel" : "non_paye"),
                 });
 
             if (error) throw error;
@@ -640,6 +648,36 @@ export function PublicRegistration() {
                                                     </Select>
                                                     {errors.chefQuartier && (
                                                         <p className="text-red-500 text-xs">{errors.chefQuartier.message}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Montant Payé (Déclaratif) */}
+                                                <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
+                                                    <Label htmlFor="montantPaye" className="flex items-center gap-2">
+                                                        <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                        Avez-vous déjà payé une somme ? (Optionnel)
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            id="montantPaye"
+                                                            type="number"
+                                                            min="0"
+                                                            max="4000"
+                                                            step="100"
+                                                            placeholder="0"
+                                                            {...register("montantPaye", { valueAsNumber: true })}
+                                                            className={`pl-10 text-lg ${errors.montantPaye ? "border-red-500" : "border-emerald-200 focus:border-emerald-500"}`}
+                                                        />
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">
+                                                            FCFA
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-text-secondary">
+                                                        Si vous avez déjà remis de l'argent à votre président de section, indiquez le montant ici.
+                                                        Sinon, laissez à 0. (Max 4.000 FCFA)
+                                                    </p>
+                                                    {errors.montantPaye && (
+                                                        <p className="text-red-500 text-xs">{errors.montantPaye.message}</p>
                                                     )}
                                                 </div>
 
