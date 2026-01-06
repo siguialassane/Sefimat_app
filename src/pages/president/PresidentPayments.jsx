@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import {
     Search,
     CreditCard,
@@ -287,15 +287,10 @@ export function PresidentPayments() {
                                     className="pl-10"
                                 />
                             </div>
-                            <Select value={filterStatus} onValueChange={setFilterStatus}>
-                                <SelectTrigger className="w-full md:w-48">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="non_solde">Non soldés</SelectItem>
-                                    <SelectItem value="solde">Soldés</SelectItem>
-                                    <SelectItem value="all">Tous</SelectItem>
-                                </SelectContent>
+                            <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                                <option value="non_solde">Non soldés</option>
+                                <option value="solde">Soldés</option>
+                                <option value="all">Tous</option>
                             </Select>
                         </div>
                     </Card>
@@ -448,15 +443,10 @@ export function PresidentPayments() {
                                 </div>
                                 <div>
                                     <Label>Mode de paiement</Label>
-                                    <Select value={paymentMode} onValueChange={setPaymentMode}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="especes">Espèces</SelectItem>
-                                            <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                                            <SelectItem value="virement">Virement</SelectItem>
-                                        </SelectContent>
+                                    <Select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                                        <option value="especes">Espèces</option>
+                                        <option value="mobile_money">Mobile Money</option>
+                                        <option value="virement">Virement</option>
                                     </Select>
                                 </div>
                             </div>

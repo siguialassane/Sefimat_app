@@ -82,19 +82,32 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    console.log("AuthContext: signIn called for", email);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        console.error("AuthContext: signInWithPassword error", error);
+        throw error;
+      }
 
-    // Charger le profil après connexion
-    if (data.user) {
-      const profile = await loadUserProfile(data.user.id);
-      return { ...data, profile };
+      console.log("AuthContext: signInWithPassword success", data.user?.id);
+
+      // Charger le profil après connexion
+      if (data.user) {
+        console.log("AuthContext: loading profile...");
+        const profile = await loadUserProfile(data.user.id);
+        console.log("AuthContext: profile loaded", profile);
+        return { ...data, profile };
+      }
+
+      return data;
+    } catch (err) {
+      console.error("AuthContext: signIn exception", err);
+      throw err;
     }
-
-    return data;
   };
 
   const signOut = async () => {

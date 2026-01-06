@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import {
     Camera,
     RefreshCw,
@@ -377,14 +377,13 @@ export function PresidentRegistration() {
                                         </div>
                                         <div>
                                             <Label>Sexe *</Label>
-                                            <Select onValueChange={(val) => setValue("sexe", val)}>
-                                                <SelectTrigger className={errors.sexe ? "border-red-500" : ""}>
-                                                    <SelectValue placeholder="Sélectionner" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="homme">Homme</SelectItem>
-                                                    <SelectItem value="femme">Femme</SelectItem>
-                                                </SelectContent>
+                                            <Select
+                                                {...register("sexe")}
+                                                className={errors.sexe ? "border-red-500" : ""}
+                                            >
+                                                <option value="">Sélectionner</option>
+                                                <option value="homme">Homme</option>
+                                                <option value="femme">Femme</option>
                                             </Select>
                                             {errors.sexe && (
                                                 <p className="text-red-500 text-xs mt-1">{errors.sexe.message}</p>
@@ -392,17 +391,16 @@ export function PresidentRegistration() {
                                         </div>
                                         <div>
                                             <Label>Niveau d'étude *</Label>
-                                            <Select onValueChange={(val) => setValue("niveauEtude", val)}>
-                                                <SelectTrigger className={errors.niveauEtude ? "border-red-500" : ""}>
-                                                    <SelectValue placeholder="Sélectionner" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="aucun">Aucun</SelectItem>
-                                                    <SelectItem value="primaire">Primaire</SelectItem>
-                                                    <SelectItem value="secondaire">Secondaire</SelectItem>
-                                                    <SelectItem value="superieur">Supérieur</SelectItem>
-                                                    <SelectItem value="arabe">Arabe</SelectItem>
-                                                </SelectContent>
+                                            <Select
+                                                {...register("niveauEtude")}
+                                                className={errors.niveauEtude ? "border-red-500" : ""}
+                                            >
+                                                <option value="">Sélectionner</option>
+                                                <option value="aucun">Aucun</option>
+                                                <option value="primaire">Primaire</option>
+                                                <option value="secondaire">Secondaire</option>
+                                                <option value="superieur">Supérieur</option>
+                                                <option value="arabe">Arabe</option>
                                             </Select>
                                             {errors.niveauEtude && (
                                                 <p className="text-red-500 text-xs mt-1">{errors.niveauEtude.message}</p>
@@ -522,15 +520,13 @@ export function PresidentRegistration() {
                                         </div>
                                         <div>
                                             <Label>Mode de paiement</Label>
-                                            <Select onValueChange={(val) => setValue("modePaiement", val)}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Sélectionner" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="especes">Espèces</SelectItem>
-                                                    <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                                                    <SelectItem value="virement">Virement</SelectItem>
-                                                </SelectContent>
+                                            <Select
+                                                {...register("modePaiement")}
+                                            >
+                                                <option value="">Sélectionner</option>
+                                                <option value="especes">Espèces</option>
+                                                <option value="mobile_money">Mobile Money</option>
+                                                <option value="virement">Virement</option>
                                             </Select>
                                         </div>
                                     </CardContent>
@@ -583,13 +579,12 @@ export function PresidentRegistration() {
                                                             {new Date(reg.created_at).toLocaleDateString("fr-FR")}
                                                         </span>
                                                         <span
-                                                            className={`text-xs font-medium px-2 py-0.5 rounded ${
-                                                                reg.statut_paiement === "soldé"
+                                                            className={`text-xs font-medium px-2 py-0.5 rounded ${reg.statut_paiement === "soldé"
                                                                     ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                                                                     : reg.statut_paiement === "partiel"
-                                                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                                                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                                            }`}
+                                                                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                                                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                                }`}
                                                         >
                                                             {formatMontant(reg.montant_total_paye)}
                                                         </span>

@@ -52,17 +52,22 @@ export function Login() {
     }, [user, userRole, navigate]);
 
     const onSubmit = async (data) => {
+        console.log("Login: onSubmit called");
         setIsLoading(true);
         setError(null);
         try {
+            console.log("Login: calling signIn");
             const result = await signIn(data.email, data.password);
+            console.log("Login: signIn returned", result);
             // Utiliser le rôle du profil pour rediriger
             const role = result?.profile?.role;
+            console.log("Login: redirecting for role", role);
             navigate(getRedirectPath(role));
         } catch (err) {
-            console.error("Erreur connexion:", err);
+            console.error("Login: error detected", err);
             setError(err.message || "L'email ou le mot de passe est incorrect.");
         } finally {
+            console.log("Login: finally block");
             setIsLoading(false);
         }
     };
