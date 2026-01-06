@@ -17,7 +17,8 @@ import {
     Camera,
     ArrowRight,
     ArrowLeft,
-    Check
+    Check,
+    Phone
 } from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -44,8 +45,9 @@ const registrationSchema = z.object({
 // Configuration des étapes
 const steps = [
     { id: 1, title: "Photo", icon: Camera, description: "Photo du participant" },
-    { id: 2, title: "Identité", icon: User, description: "Informations personnelles" },
-    { id: 3, title: "Référent", icon: Users, description: "Président de section" },
+    { id: 2, title: "Identité", icon: User, description: "Infos personnelles" },
+    { id: 3, title: "Contact", icon: Phone, description: "Parents & Contact" },
+    { id: 4, title: "Référent", icon: Users, description: "Président de section" },
 ];
 
 export function PublicRegistration() {
@@ -103,10 +105,14 @@ export function PublicRegistration() {
             return true;
         }
         if (step === 2) {
-            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude", "telephone", "ecole", "nomParent", "prenomParent", "numeroParent", "lieuHabitation", "nombreParticipations", "numeroUrgence"]);
+            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude", "ecole"]);
             return isValid;
         }
         if (step === 3) {
+            const isValid = await trigger(["telephone", "nomParent", "prenomParent", "numeroParent", "lieuHabitation", "nombreParticipations", "numeroUrgence"]);
+            return isValid;
+        }
+        if (step === 4) {
             const isValid = await trigger(["chefQuartier"]);
             return isValid;
         }
@@ -115,7 +121,7 @@ export function PublicRegistration() {
 
     const nextStep = async () => {
         const isValid = await validateStep(currentStep);
-        if (isValid && currentStep < 3) {
+        if (isValid && currentStep < 4) {
             setCurrentStep(currentStep + 1);
         }
     };
@@ -197,11 +203,14 @@ export function PublicRegistration() {
         if (step === 1) return !!photoFile;
         if (step === 2) {
             return watchedValues.nom && watchedValues.prenom && watchedValues.age && watchedValues.sexe &&
-                   watchedValues.niveauEtude && watchedValues.telephone && watchedValues.nomParent &&
-                   watchedValues.prenomParent && watchedValues.numeroParent && watchedValues.lieuHabitation &&
-                   watchedValues.numeroUrgence && (watchedValues.nombreParticipations !== undefined);
+                watchedValues.niveauEtude;
         }
-        if (step === 3) return !!watchedValues.chefQuartier;
+        if (step === 3) {
+            return watchedValues.telephone && watchedValues.nomParent && watchedValues.prenomParent &&
+                watchedValues.numeroParent && watchedValues.lieuHabitation && watchedValues.numeroUrgence &&
+                (watchedValues.nombreParticipations !== undefined);
+        }
+        if (step === 4) return !!watchedValues.chefQuartier;
         return false;
     };
 
@@ -291,365 +300,381 @@ export function PublicRegistration() {
                     {/* Form Card */}
                     <Card className="overflow-hidden">
                         <form onSubmit={handleSubmit(onSubmit)}>
-                            {/* Step 1: Photo */}
-                            <div className={cn(
-                                "transition-all duration-300",
-                                currentStep === 1 ? "block" : "hidden"
-                            )}>
-                                <div className="p-6 sm:p-8">
-                                    <div className="text-center mb-6">
-                                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
-                                            <Camera className="h-7 w-7" />
+                            <div className="overflow-hidden">
+                                <div
+                                    className="flex transition-transform duration-500 ease-in-out"
+                                    style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}
+                                >
+                                    {/* Step 1: Photo */}
+                                    <div className="w-full flex-shrink-0">
+                                        <div className="p-6 sm:p-8">
+                                            <div className="text-center mb-6">
+                                                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                                    <Camera className="h-7 w-7" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                                    Photo du Participant
+                                                </h3>
+                                                <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                                    Prenez une photo claire et récente
+                                                </p>
+                                            </div>
+
+                                            <PhotoCapture
+                                                key={photoKey}
+                                                onPhotoCapture={(file) => {
+                                                    setPhotoFile(file);
+                                                    if (file) setPhotoError(null);
+                                                }}
+                                                required={true}
+                                            />
+                                            {photoError && (
+                                                <p className="text-red-500 text-sm text-center mt-3">{photoError}</p>
+                                            )}
                                         </div>
-                                        <h3 className="text-lg font-bold text-text-main dark:text-white">
-                                            Photo du Participant
-                                        </h3>
-                                        <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                            Prenez une photo claire et récente
-                                        </p>
                                     </div>
 
-                                    <PhotoCapture
-                                        key={photoKey}
-                                        onPhotoCapture={(file) => {
-                                            setPhotoFile(file);
-                                            if (file) setPhotoError(null);
-                                        }}
-                                        required={true}
-                                    />
-                                    {photoError && (
-                                        <p className="text-red-500 text-sm text-center mt-3">{photoError}</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Step 2: Identité */}
-                            <div className={cn(
-                                "transition-all duration-300",
-                                currentStep === 2 ? "block" : "hidden"
-                            )}>
-                                <div className="p-6 sm:p-8">
-                                    <div className="text-center mb-6">
-                                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
-                                            <User className="h-7 w-7" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-text-main dark:text-white">
-                                            Informations Personnelles
-                                        </h3>
-                                        <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                            Renseignez vos informations
-                                        </p>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        {/* Nom & Prénom */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="nom">Nom</Label>
-                                                <Input
-                                                    id="nom"
-                                                    placeholder="Ex: Kouassi"
-                                                    {...register("nom")}
-                                                    className={errors.nom ? "border-red-500" : ""}
-                                                />
-                                                {errors.nom && (
-                                                    <p className="text-red-500 text-xs">{errors.nom.message}</p>
-                                                )}
+                                    {/* Step 2: Identité */}
+                                    <div className="w-full flex-shrink-0">
+                                        <div className="p-6 sm:p-8">
+                                            <div className="text-center mb-6">
+                                                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                                    <User className="h-7 w-7" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                                    Informations Personnelles
+                                                </h3>
+                                                <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                                    Identité du participant
+                                                </p>
                                             </div>
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="prenom">Prénoms</Label>
-                                                <Input
-                                                    id="prenom"
-                                                    placeholder="Ex: Jean"
-                                                    {...register("prenom")}
-                                                    className={errors.prenom ? "border-red-500" : ""}
-                                                />
-                                                {errors.prenom && (
-                                                    <p className="text-red-500 text-xs">{errors.prenom.message}</p>
-                                                )}
-                                            </div>
-                                        </div>
 
-                                        {/* Sexe */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label>Genre</Label>
-                                            <div className="flex gap-3">
-                                                <label
-                                                    className={cn(
-                                                        "flex-1 flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-all",
-                                                        selectedSexe === "homme"
-                                                            ? "border-primary bg-primary/5 text-primary"
-                                                            : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"
-                                                    )}
-                                                >
-                                                    <input
-                                                        type="radio"
-                                                        value="homme"
-                                                        {...register("sexe")}
-                                                        className="sr-only"
+                                            <div className="space-y-4">
+                                                {/* Nom & Prénom */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="nom">Nom</Label>
+                                                        <Input
+                                                            id="nom"
+                                                            placeholder="Ex: Kouassi"
+                                                            {...register("nom")}
+                                                            className={errors.nom ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.nom && (
+                                                            <p className="text-red-500 text-xs">{errors.nom.message}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="prenom">Prénoms</Label>
+                                                        <Input
+                                                            id="prenom"
+                                                            placeholder="Ex: Jean"
+                                                            {...register("prenom")}
+                                                            className={errors.prenom ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.prenom && (
+                                                            <p className="text-red-500 text-xs">{errors.prenom.message}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Sexe */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label>Genre</Label>
+                                                    <div className="flex gap-3">
+                                                        <label
+                                                            className={cn(
+                                                                "flex-1 flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                                                                selectedSexe === "homme"
+                                                                    ? "border-primary bg-primary/5 text-primary"
+                                                                    : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"
+                                                            )}
+                                                        >
+                                                            <input
+                                                                type="radio"
+                                                                value="homme"
+                                                                {...register("sexe")}
+                                                                className="sr-only"
+                                                            />
+                                                            <span className="flex items-center gap-2">
+                                                                <span className="text-lg">♂</span> Homme
+                                                            </span>
+                                                        </label>
+                                                        <label
+                                                            className={cn(
+                                                                "flex-1 flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                                                                selectedSexe === "femme"
+                                                                    ? "border-primary bg-primary/5 text-primary"
+                                                                    : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"
+                                                            )}
+                                                        >
+                                                            <input
+                                                                type="radio"
+                                                                value="femme"
+                                                                {...register("sexe")}
+                                                                className="sr-only"
+                                                            />
+                                                            <span className="flex items-center gap-2">
+                                                                <span className="text-lg">♀</span> Femme
+                                                            </span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+
+                                                {/* Âge & Niveau */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="age">Âge</Label>
+                                                        <Input
+                                                            id="age"
+                                                            type="number"
+                                                            placeholder="25"
+                                                            {...register("age", { valueAsNumber: true })}
+                                                            className={errors.age ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.age && (
+                                                            <p className="text-red-500 text-xs">{errors.age.message}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="niveauEtude">Niveau d'étude</Label>
+                                                        <Select
+                                                            id="niveauEtude"
+                                                            {...register("niveauEtude")}
+                                                            className={errors.niveauEtude ? "border-red-500" : ""}
+                                                        >
+                                                            <option value="">Sélectionnez</option>
+                                                            <option value="aucun">Aucun</option>
+                                                            <option value="primaire">Primaire</option>
+                                                            <option value="secondaire">Secondaire</option>
+                                                            <option value="superieur">Universitaire</option>
+                                                            <option value="arabe">Arabe</option>
+                                                        </Select>
+                                                        {errors.niveauEtude && (
+                                                            <p className="text-red-500 text-xs">{errors.niveauEtude.message}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* École */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="ecole">École</Label>
+                                                    <Input
+                                                        id="ecole"
+                                                        placeholder="Ex: Lycée Moderne de Yopougon"
+                                                        {...register("ecole")}
                                                     />
-                                                    <span className="flex items-center gap-2">
-                                                        <span className="text-lg">♂</span> Homme
-                                                    </span>
-                                                </label>
-                                                <label
-                                                    className={cn(
-                                                        "flex-1 flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-all",
-                                                        selectedSexe === "femme"
-                                                            ? "border-primary bg-primary/5 text-primary"
-                                                            : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"
-                                                    )}
-                                                >
-                                                    <input
-                                                        type="radio"
-                                                        value="femme"
-                                                        {...register("sexe")}
-                                                        className="sr-only"
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Step 3: Parents & Contact */}
+                                    <div className="w-full flex-shrink-0">
+                                        <div className="p-6 sm:p-8">
+                                            <div className="text-center mb-6">
+                                                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                                    <Phone className="h-7 w-7" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                                    Parents & Contact
+                                                </h3>
+                                                <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                                    Coordonnées et contacts d'urgence
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                {/* Téléphone du séminariste */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="telephone">
+                                                        Numéro de téléphone du séminariste <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input
+                                                        id="telephone"
+                                                        type="tel"
+                                                        placeholder="Ex: 07 00 00 00 00"
+                                                        {...register("telephone")}
+                                                        className={errors.telephone ? "border-red-500" : ""}
                                                     />
-                                                    <span className="flex items-center gap-2">
-                                                        <span className="text-lg">♀</span> Femme
-                                                    </span>
-                                                </label>
+                                                    {errors.telephone && (
+                                                        <p className="text-red-500 text-xs">{errors.telephone.message}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Nom et Prénom du parent */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="nomParent">
+                                                            Nom du parent <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <Input
+                                                            id="nomParent"
+                                                            placeholder="Ex: Traoré"
+                                                            {...register("nomParent")}
+                                                            className={errors.nomParent ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.nomParent && (
+                                                            <p className="text-red-500 text-xs">{errors.nomParent.message}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="prenomParent">
+                                                            Prénom(s) du parent <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <Input
+                                                            id="prenomParent"
+                                                            placeholder="Ex: Aminata"
+                                                            {...register("prenomParent")}
+                                                            className={errors.prenomParent ? "border-red-500" : ""}
+                                                        />
+                                                        {errors.prenomParent && (
+                                                            <p className="text-red-500 text-xs">{errors.prenomParent.message}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Numéro du parent */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="numeroParent">
+                                                        Numéro du parent <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input
+                                                        id="numeroParent"
+                                                        type="tel"
+                                                        placeholder="Ex: 01 00 00 00 00"
+                                                        {...register("numeroParent")}
+                                                        className={errors.numeroParent ? "border-red-500" : ""}
+                                                    />
+                                                    {errors.numeroParent && (
+                                                        <p className="text-red-500 text-xs">{errors.numeroParent.message}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Lieu d'habitation */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="lieuHabitation">
+                                                        Lieu d'habitation <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input
+                                                        id="lieuHabitation"
+                                                        placeholder="Ex: Yopougon, Mamie Adjoua"
+                                                        {...register("lieuHabitation")}
+                                                        className={errors.lieuHabitation ? "border-red-500" : ""}
+                                                    />
+                                                    {errors.lieuHabitation && (
+                                                        <p className="text-red-500 text-xs">{errors.lieuHabitation.message}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Nombre de participations */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="nombreParticipations">
+                                                        Nombre de participation au SEFIMAP
+                                                    </Label>
+                                                    <Input
+                                                        id="nombreParticipations"
+                                                        type="number"
+                                                        min="0"
+                                                        placeholder="0"
+                                                        {...register("nombreParticipations", { valueAsNumber: true })}
+                                                        className={errors.nombreParticipations ? "border-red-500" : ""}
+                                                    />
+                                                    {errors.nombreParticipations && (
+                                                        <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Numéro d'urgence */}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="numeroUrgence">
+                                                        N° Urgence <span className="text-red-500">*</span>
+                                                    </Label>
+                                                    <Input
+                                                        id="numeroUrgence"
+                                                        type="tel"
+                                                        placeholder="Ex: 05 00 00 00 00"
+                                                        {...register("numeroUrgence")}
+                                                        className={errors.numeroUrgence ? "border-red-500" : ""}
+                                                    />
+                                                    {errors.numeroUrgence && (
+                                                        <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-
-                                        {/* Âge & Niveau */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="age">Âge</Label>
-                                                <Input
-                                                    id="age"
-                                                    type="number"
-                                                    placeholder="25"
-                                                    {...register("age", { valueAsNumber: true })}
-                                                    className={errors.age ? "border-red-500" : ""}
-                                                />
-                                                {errors.age && (
-                                                    <p className="text-red-500 text-xs">{errors.age.message}</p>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="niveauEtude">Niveau d'étude</Label>
-                                                <Select
-                                                    id="niveauEtude"
-                                                    {...register("niveauEtude")}
-                                                    className={errors.niveauEtude ? "border-red-500" : ""}
-                                                >
-                                                    <option value="">Sélectionnez</option>
-                                                    <option value="aucun">Aucun</option>
-                                                    <option value="primaire">Primaire</option>
-                                                    <option value="secondaire">Secondaire</option>
-                                                    <option value="superieur">Universitaire</option>
-                                                    <option value="arabe">Arabe</option>
-                                                </Select>
-                                                {errors.niveauEtude && (
-                                                    <p className="text-red-500 text-xs">{errors.niveauEtude.message}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Téléphone du séminariste */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="telephone">
-                                                Numéro de téléphone du séminariste <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="telephone"
-                                                type="tel"
-                                                placeholder="Ex: 07 00 00 00 00"
-                                                {...register("telephone")}
-                                                className={errors.telephone ? "border-red-500" : ""}
-                                            />
-                                            {errors.telephone && (
-                                                <p className="text-red-500 text-xs">{errors.telephone.message}</p>
-                                            )}
-                                        </div>
-
-                                        {/* École */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="ecole">École</Label>
-                                            <Input
-                                                id="ecole"
-                                                placeholder="Ex: Lycée Moderne de Yopougon"
-                                                {...register("ecole")}
-                                            />
-                                        </div>
-
-                                        {/* Nom et Prénom du parent */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="nomParent">
-                                                    Nom du parent <span className="text-red-500">*</span>
-                                                </Label>
-                                                <Input
-                                                    id="nomParent"
-                                                    placeholder="Ex: Traoré"
-                                                    {...register("nomParent")}
-                                                    className={errors.nomParent ? "border-red-500" : ""}
-                                                />
-                                                {errors.nomParent && (
-                                                    <p className="text-red-500 text-xs">{errors.nomParent.message}</p>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="prenomParent">
-                                                    Prénom(s) du parent <span className="text-red-500">*</span>
-                                                </Label>
-                                                <Input
-                                                    id="prenomParent"
-                                                    placeholder="Ex: Aminata"
-                                                    {...register("prenomParent")}
-                                                    className={errors.prenomParent ? "border-red-500" : ""}
-                                                />
-                                                {errors.prenomParent && (
-                                                    <p className="text-red-500 text-xs">{errors.prenomParent.message}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Numéro du parent */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="numeroParent">
-                                                Numéro du parent <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="numeroParent"
-                                                type="tel"
-                                                placeholder="Ex: 01 00 00 00 00"
-                                                {...register("numeroParent")}
-                                                className={errors.numeroParent ? "border-red-500" : ""}
-                                            />
-                                            {errors.numeroParent && (
-                                                <p className="text-red-500 text-xs">{errors.numeroParent.message}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Lieu d'habitation */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="lieuHabitation">
-                                                Lieu d'habitation <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="lieuHabitation"
-                                                placeholder="Ex: Yopougon, Mamie Adjoua"
-                                                {...register("lieuHabitation")}
-                                                className={errors.lieuHabitation ? "border-red-500" : ""}
-                                            />
-                                            {errors.lieuHabitation && (
-                                                <p className="text-red-500 text-xs">{errors.lieuHabitation.message}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Nombre de participations */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="nombreParticipations">
-                                                Nombre de participation au SEFIMAP
-                                            </Label>
-                                            <Input
-                                                id="nombreParticipations"
-                                                type="number"
-                                                min="0"
-                                                placeholder="0"
-                                                {...register("nombreParticipations", { valueAsNumber: true })}
-                                                className={errors.nombreParticipations ? "border-red-500" : ""}
-                                            />
-                                            {errors.nombreParticipations && (
-                                                <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Numéro d'urgence */}
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="numeroUrgence">
-                                                N° Urgence <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="numeroUrgence"
-                                                type="tel"
-                                                placeholder="Ex: 05 00 00 00 00"
-                                                {...register("numeroUrgence")}
-                                                className={errors.numeroUrgence ? "border-red-500" : ""}
-                                            />
-                                            {errors.numeroUrgence && (
-                                                <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
-                                            )}
                                         </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            {/* Step 3: Référent */}
-                            <div className={cn(
-                                "transition-all duration-300",
-                                currentStep === 3 ? "block" : "hidden"
-                            )}>
-                                <div className="p-6 sm:p-8">
-                                    <div className="text-center mb-6">
-                                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
-                                            <Users className="h-7 w-7" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-text-main dark:text-white">
-                                            Président de Section Référent
-                                        </h3>
-                                        <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                            Sélectionnez votre président de section
-                                        </p>
-                                    </div>
+                                    {/* Step 4: Référent */}
+                                    <div className="w-full flex-shrink-0">
+                                        <div className="p-6 sm:p-8">
+                                            <div className="text-center mb-6">
+                                                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-3">
+                                                    <Users className="h-7 w-7" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-text-main dark:text-white">
+                                                    Président de Section Référent
+                                                </h3>
+                                                <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
+                                                    Sélectionnez votre président de section
+                                                </p>
+                                            </div>
 
-                                    <div className="space-y-4">
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="chefQuartier">Président de Section</Label>
-                                            <Select
-                                                id="chefQuartier"
-                                                {...register("chefQuartier")}
-                                                className={cn(
-                                                    "h-12",
-                                                    errors.chefQuartier ? "border-red-500" : ""
-                                                )}
-                                            >
-                                                <option value="">Sélectionnez votre référent</option>
-                                                {chefsQuartier.map(chef => (
-                                                    <option key={chef.id} value={chef.id}>
-                                                        {chef.nom_complet} - {chef.ecole}
-                                                    </option>
-                                                ))}
-                                            </Select>
-                                            {errors.chefQuartier && (
-                                                <p className="text-red-500 text-xs">{errors.chefQuartier.message}</p>
-                                            )}
-                                        </div>
+                                            <div className="space-y-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="chefQuartier">Président de Section</Label>
+                                                    <Select
+                                                        id="chefQuartier"
+                                                        {...register("chefQuartier")}
+                                                        className={cn(
+                                                            "h-12",
+                                                            errors.chefQuartier ? "border-red-500" : ""
+                                                        )}
+                                                    >
+                                                        <option value="">Sélectionnez votre référent</option>
+                                                        {chefsQuartier.map(chef => (
+                                                            <option key={chef.id} value={chef.id}>
+                                                                {chef.nom_complet} - {chef.ecole}
+                                                            </option>
+                                                        ))}
+                                                    </Select>
+                                                    {errors.chefQuartier && (
+                                                        <p className="text-red-500 text-xs">{errors.chefQuartier.message}</p>
+                                                    )}
+                                                </div>
 
-                                        {/* Résumé */}
-                                        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-border-light dark:border-border-dark">
-                                            <h4 className="font-semibold text-text-main dark:text-white text-sm mb-3">
-                                                Résumé de l'inscription
-                                            </h4>
-                                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                                <div className="text-text-secondary">Nom complet:</div>
-                                                <div className="text-text-main dark:text-white font-medium">
-                                                    {watchedValues.nom || "-"} {watchedValues.prenom || ""}
-                                                </div>
-                                                <div className="text-text-secondary">Âge:</div>
-                                                <div className="text-text-main dark:text-white font-medium">
-                                                    {watchedValues.age || "-"} ans
-                                                </div>
-                                                <div className="text-text-secondary">Genre:</div>
-                                                <div className="text-text-main dark:text-white font-medium capitalize">
-                                                    {watchedValues.sexe || "-"}
-                                                </div>
-                                                <div className="text-text-secondary">Photo:</div>
-                                                <div className={cn(
-                                                    "font-medium",
-                                                    photoFile ? "text-emerald-500" : "text-amber-500"
-                                                )}>
-                                                    {photoFile ? "✓ Capturée" : "✗ Manquante"}
+                                                {/* Résumé */}
+                                                <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-border-light dark:border-border-dark">
+                                                    <h4 className="font-semibold text-text-main dark:text-white text-sm mb-3">
+                                                        Résumé de l'inscription
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                                        <div className="text-text-secondary">Nom complet:</div>
+                                                        <div className="text-text-main dark:text-white font-medium">
+                                                            {watchedValues.nom || "-"} {watchedValues.prenom || ""}
+                                                        </div>
+                                                        <div className="text-text-secondary">Âge:</div>
+                                                        <div className="text-text-main dark:text-white font-medium">
+                                                            {watchedValues.age || "-"} ans
+                                                        </div>
+                                                        <div className="text-text-secondary">Genre:</div>
+                                                        <div className="text-text-main dark:text-white font-medium capitalize">
+                                                            {watchedValues.sexe || "-"}
+                                                        </div>
+                                                        <div className="text-text-secondary">Photo:</div>
+                                                        <div className={cn(
+                                                            "font-medium",
+                                                            photoFile ? "text-emerald-500" : "text-amber-500"
+                                                        )}>
+                                                            {photoFile ? "✓ Capturée" : "✗ Manquante"}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
                             {/* Navigation Buttons */}
                             <div className="px-6 sm:px-8 pb-6 sm:pb-8 flex gap-3">
                                 {currentStep > 1 && (
@@ -663,7 +688,7 @@ export function PublicRegistration() {
                                         Précédent
                                     </Button>
                                 )}
-                                {currentStep < 3 ? (
+                                {currentStep < 4 ? (
                                     <Button
                                         type="button"
                                         onClick={nextStep}
