@@ -24,16 +24,25 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
 import { uploadPhoto } from "@/lib/storage";
 
+// NOTE: Pour les inscriptions présentielles, le dortoir est obligatoire
+// Le niveau_formation n'est PAS géré par l'admin, il sera complété par la section scientifique
+// TODO: Créer une interface pour la section scientifique permettant de compléter les inscriptions
 const registrationSchema = z.object({
     nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
     prenom: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
     age: z.number().min(1, "L'âge est requis").max(120, "Âge invalide"),
     sexe: z.enum(["homme", "femme"]),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
-    telephone: z.string().optional().or(z.literal("")),
+    telephone: z.string().min(8, "Le numéro de téléphone est obligatoire"),
+    ecole: z.string().optional().or(z.literal("")),
+    nomParent: z.string().min(2, "Le nom du parent est requis"),
+    prenomParent: z.string().min(2, "Le prénom du parent est requis"),
+    numeroParent: z.string().min(8, "Le numéro du parent est obligatoire"),
+    lieuHabitation: z.string().min(2, "Le lieu d'habitation est requis"),
+    nombreParticipations: z.number().min(0, "Le nombre doit être positif ou zéro"),
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     dortoirId: z.string().min(1, "Veuillez sélectionner un dortoir"),
-    niveauFormation: z.string().min(1, "Veuillez sélectionner un niveau de formation"),
+    // niveauFormation retiré - géré par la section scientifique uniquement
 });
 
 export function InPersonRegistration() {
@@ -57,6 +66,7 @@ export function InPersonRegistration() {
         resolver: zodResolver(registrationSchema),
         defaultValues: {
             sexe: "homme",
+            nombreParticipations: 0,
         },
     });
 
@@ -151,6 +161,7 @@ export function InPersonRegistration() {
             const photoUrl = await uploadPhoto(photoFile, 'presentiel');
 
             // 2. Créer l'inscription avec l'URL de la photo
+            // NOTE: niveau_formation est null car il sera complété par la section scientifique
             const { data: inscription, error } = await supabase
                 .from('inscriptions')
                 .insert({
@@ -159,7 +170,13 @@ export function InPersonRegistration() {
                     age: data.age,
                     sexe: data.sexe,
                     niveau_etude: data.niveauEtude,
-                    telephone: data.telephone || null,
+                    telephone: data.telephone,
+                    ecole: data.ecole || null,
+                    nom_parent: data.nomParent,
+                    prenom_parent: data.prenomParent,
+                    numero_parent: data.numeroParent,
+                    lieu_habitation: data.lieuHabitation,
+                    nombre_participations: data.nombreParticipations,
                     numero_urgence: data.numeroUrgence,
                     admin_id: user.id,
                     type_inscription: 'presentielle',
@@ -167,7 +184,7 @@ export function InPersonRegistration() {
                     chef_quartier_id: null,
                     photo_url: photoUrl,
                     dortoir_id: data.dortoirId,
-                    niveau_formation: data.niveauFormation,
+                    niveau_formation: null, // Sera complété par la section scientifique
                 })
                 .select()
                 .single();
@@ -392,39 +409,140 @@ export function InPersonRegistration() {
                                     </div>
                                 </div>
 
-                                {/* Téléphone & Numéro d'urgence */}
+                                {/* Téléphone du séminariste */}
+                                <div className="flex flex-col gap-2">
+                                    <Label htmlFor="telephone">
+                                        Numéro de téléphone du séminariste <span className="text-red-500">*</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                        <Input
+                                            id="telephone"
+                                            type="tel"
+                                            placeholder="Ex: 07 00 00 00 00"
+                                            {...register("telephone")}
+                                            className={`pl-10 ${errors.telephone ? "border-red-500" : ""}`}
+                                        />
+                                    </div>
+                                    {errors.telephone && (
+                                        <p className="text-red-500 text-xs">{errors.telephone.message}</p>
+                                    )}
+                                </div>
+
+                                {/* École */}
+                                <div className="flex flex-col gap-2">
+                                    <Label htmlFor="ecole">École</Label>
+                                    <Input
+                                        id="ecole"
+                                        placeholder="Ex: Lycée Moderne de Yopougon"
+                                        {...register("ecole")}
+                                    />
+                                </div>
+
+                                {/* Nom et Prénom du parent */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex flex-col gap-2">
-                                        <Label htmlFor="telephone">Téléphone (Optionnel)</Label>
-                                        <div className="relative">
-                                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                                            <Input
-                                                id="telephone"
-                                                type="tel"
-                                                placeholder="Ex: 07 00 00 00 00"
-                                                {...register("telephone")}
-                                                className="pl-10"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="numeroUrgence">
-                                            N° Urgence <span className="text-red-500">*</span>
+                                        <Label htmlFor="nomParent">
+                                            Nom du parent <span className="text-red-500">*</span>
                                         </Label>
-                                        <div className="relative">
-                                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
-                                            <Input
-                                                id="numeroUrgence"
-                                                type="tel"
-                                                placeholder="Ex: 01 00 00 00 00"
-                                                {...register("numeroUrgence")}
-                                                className={`pl-10 ${errors.numeroUrgence ? "border-red-500" : ""}`}
-                                            />
-                                        </div>
-                                        {errors.numeroUrgence && (
-                                            <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                        <Input
+                                            id="nomParent"
+                                            placeholder="Ex: Traoré"
+                                            {...register("nomParent")}
+                                            className={errors.nomParent ? "border-red-500" : ""}
+                                        />
+                                        {errors.nomParent && (
+                                            <p className="text-red-500 text-xs">{errors.nomParent.message}</p>
                                         )}
                                     </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="prenomParent">
+                                            Prénom(s) du parent <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            id="prenomParent"
+                                            placeholder="Ex: Aminata"
+                                            {...register("prenomParent")}
+                                            className={errors.prenomParent ? "border-red-500" : ""}
+                                        />
+                                        {errors.prenomParent && (
+                                            <p className="text-red-500 text-xs">{errors.prenomParent.message}</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Numéro du parent */}
+                                <div className="flex flex-col gap-2">
+                                    <Label htmlFor="numeroParent">
+                                        Numéro du parent <span className="text-red-500">*</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                        <Input
+                                            id="numeroParent"
+                                            type="tel"
+                                            placeholder="Ex: 01 00 00 00 00"
+                                            {...register("numeroParent")}
+                                            className={`pl-10 ${errors.numeroParent ? "border-red-500" : ""}`}
+                                        />
+                                    </div>
+                                    {errors.numeroParent && (
+                                        <p className="text-red-500 text-xs">{errors.numeroParent.message}</p>
+                                    )}
+                                </div>
+
+                                {/* Lieu d'habitation */}
+                                <div className="flex flex-col gap-2">
+                                    <Label htmlFor="lieuHabitation">
+                                        Lieu d'habitation <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                        id="lieuHabitation"
+                                        placeholder="Ex: Yopougon, Mamie Adjoua"
+                                        {...register("lieuHabitation")}
+                                        className={errors.lieuHabitation ? "border-red-500" : ""}
+                                    />
+                                    {errors.lieuHabitation && (
+                                        <p className="text-red-500 text-xs">{errors.lieuHabitation.message}</p>
+                                    )}
+                                </div>
+
+                                {/* Nombre de participations */}
+                                <div className="flex flex-col gap-2">
+                                    <Label htmlFor="nombreParticipations">
+                                        Nombre de participation au SEFIMAP
+                                    </Label>
+                                    <Input
+                                        id="nombreParticipations"
+                                        type="number"
+                                        min="0"
+                                        placeholder="0"
+                                        {...register("nombreParticipations", { valueAsNumber: true })}
+                                        className={errors.nombreParticipations ? "border-red-500" : ""}
+                                    />
+                                    {errors.nombreParticipations && (
+                                        <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
+                                    )}
+                                </div>
+
+                                {/* Numéro d'urgence */}
+                                <div className="flex flex-col gap-2">
+                                    <Label htmlFor="numeroUrgence">
+                                        N° Urgence <span className="text-red-500">*</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                                        <Input
+                                            id="numeroUrgence"
+                                            type="tel"
+                                            placeholder="Ex: 05 00 00 00 00"
+                                            {...register("numeroUrgence")}
+                                            className={`pl-10 ${errors.numeroUrgence ? "border-red-500" : ""}`}
+                                        />
+                                    </div>
+                                    {errors.numeroUrgence && (
+                                        <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                    )}
                                 </div>
 
                                 {/* Affectation */}
@@ -486,45 +604,35 @@ export function InPersonRegistration() {
                                         </div>
                                     )}
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="dortoirId">
-                                                Dortoir <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Select
-                                                id="dortoirId"
-                                                {...register("dortoirId")}
-                                                className={errors.dortoirId ? "border-red-500" : ""}
-                                            >
-                                                <option value="">Sélectionnez</option>
-                                                {dortoirs.map(dortoir => (
-                                                    <option key={dortoir.id} value={dortoir.id}>
-                                                        {dortoir.nom}
-                                                    </option>
-                                                ))}
-                                            </Select>
-                                            {errors.dortoirId && (
-                                                <p className="text-red-500 text-xs">{errors.dortoirId.message}</p>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="niveauFormation">
-                                                Niveau formation <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Select
-                                                id="niveauFormation"
-                                                {...register("niveauFormation")}
-                                                className={errors.niveauFormation ? "border-red-500" : ""}
-                                            >
-                                                <option value="">Sélectionnez</option>
-                                                <option value="debutant">Débutant</option>
-                                                <option value="normal">Normal</option>
-                                                <option value="superieur">Supérieur</option>
-                                            </Select>
-                                            {errors.niveauFormation && (
-                                                <p className="text-red-500 text-xs">{errors.niveauFormation.message}</p>
-                                            )}
-                                        </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="dortoirId">
+                                            Dortoir <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Select
+                                            id="dortoirId"
+                                            {...register("dortoirId")}
+                                            className={errors.dortoirId ? "border-red-500" : ""}
+                                        >
+                                            <option value="">Sélectionnez</option>
+                                            {dortoirs.map(dortoir => (
+                                                <option key={dortoir.id} value={dortoir.id}>
+                                                    {dortoir.nom}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                        {errors.dortoirId && (
+                                            <p className="text-red-500 text-xs">{errors.dortoirId.message}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Note sur le niveau de formation */}
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p className="text-sm text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                                            <BookOpen className="w-4 h-4" />
+                                            <span>
+                                                <span className="font-semibold">Niveau de formation :</span> Sera attribué par la section scientifique
+                                            </span>
+                                        </p>
                                     </div>
                                 </div>
 

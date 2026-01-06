@@ -70,7 +70,12 @@ export function RegistrationDetailsModal({
     // Vérifier si les champs obligatoires pour validation sont remplis
     // Ces champs sont obligatoires UNIQUEMENT pour les inscriptions "en_ligne" (depuis président de section)
     const isOnlineRegistration = registration.originalData?.type_inscription === 'en_ligne';
-    const canValidate = !isOnlineRegistration || (formData.dortoir_id && formData.niveau_formation);
+
+    // NOTE: Seul le dortoir est requis pour valider une inscription
+    // Le niveau_formation sera renseigné plus tard par la section scientifique
+    // TODO: Créer une interface pour la section scientifique permettant de compléter les inscriptions
+    // en ajoutant le niveau de formation après validation par l'admin
+    const canValidate = !isOnlineRegistration || formData.dortoir_id;
 
     const handleSave = async () => {
         await onUpdate(registration.id, formData);
@@ -190,7 +195,7 @@ export function RegistrationDetailsModal({
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label>Téléphone</Label>
+                                <Label>Téléphone du séminariste</Label>
                                 <Input
                                     value={formData.telephone || ""}
                                     onChange={e => handleChange("telephone", e.target.value)}
@@ -212,6 +217,63 @@ export function RegistrationDetailsModal({
                                 </Select>
                             </div>
                             <div className="space-y-2 md:col-span-2">
+                                <Label>École</Label>
+                                <Input
+                                    value={formData.ecole || ""}
+                                    onChange={e => handleChange("ecole", e.target.value)}
+                                    placeholder="Non renseigné"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Nom du parent</Label>
+                                <Input
+                                    value={formData.nom_parent || ""}
+                                    onChange={e => handleChange("nom_parent", e.target.value)}
+                                    placeholder="Non renseigné"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Prénom(s) du parent</Label>
+                                <Input
+                                    value={formData.prenom_parent || ""}
+                                    onChange={e => handleChange("prenom_parent", e.target.value)}
+                                    placeholder="Non renseigné"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Numéro du parent</Label>
+                                <Input
+                                    value={formData.numero_parent || ""}
+                                    onChange={e => handleChange("numero_parent", e.target.value)}
+                                    placeholder="Non renseigné"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Lieu d'habitation</Label>
+                                <Input
+                                    value={formData.lieu_habitation || ""}
+                                    onChange={e => handleChange("lieu_habitation", e.target.value)}
+                                    placeholder="Non renseigné"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Nombre de participations SEFIMAP</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={formData.nombre_participations || 0}
+                                    onChange={e => handleChange("nombre_participations", parseInt(e.target.value) || 0)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Numéro d'urgence</Label>
+                                <Input
+                                    value={formData.numero_urgence || ""}
+                                    onChange={e => handleChange("numero_urgence", e.target.value)}
+                                    placeholder="Non renseigné"
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
                                 <Label>Président de Section</Label>
                                 <Select
                                     value={formData.chef_quartier_id || ""}
@@ -221,19 +283,19 @@ export function RegistrationDetailsModal({
                                     <option value="">Sélectionner un président</option>
                                     {chefsQuartier?.map(chef => (
                                         <option key={chef.id} value={chef.id}>
-                                            {chef.nom_complet} ({chef.zone})
+                                            {chef.nom_complet} - {chef.ecole}
                                         </option>
                                     ))}
                                 </Select>
                             </div>
 
-                            {/* Nouveaux champs obligatoires pour validation */}
+                            {/* Champs d'affectation - MODE ÉDITION */}
                             <div className="md:col-span-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
                                 <h4 className="font-semibold text-text-main dark:text-white mb-3 flex items-center gap-2">
                                     <Building className="w-4 h-4 text-primary" />
-                                    Affectation (obligatoire pour valider)
+                                    Affectation (dortoir requis pour valider)
                                 </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-4">
                                     <div className="space-y-2">
                                         <Label>
                                             Salle de dortoir <span className="text-red-500">*</span>
@@ -251,20 +313,15 @@ export function RegistrationDetailsModal({
                                             ))}
                                         </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>
-                                            Niveau de formation <span className="text-red-500">*</span>
-                                        </Label>
-                                        <Select
-                                            value={formData.niveau_formation || ""}
-                                            onChange={e => handleChange("niveau_formation", e.target.value)}
-                                            className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.niveau_formation ? "border-amber-500" : ""}`}
-                                        >
-                                            <option value="">Sélectionner un niveau</option>
-                                            <option value="debutant">Débutant</option>
-                                            <option value="normal">Normal</option>
-                                            <option value="superieur">Supérieur</option>
-                                        </Select>
+
+                                    {/* Note sur le niveau de formation */}
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p className="text-sm text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                                            <BookOpen className="w-4 h-4" />
+                                            <span>
+                                                <span className="font-semibold">Niveau de formation :</span> Sera attribué par la section scientifique
+                                            </span>
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -345,6 +402,15 @@ export function RegistrationDetailsModal({
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
+                                    <BookOpen className="w-5 h-5 text-text-secondary mt-0.5" />
+                                    <div>
+                                        <p className="text-sm text-text-secondary">École</p>
+                                        <p className="font-medium text-text-main dark:text-white">
+                                            {registration.originalData?.ecole || "Non renseigné"}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
                                     <MapPin className="w-5 h-5 text-text-secondary mt-0.5" />
                                     <div>
                                         <p className="text-sm text-text-secondary">Président de section / Zone</p>
@@ -364,6 +430,61 @@ export function RegistrationDetailsModal({
                                 </div>
                             </div>
 
+                            {/* Informations supplémentaires */}
+                            <div className="md:col-span-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
+                                <h4 className="font-semibold text-text-main dark:text-white mb-4 flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-primary" />
+                                    Informations du parent / tuteur
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex items-start gap-3">
+                                        <User className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">Nom & Prénom(s)</p>
+                                            <p className="font-medium text-text-main dark:text-white">
+                                                {registration.originalData?.nom_parent} {registration.originalData?.prenom_parent || "Non renseigné"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <Phone className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">Numéro du parent</p>
+                                            <p className="font-medium text-text-main dark:text-white">
+                                                {registration.originalData?.numero_parent || "Non renseigné"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <MapPin className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">Lieu d'habitation</p>
+                                            <p className="font-medium text-text-main dark:text-white">
+                                                {registration.originalData?.lieu_habitation || "Non renseigné"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <Phone className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">N° Urgence</p>
+                                            <p className="font-medium text-text-main dark:text-white">
+                                                {registration.originalData?.numero_urgence || "Non renseigné"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <CheckCircle className="w-5 h-5 text-text-secondary mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-text-secondary">Participations SEFIMAP</p>
+                                            <p className="font-medium text-text-main dark:text-white">
+                                                {registration.originalData?.nombre_participations || 0} fois
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Section Affectation - ÉDITABLE DIRECTEMENT */}
                             <div className="md:col-span-2 mt-4 pt-4 border-t border-border-light dark:border-border-dark">
                                 <h4 className="font-semibold text-text-main dark:text-white mb-4 flex items-center gap-2">
@@ -371,7 +492,7 @@ export function RegistrationDetailsModal({
                                     Affectation
                                     {isOnlineRegistration && registration.statut === 'en_attente' && (
                                         <span className="text-xs font-normal text-amber-500 ml-2">
-                                            (Requis pour valider)
+                                            (Dortoir requis pour valider)
                                         </span>
                                     )}
                                 </h4>
@@ -429,7 +550,7 @@ export function RegistrationDetailsModal({
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-4">
                                     <div className="space-y-2">
                                         <Label className="flex items-center gap-2 text-text-secondary">
                                             <Building className="w-4 h-4" />
@@ -457,47 +578,37 @@ export function RegistrationDetailsModal({
                                             ))}
                                         </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label className="flex items-center gap-2 text-text-secondary">
+
+                                    {/* Note sur le niveau de formation */}
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p className="text-sm text-blue-900 dark:text-blue-200 flex items-center gap-2">
                                             <BookOpen className="w-4 h-4" />
-                                            Niveau de formation
-                                            {isOnlineRegistration && <span className="text-red-500">*</span>}
-                                        </Label>
-                                        <Select
-                                            value={formData.niveau_formation || ""}
-                                            onChange={async (e) => {
-                                                const newValue = e.target.value;
-                                                handleChange("niveau_formation", newValue);
-                                                // Sauvegarder immédiatement sans fermer le modal
-                                                await onUpdate(registration.id, {
-                                                    ...formData,
-                                                    niveau_formation: newValue
-                                                }, false);
-                                            }}
-                                            className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.niveau_formation && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20" : ""}`}
-                                        >
-                                            <option value="">Non assigné</option>
-                                            <option value="debutant">Débutant</option>
-                                            <option value="normal">Normal</option>
-                                            <option value="superieur">Supérieur</option>
-                                        </Select>
+                                            <span>
+                                                <span className="font-semibold">Niveau de formation :</span> {formData.niveau_formation ? (
+                                                    <span className="capitalize">{niveauFormationMap[formData.niveau_formation] || formData.niveau_formation}</span>
+                                                ) : (
+                                                    <span>Sera attribué par la section scientifique</span>
+                                                )}
+                                            </span>
+                                        </p>
                                     </div>
+
+                                    {/* Message de confirmation */}
+                                    {formData.dortoir_id && (
+                                        <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                            <CheckCircle className="w-3 h-3" />
+                                            Dortoir assigné - Vous pouvez valider cette inscription
+                                        </p>
+                                    )}
                                 </div>
-                                {/* Message de confirmation */}
-                                {formData.dortoir_id && formData.niveau_formation && (
-                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1">
-                                        <CheckCircle className="w-3 h-3" />
-                                        Affectation complète - Vous pouvez valider cette inscription
-                                    </p>
-                                )}
                             </div>
 
-                            {/* Avertissement si champs manquants pour validation */}
+                            {/* Avertissement si dortoir manquant pour validation */}
                             {isOnlineRegistration && registration.statut === 'en_attente' && !canValidate && (
                                 <div className="md:col-span-2 mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800">
                                     <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
                                         <span className="font-bold">⚠️ Action requise:</span>
-                                        Veuillez attribuer une salle de dortoir et un niveau de formation avant de valider cette inscription.
+                                        Veuillez attribuer une salle de dortoir pour valider cette inscription.
                                     </p>
                                 </div>
                             )}
@@ -529,7 +640,7 @@ export function RegistrationDetailsModal({
                                             onClose();
                                         }
                                     }}
-                                    title={!canValidate ? "Attribuez d'abord un dortoir et un niveau de formation" : "Valider l'inscription"}
+                                    title={!canValidate ? "Attribuez d'abord un dortoir" : "Valider l'inscription"}
                                 >
                                     <CheckCircle className="w-4 h-4" />
                                     Valider

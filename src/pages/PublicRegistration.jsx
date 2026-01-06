@@ -30,7 +30,13 @@ const registrationSchema = z.object({
     age: z.number().min(1, "L'âge est requis").max(120, "Âge invalide"),
     sexe: z.enum(["homme", "femme"], { required_error: "Veuillez sélectionner le sexe" }),
     niveauEtude: z.string().min(1, "Veuillez sélectionner un niveau d'étude"),
-    telephone: z.string().optional().or(z.literal("")),
+    telephone: z.string().min(8, "Le numéro de téléphone est obligatoire"),
+    ecole: z.string().optional().or(z.literal("")),
+    nomParent: z.string().min(2, "Le nom du parent est requis"),
+    prenomParent: z.string().min(2, "Le prénom du parent est requis"),
+    numeroParent: z.string().min(8, "Le numéro du parent est obligatoire"),
+    lieuHabitation: z.string().min(2, "Le lieu d'habitation est requis"),
+    nombreParticipations: z.number().min(0, "Le nombre doit être positif ou zéro"),
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     chefQuartier: z.string().min(1, "Veuillez sélectionner un président de section"),
 });
@@ -62,6 +68,7 @@ export function PublicRegistration() {
         resolver: zodResolver(registrationSchema),
         defaultValues: {
             sexe: "homme",
+            nombreParticipations: 0,
         },
     });
 
@@ -96,7 +103,7 @@ export function PublicRegistration() {
             return true;
         }
         if (step === 2) {
-            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude", "numeroUrgence"]);
+            const isValid = await trigger(["nom", "prenom", "age", "sexe", "niveauEtude", "telephone", "ecole", "nomParent", "prenomParent", "numeroParent", "lieuHabitation", "nombreParticipations", "numeroUrgence"]);
             return isValid;
         }
         if (step === 3) {
@@ -154,7 +161,13 @@ export function PublicRegistration() {
                     age: data.age,
                     sexe: data.sexe,
                     niveau_etude: data.niveauEtude,
-                    telephone: data.telephone || null,
+                    telephone: data.telephone,
+                    ecole: data.ecole || null,
+                    nom_parent: data.nomParent,
+                    prenom_parent: data.prenomParent,
+                    numero_parent: data.numeroParent,
+                    lieu_habitation: data.lieuHabitation,
+                    nombre_participations: data.nombreParticipations,
                     numero_urgence: data.numeroUrgence,
                     chef_quartier_id: data.chefQuartier,
                     type_inscription: 'en_ligne',
@@ -183,7 +196,10 @@ export function PublicRegistration() {
     const isStepComplete = (step) => {
         if (step === 1) return !!photoFile;
         if (step === 2) {
-            return watchedValues.nom && watchedValues.prenom && watchedValues.age && watchedValues.sexe && watchedValues.niveauEtude && watchedValues.numeroUrgence;
+            return watchedValues.nom && watchedValues.prenom && watchedValues.age && watchedValues.sexe &&
+                   watchedValues.niveauEtude && watchedValues.telephone && watchedValues.nomParent &&
+                   watchedValues.prenomParent && watchedValues.numeroParent && watchedValues.lieuHabitation &&
+                   watchedValues.numeroUrgence && (watchedValues.nombreParticipations !== undefined);
         }
         if (step === 3) return !!watchedValues.chefQuartier;
         return false;
@@ -432,32 +448,131 @@ export function PublicRegistration() {
                                             </div>
                                         </div>
 
-                                        {/* Téléphone & Numéro d'urgence */}
+                                        {/* Téléphone du séminariste */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="telephone">
+                                                Numéro de téléphone du séminariste <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input
+                                                id="telephone"
+                                                type="tel"
+                                                placeholder="Ex: 07 00 00 00 00"
+                                                {...register("telephone")}
+                                                className={errors.telephone ? "border-red-500" : ""}
+                                            />
+                                            {errors.telephone && (
+                                                <p className="text-red-500 text-xs">{errors.telephone.message}</p>
+                                            )}
+                                        </div>
+
+                                        {/* École */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="ecole">École</Label>
+                                            <Input
+                                                id="ecole"
+                                                placeholder="Ex: Lycée Moderne de Yopougon"
+                                                {...register("ecole")}
+                                            />
+                                        </div>
+
+                                        {/* Nom et Prénom du parent */}
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="flex flex-col gap-2">
-                                                <Label htmlFor="telephone">Téléphone (optionnel)</Label>
-                                                <Input
-                                                    id="telephone"
-                                                    type="tel"
-                                                    placeholder="Ex: 07 00 00 00 00"
-                                                    {...register("telephone")}
-                                                />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <Label htmlFor="numeroUrgence">
-                                                    N° Urgence <span className="text-red-500">*</span>
+                                                <Label htmlFor="nomParent">
+                                                    Nom du parent <span className="text-red-500">*</span>
                                                 </Label>
                                                 <Input
-                                                    id="numeroUrgence"
-                                                    type="tel"
-                                                    placeholder="Ex: 01 00 00 00 00"
-                                                    {...register("numeroUrgence")}
-                                                    className={errors.numeroUrgence ? "border-red-500" : ""}
+                                                    id="nomParent"
+                                                    placeholder="Ex: Traoré"
+                                                    {...register("nomParent")}
+                                                    className={errors.nomParent ? "border-red-500" : ""}
                                                 />
-                                                {errors.numeroUrgence && (
-                                                    <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                                {errors.nomParent && (
+                                                    <p className="text-red-500 text-xs">{errors.nomParent.message}</p>
                                                 )}
                                             </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="prenomParent">
+                                                    Prénom(s) du parent <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Input
+                                                    id="prenomParent"
+                                                    placeholder="Ex: Aminata"
+                                                    {...register("prenomParent")}
+                                                    className={errors.prenomParent ? "border-red-500" : ""}
+                                                />
+                                                {errors.prenomParent && (
+                                                    <p className="text-red-500 text-xs">{errors.prenomParent.message}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Numéro du parent */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="numeroParent">
+                                                Numéro du parent <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input
+                                                id="numeroParent"
+                                                type="tel"
+                                                placeholder="Ex: 01 00 00 00 00"
+                                                {...register("numeroParent")}
+                                                className={errors.numeroParent ? "border-red-500" : ""}
+                                            />
+                                            {errors.numeroParent && (
+                                                <p className="text-red-500 text-xs">{errors.numeroParent.message}</p>
+                                            )}
+                                        </div>
+
+                                        {/* Lieu d'habitation */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="lieuHabitation">
+                                                Lieu d'habitation <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input
+                                                id="lieuHabitation"
+                                                placeholder="Ex: Yopougon, Mamie Adjoua"
+                                                {...register("lieuHabitation")}
+                                                className={errors.lieuHabitation ? "border-red-500" : ""}
+                                            />
+                                            {errors.lieuHabitation && (
+                                                <p className="text-red-500 text-xs">{errors.lieuHabitation.message}</p>
+                                            )}
+                                        </div>
+
+                                        {/* Nombre de participations */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="nombreParticipations">
+                                                Nombre de participation au SEFIMAP
+                                            </Label>
+                                            <Input
+                                                id="nombreParticipations"
+                                                type="number"
+                                                min="0"
+                                                placeholder="0"
+                                                {...register("nombreParticipations", { valueAsNumber: true })}
+                                                className={errors.nombreParticipations ? "border-red-500" : ""}
+                                            />
+                                            {errors.nombreParticipations && (
+                                                <p className="text-red-500 text-xs">{errors.nombreParticipations.message}</p>
+                                            )}
+                                        </div>
+
+                                        {/* Numéro d'urgence */}
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="numeroUrgence">
+                                                N° Urgence <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input
+                                                id="numeroUrgence"
+                                                type="tel"
+                                                placeholder="Ex: 05 00 00 00 00"
+                                                {...register("numeroUrgence")}
+                                                className={errors.numeroUrgence ? "border-red-500" : ""}
+                                            />
+                                            {errors.numeroUrgence && (
+                                                <p className="text-red-500 text-xs">{errors.numeroUrgence.message}</p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -495,7 +610,7 @@ export function PublicRegistration() {
                                                 <option value="">Sélectionnez votre référent</option>
                                                 {chefsQuartier.map(chef => (
                                                     <option key={chef.id} value={chef.id}>
-                                                        {chef.nom_complet} - {chef.zone}
+                                                        {chef.nom_complet} - {chef.ecole}
                                                     </option>
                                                 ))}
                                             </Select>

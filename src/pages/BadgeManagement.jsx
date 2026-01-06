@@ -155,7 +155,7 @@ function BadgePreview({ participant, badgeRef }) {
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
                             NOM :
                         </span>
-                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "4px" }}>
                             {participant.nom || "..."}
                         </span>
                     </div>
@@ -166,7 +166,7 @@ function BadgePreview({ participant, badgeRef }) {
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
                             PRENOM(S) :
                         </span>
-                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "4px" }}>
                             {participant.prenom || "..."}
                         </span>
                     </div>
@@ -177,7 +177,7 @@ function BadgePreview({ participant, badgeRef }) {
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
                             DORTOIR :
                         </span>
-                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "4px" }}>
                             {participant.dortoir_nom || "..."}
                         </span>
                     </div>
@@ -188,7 +188,7 @@ function BadgePreview({ participant, badgeRef }) {
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
                             NUMÉRO URGENT :
                         </span>
-                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "1px" }}>
+                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "4px" }}>
                             {participant.numero_urgence || "..."}
                         </span>
                     </div>
@@ -299,6 +299,30 @@ export function BadgeManagement() {
         setFilteredParticipants(filtered);
     }, [searchTerm, dortoirFilter, participants]);
 
+    // Fonction utilitaire pour précharger une image
+    const preloadImage = (src) => {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = src;
+        });
+    };
+
+    // Fonction utilitaire pour attendre que toutes les images du DOM soient chargées
+    const waitForImages = async (element) => {
+        const images = element.querySelectorAll('img');
+        const promises = Array.from(images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve; // Continuer même si une image échoue
+            });
+        });
+        await Promise.all(promises);
+    };
+
     // Générer et télécharger le badge en PDF
     const generateBadgePDF = async () => {
         if (!selectedParticipant) {
@@ -314,52 +338,56 @@ export function BadgeManagement() {
                 throw new Error("Élément badge non trouvé");
             }
 
+            // Précharger l'image de fond du badge
+            await preloadImage("/images/badge.jpeg");
+
+            // Précharger la photo du participant si elle existe
+            if (selectedParticipant.photo_url) {
+                try {
+                    await preloadImage(selectedParticipant.photo_url);
+                } catch (e) {
+                    console.warn("Impossible de précharger la photo du participant:", e);
+                }
+            }
+
+            // Attendre que toutes les images du badge soient chargées
+            await waitForImages(element);
+
+            // Attendre un court délai pour le rendu complet
+            await new Promise(resolve => setTimeout(resolve, 300));
+
             // Capturer le badge en canvas avec haute résolution
             const canvas = await html2canvas(element, {
-                scale: 3,
+                scale: 3, // Bon compromis qualité/performance
                 useCORS: true,
-                allowTaint: true,
-                backgroundColor: "#ffffff",
+                allowTaint: false, // Important : false pour éviter les problèmes CORS
+                backgroundColor: "#ffffff", // Fond blanc explicite
                 logging: false,
+                imageTimeout: 15000, // 15 secondes pour charger les images
+                onclone: (clonedDoc, clonedElement) => {
+                    // S'assurer que le clone a le bon style
+                    clonedElement.style.transform = 'none';
+                    clonedElement.style.opacity = '1';
+                }
             });
-
-            // Dimensions de l'image capturée
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-            const imgRatio = imgWidth / imgHeight;
 
             // Format A6 : 105mm x 148mm
             const pdfWidth = 105;
             const pdfHeight = 148;
-            const pdfRatio = pdfWidth / pdfHeight;
-
-            // Calculer les dimensions pour que l'image remplisse le PDF sans déformation
-            let finalWidth, finalHeight, offsetX, offsetY;
-
-            if (imgRatio > pdfRatio) {
-                // L'image est plus large proportionnellement - on ajuste par la largeur
-                finalWidth = pdfWidth;
-                finalHeight = pdfWidth / imgRatio;
-                offsetX = 0;
-                offsetY = (pdfHeight - finalHeight) / 2;
-            } else {
-                // L'image est plus haute proportionnellement - on ajuste par la hauteur
-                finalHeight = pdfHeight;
-                finalWidth = pdfHeight * imgRatio;
-                offsetX = (pdfWidth - finalWidth) / 2;
-                offsetY = 0;
-            }
 
             // Créer le PDF en format A6
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "mm",
                 format: [pdfWidth, pdfHeight],
+                compress: false, // Pas de compression pour meilleure qualité
             });
 
-            // Ajouter l'image au PDF avec les bonnes dimensions (sans étirement)
-            const imgData = canvas.toDataURL("image/jpeg", 1.0);
-            pdf.addImage(imgData, "JPEG", offsetX, offsetY, finalWidth, finalHeight);
+            // Utiliser PNG pour qualité maximale (pas de compression avec perte)
+            const imgData = canvas.toDataURL("image/png", 1.0);
+
+            // Ajouter l'image au PDF - remplir exactement le format A6
+            pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
 
             // Télécharger le PDF
             const fileName = `badge_${selectedParticipant.reference_id || selectedParticipant.id}_${selectedParticipant.nom}_${selectedParticipant.prenom}.pdf`;
@@ -383,61 +411,62 @@ export function BadgeManagement() {
         setGenerating(true);
 
         try {
+            // Précharger l'image de fond du badge une seule fois
+            await preloadImage("/images/badge.jpeg");
+
             // Format A6 : 105mm x 148mm
             const pdfWidth = 105;
             const pdfHeight = 148;
-            const pdfRatio = pdfWidth / pdfHeight;
 
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "mm",
                 format: [pdfWidth, pdfHeight],
+                compress: false,
             });
 
             for (let i = 0; i < filteredParticipants.length; i++) {
                 const participant = filteredParticipants[i];
                 setSelectedParticipant(participant);
 
-                // Attendre le rendu
+                // Précharger la photo du participant si elle existe
+                if (participant.photo_url) {
+                    try {
+                        await preloadImage(participant.photo_url);
+                    } catch (e) {
+                        console.warn(`Photo non chargée pour ${participant.nom}:`, e);
+                    }
+                }
+
+                // Attendre le rendu DOM
                 await new Promise((resolve) => setTimeout(resolve, 500));
 
                 const element = badgeRef.current;
                 if (!element) continue;
 
+                // Attendre que les images soient chargées
+                await waitForImages(element);
+
                 const canvas = await html2canvas(element, {
                     scale: 3,
                     useCORS: true,
-                    allowTaint: true,
+                    allowTaint: false,
                     backgroundColor: "#ffffff",
                     logging: false,
+                    imageTimeout: 15000,
+                    onclone: (clonedDoc, clonedElement) => {
+                        clonedElement.style.transform = 'none';
+                        clonedElement.style.opacity = '1';
+                    }
                 });
 
-                // Calculer les dimensions pour respecter le ratio
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
-                const imgRatio = imgWidth / imgHeight;
-
-                let finalWidth, finalHeight, offsetX, offsetY;
-
-                if (imgRatio > pdfRatio) {
-                    finalWidth = pdfWidth;
-                    finalHeight = pdfWidth / imgRatio;
-                    offsetX = 0;
-                    offsetY = (pdfHeight - finalHeight) / 2;
-                } else {
-                    finalHeight = pdfHeight;
-                    finalWidth = pdfHeight * imgRatio;
-                    offsetX = (pdfWidth - finalWidth) / 2;
-                    offsetY = 0;
-                }
-
-                const imgData = canvas.toDataURL("image/jpeg", 1.0);
+                const imgData = canvas.toDataURL("image/png", 1.0);
 
                 if (i > 0) {
                     pdf.addPage([pdfWidth, pdfHeight]);
                 }
 
-                pdf.addImage(imgData, "JPEG", offsetX, offsetY, finalWidth, finalHeight);
+                pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
             }
 
             pdf.save(`badges_sefimap_${new Date().toISOString().split("T")[0]}.pdf`);
