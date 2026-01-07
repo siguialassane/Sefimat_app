@@ -211,7 +211,7 @@ export function InPersonRegistration() {
                     photo_url: photoUrl,
                     dortoir_id: data.dortoirId,
                     montant_total_paye: data.montantPaye,
-                    statut_paiement: data.montantPaye >= 4000 ? "complet" : (data.montantPaye > 0 ? "partiel" : "non_paye"),
+                    statut_paiement: data.montantPaye >= 4000 ? "soldé" : (data.montantPaye > 0 ? "partiel" : "non_payé"),
                     niveau_formation: null, // Sera complété par la section scientifique
                 })
                 .select()

@@ -51,22 +51,55 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // Vérifier la session au chargement
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
+    let isMounted = true;
 
-      if (currentUser) {
-        await loadUserProfile(currentUser.id);
+    // Timeout de sécurité - si après 10 secondes on n'a toujours pas de réponse, arrêter le loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('AuthContext: Timeout de session - arrêt du chargement');
+        setLoading(false);
       }
+    }, 10000);
 
-      setLoading(false);
-    });
+    // Vérifier la session au chargement
+    const checkSession = async () => {
+      try {
+        console.log('AuthContext: Vérification de la session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('AuthContext: Erreur getSession:', error);
+        }
+
+        if (!isMounted) return;
+
+        const currentUser = session?.user ?? null;
+        console.log('AuthContext: Session trouvée:', currentUser?.id || 'aucun utilisateur');
+        setUser(currentUser);
+
+        if (currentUser) {
+          await loadUserProfile(currentUser.id);
+        }
+      } catch (err) {
+        console.error('AuthContext: Exception lors de getSession:', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    checkSession();
 
     // Écouter les changements d'auth
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('AuthContext: Event auth state change:', _event);
+
+      if (!isMounted) return;
+
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
@@ -78,7 +111,11 @@ export function AuthProvider({ children }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email, password) => {

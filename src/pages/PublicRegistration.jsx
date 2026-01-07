@@ -152,7 +152,19 @@ export function PublicRegistration() {
         setCurrentStep(step);
     };
 
+    // Fonction pour soumettre manuellement (évite les soumissions automatiques)
+    const handleManualSubmit = () => {
+        console.log("Soumission manuelle déclenchée par clic utilisateur");
+        handleSubmit(onSubmit)();
+    };
+
     const onSubmit = async (data) => {
+        // Sécurité : empêche la soumission si on n'est pas à la dernière étape
+        if (currentStep < steps.length) {
+            console.log("Soumission bloquée - étape actuelle:", currentStep);
+            return;
+        }
+
         if (!photoFile) {
             setPhotoError("La photo est obligatoire");
             setCurrentStep(1);
@@ -187,7 +199,7 @@ export function PublicRegistration() {
                     admin_id: null,
                     photo_url: photoUrl,
                     montant_total_paye: data.montantPaye || 0,
-                    statut_paiement: data.montantPaye >= 4000 ? "complet" : (data.montantPaye > 0 ? "partiel" : "non_paye"),
+                    statut_paiement: data.montantPaye >= 4000 ? "soldé" : (data.montantPaye > 0 ? "partiel" : "non_payé"),
                 });
 
             if (error) throw error;
@@ -307,7 +319,13 @@ export function PublicRegistration() {
 
                     {/* Form Card */}
                     <Card className="overflow-hidden">
-                        <form onSubmit={handleSubmit(onSubmit)}>
+                        <form
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                }
+                            }}
+                        >
                             <div className="overflow-hidden">
                                 <div
                                     className="flex transition-transform duration-500 ease-in-out"
@@ -737,7 +755,8 @@ export function PublicRegistration() {
                                     </Button>
                                 ) : (
                                     <Button
-                                        type="submit"
+                                        type="button"
+                                        onClick={handleManualSubmit}
                                         disabled={isLoading}
                                         className="flex-1 h-12 shadow-lg shadow-primary/20"
                                     >

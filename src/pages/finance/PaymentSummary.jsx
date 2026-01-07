@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 
 export function PaymentSummary() {
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [inscriptions, setInscriptions] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
@@ -47,8 +48,10 @@ export function PaymentSummary() {
 
     const loadData = async () => {
         setLoading(true);
+        setError(null);
         try {
-            const { data, error } = await supabase
+            console.log('PaymentSummary: Chargement des données...');
+            const { data, error: fetchError } = await supabase
                 .from("inscriptions")
                 .select(`
                     *,
@@ -56,24 +59,29 @@ export function PaymentSummary() {
                 `)
                 .order("created_at", { ascending: false });
 
-            if (error) throw error;
+            if (fetchError) {
+                console.error('PaymentSummary: Erreur Supabase:', fetchError);
+                throw fetchError;
+            }
 
+            console.log('PaymentSummary: Données reçues:', data?.length || 0, 'inscriptions');
             setInscriptions(data || []);
 
             // Calculer les totaux
-            const totalCollecte = data.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-            const totalRestant = data.reduce(
+            const totalCollecte = (data || []).reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
+            const totalRestant = (data || []).reduce(
                 (acc, i) => acc + Math.max(0, (i.montant_requis || 4000) - (i.montant_total_paye || 0)),
                 0
             );
-            const nombreComplet = data.filter(
-                (i) => i.statut_paiement === "complet" || i.statut_paiement === "valide_financier"
+            const nombreComplet = (data || []).filter(
+                (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
             ).length;
-            const nombrePartiel = data.filter((i) => i.statut_paiement === "partiel").length;
+            const nombrePartiel = (data || []).filter((i) => i.statut_paiement === "partiel").length;
 
             setTotals({ totalCollecte, totalRestant, nombreComplet, nombrePartiel });
-        } catch (error) {
-            console.error("Erreur chargement:", error);
+        } catch (err) {
+            console.error("PaymentSummary: Exception chargement:", err);
+            setError(err.message || "Erreur lors du chargement des données");
         } finally {
             setLoading(false);
         }
@@ -85,8 +93,8 @@ export function PaymentSummary() {
 
     const getStatutBadge = (statut) => {
         switch (statut) {
-            case "complet":
-                return <Badge variant="success">Complet</Badge>;
+            case "soldé":
+                return <Badge variant="success">Soldé</Badge>;
             case "valide_financier":
                 return <Badge variant="success">Validé</Badge>;
             case "partiel":
@@ -243,10 +251,10 @@ export function PaymentSummary() {
                                     }
                                 >
                                     <option value="">Tous les statuts</option>
-                                    <option value="complet">Complet</option>
+                                    <option value="soldé">Soldé</option>
                                     <option value="valide_financier">Validé par financier</option>
                                     <option value="partiel">Partiel</option>
-                                    <option value="non_paye">Non payé</option>
+                                    <option value="non_payé">Non payé</option>
                                     <option value="refuse">Refusé</option>
                                 </Select>
                             </div>

@@ -37,25 +37,32 @@ export function FinanceDashboard() {
     const loadDashboardData = async () => {
         setLoading(true);
         try {
+            console.log('FinanceDashboard: Chargement des données...');
+
             // Charger les statistiques des inscriptions
             const { data: inscriptions, error: inscError } = await supabase
                 .from("inscriptions")
                 .select("montant_total_paye, montant_requis, statut_paiement");
 
-            if (inscError) throw inscError;
+            if (inscError) {
+                console.error('FinanceDashboard: Erreur inscriptions:', inscError);
+                throw inscError;
+            }
 
-            const totalCollecte = inscriptions.reduce(
+            console.log('FinanceDashboard: Inscriptions reçues:', inscriptions?.length || 0);
+
+            const totalCollecte = (inscriptions || []).reduce(
                 (acc, i) => acc + (i.montant_total_paye || 0),
                 0
             );
-            const paiementsEnAttente = inscriptions.filter(
+            const paiementsEnAttente = (inscriptions || []).filter(
                 (i) => i.statut_paiement === "partiel" && i.montant_total_paye < (i.montant_requis || 4000)
             ).length;
-            const paiementsPartiels = inscriptions.filter(
+            const paiementsPartiels = (inscriptions || []).filter(
                 (i) => i.statut_paiement === "partiel"
             ).length;
-            const paiementsComplets = inscriptions.filter(
-                (i) => i.statut_paiement === "complet" || i.statut_paiement === "valide_financier"
+            const paiementsComplets = (inscriptions || []).filter(
+                (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
             ).length;
 
             setStats({
@@ -63,7 +70,7 @@ export function FinanceDashboard() {
                 paiementsEnAttente,
                 paiementsPartiels,
                 paiementsComplets,
-                nombreInscrits: inscriptions.length,
+                nombreInscrits: (inscriptions || []).length,
             });
 
             // Charger les inscriptions en attente de validation financière
@@ -86,7 +93,10 @@ export function FinanceDashboard() {
                 .order("created_at", { ascending: false })
                 .limit(5);
 
-            if (!pendingError) {
+            if (pendingError) {
+                console.error('FinanceDashboard: Erreur pending:', pendingError);
+            } else {
+                console.log('FinanceDashboard: Validations en attente:', pending?.length || 0);
                 setPendingValidations(pending || []);
             }
 
@@ -103,11 +113,14 @@ export function FinanceDashboard() {
                 .order("date_paiement", { ascending: false })
                 .limit(10);
 
-            if (!paymentsError) {
+            if (paymentsError) {
+                console.error('FinanceDashboard: Erreur paiements:', paymentsError);
+            } else {
+                console.log('FinanceDashboard: Paiements récents:', payments?.length || 0);
                 setRecentPayments(payments || []);
             }
         } catch (error) {
-            console.error("Erreur chargement dashboard:", error);
+            console.error("FinanceDashboard: Exception chargement:", error);
         } finally {
             setLoading(false);
         }

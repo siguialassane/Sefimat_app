@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts";
 export function PaymentValidation() {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [inscriptions, setInscriptions] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedInscription, setSelectedInscription] = useState(null);
@@ -30,21 +31,29 @@ export function PaymentValidation() {
 
     const loadPendingValidations = async () => {
         setLoading(true);
+        setError(null);
         try {
-            const { data, error } = await supabase
+            console.log('PaymentValidation: Chargement des validations...');
+            const { data, error: fetchError } = await supabase
                 .from("inscriptions")
                 .select(`
                     *,
                     chef_quartier:chefs_quartier(nom_complet, zone)
                 `)
-                .or("statut_paiement.eq.partiel,statut_paiement.eq.non_paye")
+                .or("statut_paiement.eq.partiel,statut_paiement.eq.non_payé")
                 .lt("montant_total_paye", 4000)
                 .order("created_at", { ascending: false });
 
-            if (error) throw error;
+            if (fetchError) {
+                console.error('PaymentValidation: Erreur Supabase:', fetchError);
+                throw fetchError;
+            }
+
+            console.log('PaymentValidation: Données reçues:', data?.length || 0, 'inscriptions en attente');
             setInscriptions(data || []);
-        } catch (error) {
-            console.error("Erreur chargement:", error);
+        } catch (err) {
+            console.error("PaymentValidation: Exception chargement:", err);
+            setError(err.message || "Erreur lors du chargement");
         } finally {
             setLoading(false);
         }

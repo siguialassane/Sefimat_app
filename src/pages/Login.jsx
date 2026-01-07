@@ -55,15 +55,35 @@ export function Login() {
         console.log("Login: onSubmit called");
         setIsLoading(true);
         setError(null);
+
+        // Timeout de sécurité pour éviter le chargement infini
+        const timeoutId = setTimeout(() => {
+            console.warn("Login: Timeout de connexion atteint");
+            setIsLoading(false);
+            setError("La connexion prend trop de temps. Veuillez réessayer.");
+        }, 15000);
+
         try {
             console.log("Login: calling signIn");
             const result = await signIn(data.email, data.password);
             console.log("Login: signIn returned", result);
+
+            clearTimeout(timeoutId);
+
             // Utiliser le rôle du profil pour rediriger
             const role = result?.profile?.role;
             console.log("Login: redirecting for role", role);
+
+            if (!role) {
+                console.warn("Login: Aucun rôle trouvé pour cet utilisateur");
+                setError("Votre compte n'a pas de rôle assigné. Contactez l'administrateur.");
+                setIsLoading(false);
+                return;
+            }
+
             navigate(getRedirectPath(role));
         } catch (err) {
+            clearTimeout(timeoutId);
             console.error("Login: error detected", err);
             setError(err.message || "L'email ou le mot de passe est incorrect.");
         } finally {

@@ -134,7 +134,19 @@ export function PresidentRegistration() {
         setCurrentStep(step);
     };
 
+    // Fonction pour soumettre manuellement (évite les soumissions automatiques)
+    const handleManualSubmit = () => {
+        console.log("Soumission manuelle déclenchée par clic utilisateur");
+        handleSubmit(onSubmit)();
+    };
+
     const onSubmit = async (data) => {
+        // Sécurité : empêche la soumission si on n'est pas à la dernière étape
+        if (currentStep < steps.length) {
+            console.log("Soumission bloquée - étape actuelle:", currentStep);
+            return;
+        }
+
         if (!photoFile) {
             setPhotoError("La photo est obligatoire");
             setCurrentStep(1);
@@ -148,7 +160,7 @@ export function PresidentRegistration() {
 
             // 2. Calcul statut paiement
             const montant = data.montantPaye || 0;
-            let statutPaiement = "non_paye";
+            let statutPaiement = "non_payé";
             if (montant >= 4000) statutPaiement = "soldé";
             else if (montant > 0) statutPaiement = "partiel";
 
@@ -218,7 +230,7 @@ export function PresidentRegistration() {
             return watchedValues.nomParent && watchedValues.prenomParent &&
                 watchedValues.numeroParent && watchedValues.lieuHabitation && watchedValues.numeroUrgence;
         }
-        if (step === 4) return true; // Paiement peut être 0
+        if (step === 4) return currentStep >= 4; // Paiement complété seulement si on y est arrivé
         return false;
     };
 
@@ -287,7 +299,13 @@ export function PresidentRegistration() {
 
                     {/* Form Card */}
                     <Card className="overflow-hidden">
-                        <form onSubmit={handleSubmit(onSubmit)}>
+                        <form
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                }
+                            }}
+                        >
                             <div className="overflow-hidden">
                                 <div
                                     className="flex transition-transform duration-500 ease-in-out"
@@ -707,7 +725,8 @@ export function PresidentRegistration() {
                                     </Button>
                                 ) : (
                                     <Button
-                                        type="submit"
+                                        type="button"
+                                        onClick={handleManualSubmit}
                                         disabled={isLoading}
                                         className="flex-1 h-12 shadow-lg shadow-primary/20"
                                     >
