@@ -136,41 +136,40 @@ export function PresidentPayments() {
 
         setIsSubmitting(true);
         try {
-            // Add payment record
-            const { error: paymentError } = await supabase.from("paiements").insert({
-                inscription_id: selectedInscription.id,
-                montant: amount,
-                mode_paiement: paymentMode,
-                statut: "validé",
-                type_paiement: "inscription",
+            console.log("PresidentPayments: Appel fonction add_payment...");
+
+            // Utiliser la fonction RPC qui contourne les RLS
+            const { data, error } = await supabase.rpc('add_payment', {
+                p_inscription_id: selectedInscription.id,
+                p_montant: amount,
+                p_mode_paiement: paymentMode,
+                p_type_paiement: 'inscription'
             });
 
-            if (paymentError) throw paymentError;
+            console.log("PresidentPayments: Résultat add_payment:", data);
 
-            // Update inscription total
-            const newTotal = (selectedInscription.montant_total_paye || 0) + amount;
-            let newStatus = "partiel";
-            if (newTotal >= 4000) {
-                newStatus = "soldé";
+            if (error) {
+                console.error("PresidentPayments: Erreur RPC:", error);
+                throw error;
             }
 
-            const { error: updateError } = await supabase
-                .from("inscriptions")
-                .update({
-                    montant_total_paye: newTotal,
-                    statut_paiement: newStatus,
-                })
-                .eq("id", selectedInscription.id);
+            if (!data.success) {
+                throw new Error(data.error || "Erreur lors de l'ajout du paiement");
+            }
 
-            if (updateError) throw updateError;
+            console.log("PresidentPayments: Paiement ajouté avec succès:", data);
 
             // Refresh data
             setModalOpen(false);
             setSelectedInscription(null);
+            setPaymentAmount("");
             loadInscriptions();
+
+            // Afficher un message de succès
+            alert(`Paiement de ${amount.toLocaleString()} FCFA enregistré !\nNouveau total: ${data.new_total.toLocaleString()} FCFA`);
         } catch (error) {
-            console.error("Erreur ajout paiement:", error);
-            alert("Erreur lors de l'ajout du paiement");
+            console.error("PresidentPayments: Erreur ajout paiement:", error);
+            alert("Erreur lors de l'ajout du paiement: " + (error.message || "Erreur inconnue"));
         } finally {
             setIsSubmitting(false);
         }
