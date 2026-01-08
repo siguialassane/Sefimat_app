@@ -126,7 +126,8 @@ export function PresidentPayments() {
             return;
         }
 
-        const amount = parseFloat(paymentAmount);
+        // Convertir en entier (INTEGER) pour correspondre au type de la fonction PostgreSQL
+        const amount = Math.floor(parseFloat(paymentAmount));
         const remaining = 4000 - (selectedInscription.montant_total_paye || 0);
 
         if (amount > remaining) {
@@ -136,12 +137,12 @@ export function PresidentPayments() {
 
         setIsSubmitting(true);
         try {
-            console.log("PresidentPayments: Appel fonction add_payment...");
+            console.log("PresidentPayments: Appel fonction add_payment avec montant:", amount);
 
-            // Utiliser la fonction RPC qui contourne les RLS
+            // Utiliser la fonction RPC - montant doit être INTEGER
             const { data, error } = await supabase.rpc('add_payment', {
                 p_inscription_id: selectedInscription.id,
-                p_montant: amount,
+                p_montant: amount,  // INTEGER
                 p_mode_paiement: paymentMode,
                 p_type_paiement: 'inscription'
             });

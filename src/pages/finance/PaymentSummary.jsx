@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,21 +32,23 @@ export function PaymentSummary() {
         nombreComplet: 0,
         nombrePartiel: 0,
     });
+    
+    // Protection contre les doubles appels
+    const hasLoaded = useRef(false);
 
-    useEffect(() => {
-        loadData();
-        loadChefsQuartier();
-    }, []);
-
-    const loadChefsQuartier = async () => {
+    const loadChefsQuartier = useCallback(async () => {
         const { data } = await supabase
             .from("chefs_quartier")
             .select("id, nom_complet, zone")
             .order("nom_complet");
         setChefsQuartier(data || []);
-    };
+    }, []);
 
-    const loadData = async () => {
+    const loadData = useCallback(async (forceRefresh = false) => {
+        // Éviter les doubles appels sauf si refresh forcé
+        if (!forceRefresh && hasLoaded.current) return;
+        hasLoaded.current = true;
+        
         setLoading(true);
         setError(null);
         try {
@@ -85,7 +87,15 @@ export function PaymentSummary() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadData();
+        loadChefsQuartier();
+    }, [loadData, loadChefsQuartier]);
+
+    // Fonction de rafraîchissement pour le bouton
+    const handleRefresh = () => loadData(true);
 
     const formatMontant = (montant) => {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";

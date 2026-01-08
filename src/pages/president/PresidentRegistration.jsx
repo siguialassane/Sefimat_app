@@ -153,13 +153,20 @@ export function PresidentRegistration() {
             return;
         }
 
+        // Validation stricte du montant - BLOQUER si > 4000
+        const montant = Math.floor(data.montantPaye || 0);
+        if (montant > 4000) {
+            alert("❌ Le montant ne peut pas dépasser 4000 FCFA !\nVeuillez corriger le montant.");
+            setCurrentStep(4);
+            return;
+        }
+
         setIsLoading(true);
         try {
             // 1. Upload la photo vers Supabase Storage
             const photoUrl = await uploadPhoto(photoFile, 'president');
 
             // 2. Calcul statut paiement
-            const montant = data.montantPaye || 0;
             let statutPaiement = "non_payé";
             if (montant >= 4000) statutPaiement = "soldé";
             else if (montant > 0) statutPaiement = "partiel";
@@ -195,14 +202,20 @@ export function PresidentRegistration() {
             if (error) throw error;
 
             // 4. Enregistrer paiement si montant > 0
+            // IMPORTANT: Les paiements président sont TOUJOURS validés (l'argent est collecté directement)
             if (montant > 0) {
-                await supabase.from("paiements").insert({
+                const { error: paiementError } = await supabase.from("paiements").insert({
                     inscription_id: inscription.id,
                     montant: montant,
                     mode_paiement: data.modePaiement || "especes",
-                    statut: montant >= 4000 ? "validé" : "attente",
+                    statut: "validé",  // Toujours validé pour paiement président
                     type_paiement: "inscription",
                 });
+                
+                if (paiementError) {
+                    console.error("Erreur enregistrement paiement:", paiementError);
+                    // On continue car l'inscription est déjà créée
+                }
             }
 
             setIsSubmitted(true);
@@ -624,7 +637,7 @@ export function PresidentRegistration() {
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="montantPaye" className="flex items-center gap-2">
                                                         <Wallet className="w-4 h-4 text-amber-600" />
-                                                        Montant payé (FCFA)
+                                                        Montant payé (FCFA) - Max 4000
                                                     </Label>
                                                     <Input
                                                         id="montantPaye"
@@ -634,14 +647,29 @@ export function PresidentRegistration() {
                                                         step="100"
                                                         placeholder="0"
                                                         {...register("montantPaye", { valueAsNumber: true })}
-                                                        className="text-lg border-amber-200 focus:border-amber-500"
+                                                        className={cn(
+                                                            "text-lg",
+                                                            montantPaye > 4000 
+                                                                ? "border-red-500 focus:border-red-500 bg-red-50" 
+                                                                : "border-amber-200 focus:border-amber-500"
+                                                        )}
                                                     />
-                                                    {montantPaye > 0 && montantPaye < 4000 && (
+                                                    {errors.montantPaye && (
+                                                        <p className="text-red-500 text-xs font-medium">
+                                                            {errors.montantPaye.message}
+                                                        </p>
+                                                    )}
+                                                    {montantPaye > 4000 && (
+                                                        <p className="text-red-600 text-xs font-bold flex items-center gap-1">
+                                                            ⚠️ Le montant ne peut pas dépasser 4000 FCFA !
+                                                        </p>
+                                                    )}
+                                                    {montantPaye > 0 && montantPaye <= 4000 && montantPaye < 4000 && (
                                                         <p className="text-amber-600 text-xs">
                                                             Reste à payer: {(4000 - montantPaye).toLocaleString()} FCFA
                                                         </p>
                                                     )}
-                                                    {montantPaye >= 4000 && (
+                                                    {montantPaye === 4000 && (
                                                         <p className="text-emerald-600 text-xs flex items-center gap-1">
                                                             <Check className="h-3 w-3" /> Paiement complet
                                                         </p>

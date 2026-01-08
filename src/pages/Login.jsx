@@ -31,7 +31,7 @@ const getRedirectPath = (role) => {
 
 export function Login() {
     const navigate = useNavigate();
-    const { signIn, user, userRole } = useAuth();
+    const { signIn, user, userRole, loading: authLoading, authError } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -44,53 +44,68 @@ export function Login() {
         resolver: zodResolver(loginSchema),
     });
 
-    // Rediriger si déjà connecté
+    // Rediriger si déjà connecté (seulement quand auth n'est plus en chargement)
     useEffect(() => {
-        if (user && userRole) {
-            navigate(getRedirectPath(userRole));
+        if (!authLoading && user && userRole) {
+            console.log("Login: Utilisateur déjà connecté, redirection vers", userRole);
+            navigate(getRedirectPath(userRole), { replace: true });
         }
-    }, [user, userRole, navigate]);
+    }, [user, userRole, authLoading, navigate]);
+
+    // Afficher les erreurs d'auth context
+    useEffect(() => {
+        if (authError) {
+            setError(authError);
+        }
+    }, [authError]);
 
     const onSubmit = async (data) => {
-        console.log("Login: onSubmit called");
+        console.log("Login: Tentative de connexion...");
         setIsLoading(true);
         setError(null);
 
-        // Timeout de sécurité pour éviter le chargement infini
+        // Timeout de sécurité - 12 secondes
         const timeoutId = setTimeout(() => {
-            console.warn("Login: Timeout de connexion atteint");
+            console.warn("Login: Timeout de connexion");
             setIsLoading(false);
-            setError("La connexion prend trop de temps. Veuillez réessayer.");
-        }, 15000);
+            setError("La connexion prend trop de temps. Vérifiez votre connexion internet et réessayez.");
+        }, 12000);
 
         try {
-            console.log("Login: calling signIn");
             const result = await signIn(data.email, data.password);
-            console.log("Login: signIn returned", result);
-
             clearTimeout(timeoutId);
 
-            // Utiliser le rôle du profil pour rediriger
             const role = result?.profile?.role;
-            console.log("Login: redirecting for role", role);
+            console.log("Login: Connexion réussie, rôle:", role);
 
             if (!role) {
-                console.warn("Login: Aucun rôle trouvé pour cet utilisateur");
                 setError("Votre compte n'a pas de rôle assigné. Contactez l'administrateur.");
                 setIsLoading(false);
                 return;
             }
 
-            navigate(getRedirectPath(role));
+            // Redirection immédiate
+            navigate(getRedirectPath(role), { replace: true });
         } catch (err) {
             clearTimeout(timeoutId);
-            console.error("Login: error detected", err);
-            setError(err.message || "L'email ou le mot de passe est incorrect.");
+            console.error("Login: Erreur:", err.message);
+            setError(err.message || "Email ou mot de passe incorrect.");
         } finally {
-            console.log("Login: finally block");
             setIsLoading(false);
         }
     };
+
+    // Afficher un loader si auth est en cours de vérification
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    <p className="text-text-secondary">Vérification de la session...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark font-display flex flex-col">

@@ -219,6 +219,24 @@ export function InPersonRegistration() {
 
             if (error) throw error;
 
+            // 3. Créer le paiement si montant > 0 (pour cohérence et validation financière)
+            if (data.montantPaye > 0) {
+                const { error: paiementError } = await supabase
+                    .from('paiements')
+                    .insert({
+                        inscription_id: inscription.id,
+                        montant: data.montantPaye,
+                        mode_paiement: 'especes',
+                        statut: 'attente', // En attente de validation financière
+                        type_paiement: 'inscription',
+                    });
+                
+                if (paiementError) {
+                    console.error("Erreur enregistrement paiement:", paiementError);
+                    // On continue car l'inscription est déjà créée
+                }
+            }
+
             // Ajouter aux inscriptions récentes
             const newRegistration = {
                 id: inscription.id,

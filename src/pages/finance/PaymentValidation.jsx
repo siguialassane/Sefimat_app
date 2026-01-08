@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +24,15 @@ export function PaymentValidation() {
     const [selectedInscription, setSelectedInscription] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    
+    // Protection contre les doubles appels
+    const hasLoaded = useRef(false);
 
-    useEffect(() => {
-        loadPendingValidations();
-    }, []);
-
-    const loadPendingValidations = async () => {
+    const loadPendingValidations = useCallback(async (forceRefresh = false) => {
+        // Éviter les doubles appels sauf si refresh forcé
+        if (!forceRefresh && hasLoaded.current) return;
+        hasLoaded.current = true;
+        
         setLoading(true);
         setError(null);
         try {
@@ -57,7 +60,14 @@ export function PaymentValidation() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadPendingValidations();
+    }, [loadPendingValidations]);
+
+    // Fonction de rafraîchissement pour le bouton
+    const handleRefresh = () => loadPendingValidations(true);
 
     const handleValidate = async (inscriptionId) => {
         setActionLoading(true);

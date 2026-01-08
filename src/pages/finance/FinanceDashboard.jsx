@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,12 +29,15 @@ export function FinanceDashboard() {
     });
     const [recentPayments, setRecentPayments] = useState([]);
     const [pendingValidations, setPendingValidations] = useState([]);
+    
+    // Protection contre les doubles appels
+    const hasLoaded = useRef(false);
 
-    useEffect(() => {
-        loadDashboardData();
-    }, []);
-
-    const loadDashboardData = async () => {
+    const loadDashboardData = useCallback(async (forceRefresh = false) => {
+        // Éviter les doubles appels sauf si refresh forcé
+        if (!forceRefresh && hasLoaded.current) return;
+        hasLoaded.current = true;
+        
         setLoading(true);
         try {
             console.log('FinanceDashboard: Chargement des données...');
@@ -124,7 +127,14 @@ export function FinanceDashboard() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadDashboardData();
+    }, [loadDashboardData]);
+
+    // Fonction de rafraîchissement pour le bouton
+    const handleRefresh = () => loadDashboardData(true);
 
     const formatMontant = (montant) => {
         return new Intl.NumberFormat("fr-FR").format(montant) + " FCFA";
@@ -178,7 +188,7 @@ export function FinanceDashboard() {
                 <div className="flex items-center gap-3">
                     <Button
                         variant="outline"
-                        onClick={loadDashboardData}
+                        onClick={handleRefresh}
                         disabled={loading}
                         className="gap-2"
                     >
