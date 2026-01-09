@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +14,10 @@ import {
     CheckCircle,
     RefreshCw,
     ChevronRight,
+    AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts";
+import { useDataLoader, supabaseQuery } from "@/hooks";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
@@ -214,73 +215,67 @@ function BadgePreview({ participant, badgeRef }) {
 }
 
 export function BadgeManagement() {
-    const { user } = useAuth();
-    const [participants, setParticipants] = useState([]);
     const [filteredParticipants, setFilteredParticipants] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [dortoirFilter, setDortoirFilter] = useState("");
-    const [dortoirs, setDortoirs] = useState([]);
     const [selectedParticipant, setSelectedParticipant] = useState(null);
     const [generating, setGenerating] = useState(false);
     const badgeRef = useRef(null);
 
-    // Charger les participants validés
-    useEffect(() => {
-        async function loadParticipants() {
-            try {
-                setLoading(true);
-                const { data, error } = await supabase
-                    .from("inscriptions")
-                    .select(`
-                        *,
-                        dortoir:dortoirs(id, nom)
-                    `)
-                    .eq("statut", "valide")
-                    .order("nom");
+    // Fonction de chargement des participants validés
+    const fetchParticipants = useCallback(async (signal) => {
+        const data = await supabaseQuery(
+            supabase
+                .from("inscriptions")
+                .select(`*, dortoir:dortoirs(id, nom)`)
+                .eq("statut", "valide")
+                .order("nom"),
+            signal
+        );
 
-                if (error) throw error;
-
-                const formatted = data.map((p) => ({
-                    ...p,
-                    dortoir_nom: p.dortoir?.nom || "Non assigné",
-                }));
-
-                setParticipants(formatted);
-                setFilteredParticipants(formatted);
-
-                // Sélectionner le premier participant par défaut
-                if (formatted.length > 0) {
-                    setSelectedParticipant(formatted[0]);
-                }
-            } catch (error) {
-                console.error("Erreur chargement participants:", error);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        loadParticipants();
+        return data.map((p) => ({
+            ...p,
+            dortoir_nom: p.dortoir?.nom || "Non assigné",
+        }));
     }, []);
 
-    // Charger les dortoirs pour le filtre
-    useEffect(() => {
-        async function loadDortoirs() {
-            const { data, error } = await supabase
-                .from("dortoirs")
-                .select("*")
-                .order("nom");
-
-            if (!error) {
-                setDortoirs(data || []);
-            }
-        }
-        loadDortoirs();
+    // Fonction de chargement des dortoirs
+    const fetchDortoirs = useCallback(async (signal) => {
+        return await supabaseQuery(
+            supabase.from("dortoirs").select("*").order("nom"),
+            signal
+        );
     }, []);
 
-    // Filtrer les participants
+    // Utiliser le hook useDataLoader pour les participants
+    const {
+        data: participants,
+        loading,
+        error: participantsError,
+        reload: reloadParticipants,
+    } = useDataLoader(fetchParticipants, {
+        timeout: 15000,
+        onSuccess: (data) => {
+            setFilteredParticipants(data);
+            if (data.length > 0 && !selectedParticipant) {
+                setSelectedParticipant(data[0]);
+            }
+        },
+    });
+
+    // Utiliser le hook useDataLoader pour les dortoirs
+    const {
+        data: dortoirs,
+        error: dortoirsError,
+    } = useDataLoader(fetchDortoirs, {
+        timeout: 10000,
+    });
+
+    // Filtrer les participants quand les critères changent
     useEffect(() => {
-        let filtered = participants;
+        if (!participants) return;
+
+        let filtered = [...participants];
 
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
@@ -298,6 +293,9 @@ export function BadgeManagement() {
 
         setFilteredParticipants(filtered);
     }, [searchTerm, dortoirFilter, participants]);
+
+    // Erreur combinée
+    const error = participantsError || dortoirsError;
 
     // Fonction utilitaire pour précharger une image
     const preloadImage = (src) => {
@@ -528,7 +526,7 @@ export function BadgeManagement() {
                                 className="w-40"
                             >
                                 <option value="">Tous</option>
-                                {dortoirs.map((d) => (
+                                {(dortoirs || []).map((d) => (
                                     <option key={d.id} value={d.id}>
                                         {d.nom}
                                     </option>
@@ -546,6 +544,24 @@ export function BadgeManagement() {
                             <div className="flex flex-col items-center justify-center h-full">
                                 <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3" />
                                 <p className="text-text-secondary">Chargement...</p>
+                            </div>
+                        ) : error ? (
+                            <div className="flex flex-col items-center justify-center h-full p-6">
+                                <AlertCircle className="w-12 h-12 text-red-500 mb-3" />
+                                <p className="text-red-600 dark:text-red-400 font-medium mb-2 text-center">
+                                    Erreur de chargement
+                                </p>
+                                <p className="text-text-secondary text-sm mb-4 text-center max-w-xs">
+                                    {error}
+                                </p>
+                                <Button
+                                    onClick={reloadParticipants}
+                                    variant="outline"
+                                    className="gap-2"
+                                >
+                                    <RefreshCw className="h-4 w-4" />
+                                    Réessayer
+                                </Button>
                             </div>
                         ) : filteredParticipants.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-text-secondary">
