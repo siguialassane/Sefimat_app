@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,182 +17,151 @@ import {
     BookOpen,
     RefreshCw,
 } from "lucide-react";
-import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-} from "recharts";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts";
+import { useData } from "@/contexts";
 
 export function Dashboard() {
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState(null);
-    const [leadersData, setLeadersData] = useState([]);
-    const [demographics, setDemographics] = useState(null);
+    // Utiliser le DataContext global au lieu de charger localement
+    const { 
+        inscriptions, 
+        chefsQuartier, 
+        stats, 
+        loading, 
+        lastUpdate, 
+        refresh 
+    } = useData();
+    
     const [dortoirStats, setDortoirStats] = useState([]);
     const [niveauFormationStats, setNiveauFormationStats] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
-    
-    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
-    const isLoadingRef = useRef(false);
+    const [localLoading, setLocalLoading] = useState(false);
 
-    // Charger toutes les statistiques
-    const loadAllStats = useCallback(async (isMounted) => {
-        // Éviter les appels simultanés
-        if (isLoadingRef.current) return;
-        isLoadingRef.current = true;
+    // Calculer les statistiques dérivées depuis le DataContext
+    const dashboardStats = useMemo(() => {
+        if (!inscriptions.length) return null;
+        
+        return [
+            {
+                title: "Total Inscriptions",
+                value: stats.totalInscriptions.toString(),
+                icon: Users,
+                iconBg: "bg-blue-50 dark:bg-blue-900/20",
+                iconColor: "text-blue-600 dark:text-blue-400",
+            },
+            {
+                title: "Validées",
+                value: stats.inscriptionsValidees.toString(),
+                icon: CheckCircle,
+                iconBg: "bg-green-50 dark:bg-green-900/20",
+                iconColor: "text-green-600 dark:text-green-400",
+            },
+            {
+                title: "En attente",
+                value: stats.inscriptionsEnAttente.toString(),
+                icon: Clock,
+                iconBg: "bg-amber-50 dark:bg-amber-900/20",
+                iconColor: "text-amber-600 dark:text-amber-400",
+            },
+        ];
+    }, [stats, inscriptions.length]);
 
-        // Timeout de sécurité: reset après 10 secondes
-        const timeoutId = setTimeout(() => {
-            isLoadingRef.current = false;
-        }, 10000);
+    // Calculer les données démographiques depuis le DataContext
+    const demographics = useMemo(() => {
+        if (!inscriptions.length) return null;
+        
+        const total = inscriptions.length;
+        const niveauCounts = inscriptions.reduce((acc, i) => {
+            acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
+            return acc;
+        }, {});
 
-        try {
-            if (isMounted) setLoading(true);
-
-            // Compter toutes les inscriptions par statut
-            const { data: inscriptions, error } = await supabase
-                .from('inscriptions')
-                .select('statut, sexe, niveau_etude');
-
-            if (error) throw error;
-
-            const total = inscriptions.length;
-            const valide = inscriptions.filter(i => i.statut === 'valide').length;
-            const en_attente = inscriptions.filter(i => i.statut === 'en_attente').length;
-            const rejete = inscriptions.filter(i => i.statut === 'rejete').length;
-
-            // Calculer démographiques
-            const hommes = inscriptions.filter(i => i.sexe === 'homme').length;
-            const femmes = inscriptions.filter(i => i.sexe === 'femme').length;
-
-            const niveauCounts = inscriptions.reduce((acc, i) => {
-                acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
-                return acc;
-            }, {});
-
-            setStats([
-                {
-                    title: "Total Inscriptions",
-                    value: total.toString(),
-                    icon: Users,
-                    iconBg: "bg-blue-50 dark:bg-blue-900/20",
-                    iconColor: "text-blue-600 dark:text-blue-400",
-                },
-                {
-                    title: "Validées",
-                    value: valide.toString(),
-                    icon: CheckCircle,
-                    iconBg: "bg-green-50 dark:bg-green-900/20",
-                    iconColor: "text-green-600 dark:text-green-400",
-                },
-                {
-                    title: "En attente",
-                    value: en_attente.toString(),
-                    icon: Clock,
-                    iconBg: "bg-amber-50 dark:bg-amber-900/20",
-                    iconColor: "text-amber-600 dark:text-amber-400",
-                },
-            ]);
-
-            setDemographics({
-                hommesPercent: total > 0 ? Math.round((hommes / total) * 100) : 0,
-                femmesPercent: total > 0 ? Math.round((femmes / total) * 100) : 0,
-                total,
-                niveauPercent: {
-                    primaire: total > 0 ? Math.round(((niveauCounts.primaire || 0) / total) * 100) : 0,
-                    secondaire: total > 0 ? Math.round(((niveauCounts.secondaire || 0) / total) * 100) : 0,
-                    superieur: total > 0 ? Math.round(((niveauCounts.superieur || 0) / total) * 100) : 0,
-                }
-            });
-
-            // Charger la performance des chefs de quartier
-            const { data: chefs, error: chefsError } = await supabase
-                .from('chefs_quartier')
-                .select(`
-                    id,
-                    nom_complet,
-                    zone,
-                    inscriptions:inscriptions(statut)
-                `);
-
-            if (!chefsError && chefs) {
-                const formattedLeaders = chefs.map(chef => {
-                    const totalChef = chef.inscriptions.length;
-                    const validated = chef.inscriptions.filter(i => i.statut === 'valide').length;
-                    const pending = chef.inscriptions.filter(i => i.statut === 'en_attente').length;
-                    const progress = totalChef > 0 ? Math.round((validated / totalChef) * 100) : 0;
-
-                    return {
-                        id: chef.id,
-                        name: chef.nom_complet,
-                        zone: chef.zone,
-                        total: totalChef,
-                        validated,
-                        pending,
-                        progress,
-                        avatar: chef.nom_complet.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
-                    };
-                }).sort((a, b) => b.total - a.total);
-
-                setLeadersData(formattedLeaders);
+        return {
+            hommesPercent: total > 0 ? Math.round((stats.hommes / total) * 100) : 0,
+            femmesPercent: total > 0 ? Math.round((stats.femmes / total) * 100) : 0,
+            total,
+            niveauPercent: {
+                primaire: total > 0 ? Math.round(((niveauCounts.primaire || 0) / total) * 100) : 0,
+                secondaire: total > 0 ? Math.round(((niveauCounts.secondaire || 0) / total) * 100) : 0,
+                superieur: total > 0 ? Math.round(((niveauCounts.superieur || 0) / total) * 100) : 0,
             }
+        };
+    }, [inscriptions, stats]);
 
-            // Charger les statistiques des dortoirs
-            const { data: dortoirsData, error: dortoirsError } = await supabase
-                .from('vue_statistiques_dortoirs')
-                .select('*')
-                .order('nom');
+    // Calculer les données des leaders depuis le DataContext
+    const leadersData = useMemo(() => {
+        if (!chefsQuartier.length || !inscriptions.length) return [];
+        
+        return chefsQuartier.map(chef => {
+            const chefInscriptions = inscriptions.filter(i => i.chef_quartier_id === chef.id);
+            const totalChef = chefInscriptions.length;
+            const validated = chefInscriptions.filter(i => i.statut === 'valide').length;
+            const pending = chefInscriptions.filter(i => i.statut === 'en_attente').length;
+            const progress = totalChef > 0 ? Math.round((validated / totalChef) * 100) : 0;
 
-            if (!dortoirsError) {
-                setDortoirStats(dortoirsData || []);
-            }
+            return {
+                id: chef.id,
+                name: chef.nom_complet,
+                zone: chef.zone,
+                total: totalChef,
+                validated,
+                pending,
+                progress,
+                avatar: chef.nom_complet.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+            };
+        }).sort((a, b) => b.total - a.total);
+    }, [chefsQuartier, inscriptions]);
 
-            // Charger les statistiques des niveaux de formation
-            const { data: niveauxData, error: niveauxError } = await supabase
-                .from('vue_statistiques_niveaux_formation')
-                .select('*');
-
-            if (!niveauxError) {
-                if (isMounted) setNiveauFormationStats(niveauxData || []);
-            }
-
-        } catch (error) {
-            console.error('Erreur chargement stats:', error);
-        } finally {
-            clearTimeout(timeoutId);
-            isLoadingRef.current = false;
-            if (isMounted) setLoading(false);
-        }
-    }, []);
-
+    // Charger les données supplémentaires (vues) une seule fois
     useEffect(() => {
         let isMounted = true;
-        loadAllStats(isMounted);
 
-        // Subscription Realtime pour inscriptions
-        const channel = supabase
-            .channel('dashboard-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
-                console.log('Dashboard: Changement inscriptions détecté');
-                if (isMounted) loadAllStats(true);
-            })
-            .subscribe();
+        const loadAdditionalStats = async () => {
+            if (localLoading) return;
+            setLocalLoading(true);
+            
+            try {
+                // Charger les vues en parallèle
+                const [dortoirsRes, niveauxRes] = await Promise.all([
+                    supabase.from('vue_statistiques_dortoirs').select('*').order('nom'),
+                    supabase.from('vue_statistiques_niveaux_formation').select('*')
+                ]);
 
-        return () => {
-            isMounted = false;
-            supabase.removeChannel(channel);
+                if (isMounted) {
+                    if (!dortoirsRes.error) setDortoirStats(dortoirsRes.data || []);
+                    if (!niveauxRes.error) setNiveauFormationStats(niveauxRes.data || []);
+                }
+            } catch (err) {
+                console.error('Dashboard: Erreur chargement stats additionnelles:', err);
+            } finally {
+                if (isMounted) setLocalLoading(false);
+            }
         };
-    }, [loadAllStats]);
 
-    // Fonction de rafraîchissement pour le bouton
-    const handleRefresh = () => loadAllStats(true);
+        loadAdditionalStats();
+
+        return () => { isMounted = false; };
+    }, []);
+
+    // Fonction de rafraîchissement
+    const handleRefresh = useCallback(async () => {
+        setLocalLoading(true);
+        
+        // Rafraîchir le DataContext global
+        await refresh();
+        
+        // Recharger les vues locales
+        const [dortoirsRes, niveauxRes] = await Promise.all([
+            supabase.from('vue_statistiques_dortoirs').select('*').order('nom'),
+            supabase.from('vue_statistiques_niveaux_formation').select('*')
+        ]);
+        
+        if (!dortoirsRes.error) setDortoirStats(dortoirsRes.data || []);
+        if (!niveauxRes.error) setNiveauFormationStats(niveauxRes.data || []);
+        
+        setLocalLoading(false);
+    }, [refresh]);
+
+    const isLoading = loading || localLoading;
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex flex-col gap-8">
@@ -208,15 +177,18 @@ export function Dashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="hidden md:block text-sm text-text-secondary dark:text-gray-400 bg-white dark:bg-white/5 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark">
-                        Dernière mise à jour : Aujourd'hui, {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        {lastUpdate 
+                            ? `Mise à jour : ${lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Chargement...'
+                        }
                     </span>
                     <Button
                         variant="outline"
                         onClick={handleRefresh}
-                        disabled={loading}
+                        disabled={isLoading}
                         className="gap-2"
                     >
-                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                         Actualiser
                     </Button>
                     <Button className="gap-2">
@@ -228,7 +200,7 @@ export function Dashboard() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {loading ? (
+                {isLoading && !dashboardStats ? (
                     Array.from({ length: 3 }).map((_, index) => (
                         <Card key={index} className="p-5 flex flex-col gap-4 animate-pulse">
                             <div className="flex justify-between items-start">
@@ -240,8 +212,8 @@ export function Dashboard() {
                             </div>
                         </Card>
                     ))
-                ) : stats ? (
-                    stats.map((stat, index) => (
+                ) : dashboardStats ? (
+                    dashboardStats.map((stat, index) => (
                         <Card
                             key={index}
                             className="p-5 flex flex-col justify-between gap-4 hover:border-primary/50 transition-colors group"
@@ -275,7 +247,7 @@ export function Dashboard() {
                     <CardDescription>Répartition par genre et niveau d'étude</CardDescription>
                 </div>
 
-                {loading || !demographics ? (
+                {isLoading || !demographics ? (
                     <div className="flex flex-col gap-4 animate-pulse">
                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
@@ -348,7 +320,7 @@ export function Dashboard() {
                         <CardDescription>Répartition des participants par salle</CardDescription>
                     </div>
 
-                    {loading ? (
+                    {isLoading ? (
                         <div className="flex flex-col gap-4 animate-pulse">
                             <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
                             <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
@@ -398,7 +370,7 @@ export function Dashboard() {
                         <CardDescription>Répartition par niveau de connaissance</CardDescription>
                     </div>
 
-                    {loading ? (
+                    {isLoading ? (
                         <div className="flex flex-col gap-4 animate-pulse">
                             <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
                             <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
@@ -491,7 +463,13 @@ export function Dashboard() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-light dark:divide-border-dark">
-                            {leadersData.map((leader) => (
+                            {leadersData
+                                .filter(leader => 
+                                    !searchTerm || 
+                                    leader.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    leader.zone.toLowerCase().includes(searchTerm.toLowerCase())
+                                )
+                                .map((leader) => (
                                 <tr
                                     key={leader.id}
                                     className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
@@ -543,15 +521,15 @@ export function Dashboard() {
                 <div className="p-4 border-t border-border-light dark:border-border-dark flex items-center justify-between">
                     <p className="text-sm text-text-secondary dark:text-gray-400">
                         Affichage de <span className="font-medium text-text-main dark:text-white">1</span> à{" "}
-                        <span className="font-medium text-text-main dark:text-white">4</span> sur{" "}
-                        <span className="font-medium text-text-main dark:text-white">24</span> résultats
+                        <span className="font-medium text-text-main dark:text-white">{leadersData.length}</span> sur{" "}
+                        <span className="font-medium text-text-main dark:text-white">{leadersData.length}</span> résultats
                     </p>
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" disabled>
                             <ChevronLeft className="h-4 w-4 mr-1" />
                             Précédent
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" disabled>
                             Suivant
                             <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>

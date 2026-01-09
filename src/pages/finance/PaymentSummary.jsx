@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,115 +13,34 @@ import {
     ChevronLeft,
     ChevronRight,
     FileSpreadsheet,
+    RefreshCw,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useData } from "@/contexts";
 
 export function PaymentSummary() {
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [inscriptions, setInscriptions] = useState([]);
+    // Utiliser le DataContext global
+    const { inscriptions, chefsQuartier, loading, refresh } = useData();
+    
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
         statut_paiement: "",
         chef_quartier: "",
     });
-    const [chefsQuartier, setChefsQuartier] = useState([]);
-    const [totals, setTotals] = useState({
-        totalCollecte: 0,
-        totalRestant: 0,
-        nombreComplet: 0,
-        nombrePartiel: 0,
-    });
-    
-    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
-    const isLoadingRef = useRef(false);
 
-    const loadChefsQuartier = useCallback(async () => {
-        const { data } = await supabase
-            .from("chefs_quartier")
-            .select("id, nom_complet, zone")
-            .order("nom_complet");
-        setChefsQuartier(data || []);
-    }, []);
-
-    const loadData = useCallback(async (isMounted = true) => {
-        // Éviter les appels simultanés
-        if (isLoadingRef.current) return;
-        isLoadingRef.current = true;
-
-        // Timeout de sécurité: reset après 10 secondes
-        const timeoutId = setTimeout(() => {
-            isLoadingRef.current = false;
-        }, 10000);
-
-        if (isMounted) setLoading(true);
-        if (isMounted) setError(null);
-        try {
-            console.log('PaymentSummary: Chargement des données...');
-            const { data, error: fetchError } = await supabase
-                .from("inscriptions")
-                .select(`
-                    *,
-                    chef_quartier:chefs_quartier(id, nom_complet, zone)
-                `)
-                .order("created_at", { ascending: false });
-
-            if (fetchError) {
-                console.error('PaymentSummary: Erreur Supabase:', fetchError);
-                throw fetchError;
-            }
-
-            console.log('PaymentSummary: Données reçues:', data?.length || 0, 'inscriptions');
-            if (isMounted) setInscriptions(data || []);
-
-            // Calculer les totaux
-            const totalCollecte = (data || []).reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-            const totalRestant = (data || []).reduce(
-                (acc, i) => acc + Math.max(0, (i.montant_requis || 4000) - (i.montant_total_paye || 0)),
-                0
-            );
-            const nombreComplet = (data || []).filter(
-                (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
-            ).length;
-            const nombrePartiel = (data || []).filter((i) => i.statut_paiement === "partiel").length;
-
-            if (isMounted) setTotals({ totalCollecte, totalRestant, nombreComplet, nombrePartiel });
-        } catch (err) {
-            console.error("PaymentSummary: Exception chargement:", err);
-            if (isMounted) setError(err.message || "Erreur lors du chargement des données");
-        } finally {
-            clearTimeout(timeoutId);
-            isLoadingRef.current = false;
-            if (isMounted) setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        let isMounted = true;
-        loadData(isMounted);
-        loadChefsQuartier();
-
-        // Subscription Realtime pour inscriptions ET paiements
-        const channel = supabase
-            .channel('payment-summary-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
-                console.log('PaymentSummary: Changement inscriptions détecté');
-                if (isMounted) loadData(true);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => {
-                console.log('PaymentSummary: Changement paiements détecté');
-                if (isMounted) loadData(true);
-            })
-            .subscribe();
-
-        return () => {
-            isMounted = false;
-            supabase.removeChannel(channel);
-        };
-    }, [loadData, loadChefsQuartier]);
-
-    // Fonction de rafraîchissement pour le bouton
-    const handleRefresh = () => loadData(true);
+    // Calculer les totaux depuis le DataContext
+    const totals = useMemo(() => {
+        const totalCollecte = inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
+        const totalRestant = inscriptions.reduce(
+            (acc, i) => acc + Math.max(0, (i.montant_requis || 4000) - (i.montant_total_paye || 0)),
+            0
+        );
+        const nombreComplet = inscriptions.filter(
+            (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
+        ).length;
+        const nombrePartiel = inscriptions.filter((i) => i.statut_paiement === "partiel").length;
+        
+        return { totalCollecte, totalRestant, nombreComplet, nombrePartiel };
+    }, [inscriptions]);
 
     const formatMontant = (montant) => {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
@@ -142,16 +61,19 @@ export function PaymentSummary() {
         }
     };
 
-    const filteredInscriptions = inscriptions.filter((i) => {
-        const matchesSearch = `${i.nom} ${i.prenom}`
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase());
-        const matchesStatut =
-            !filters.statut_paiement || i.statut_paiement === filters.statut_paiement;
-        const matchesChef =
-            !filters.chef_quartier || i.chef_quartier?.id === filters.chef_quartier;
-        return matchesSearch && matchesStatut && matchesChef;
-    });
+    // Filtrer les inscriptions
+    const filteredInscriptions = useMemo(() => {
+        return inscriptions.filter((i) => {
+            const matchesSearch = `${i.nom} ${i.prenom}`
+                .toLowerCase()
+                .includes(searchTerm.toLowerCase());
+            const matchesStatut =
+                !filters.statut_paiement || i.statut_paiement === filters.statut_paiement;
+            const matchesChef =
+                !filters.chef_quartier || i.chef_quartier?.id === filters.chef_quartier;
+            return matchesSearch && matchesStatut && matchesChef;
+        });
+    }, [inscriptions, searchTerm, filters]);
 
     const exportToCSV = () => {
         const headers = [
@@ -202,10 +124,16 @@ export function PaymentSummary() {
                         Vue d'ensemble de tous les paiements
                     </p>
                 </div>
-                <Button className="gap-2" onClick={exportToCSV}>
-                    <Download className="h-4 w-4" />
-                    Exporter CSV
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button variant="outline" className="gap-2" onClick={refresh} disabled={loading}>
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        Actualiser
+                    </Button>
+                    <Button className="gap-2" onClick={exportToCSV}>
+                        <Download className="h-4 w-4" />
+                        Exporter CSV
+                    </Button>
+                </div>
             </header>
 
             {/* Content */}
@@ -315,7 +243,7 @@ export function PaymentSummary() {
 
                     {/* Table */}
                     <Card className="overflow-hidden">
-                        {loading ? (
+                        {loading && !inscriptions.length ? (
                             <div className="flex flex-col items-center justify-center py-16">
                                 <div className="h-12 w-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
                                 <p className="text-text-secondary">Chargement...</p>

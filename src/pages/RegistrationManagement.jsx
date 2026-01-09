@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import {
     Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts";
+import { useData } from "@/contexts";
 
 // Configuration des statuts (mapping DB -> UI)
 const statusConfig = {
@@ -38,11 +38,17 @@ const niveauEtudeMap = {
 };
 
 export function RegistrationManagement() {
-    const { user } = useAuth();
-    const [registrations, setRegistrations] = useState([]);
-    const [chefsQuartier, setChefsQuartier] = useState([]);
-    const [dortoirs, setDortoirs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    // Utiliser le DataContext global au lieu de charger localement
+    const { 
+        inscriptions, 
+        chefsQuartier, 
+        dortoirs, 
+        loading, 
+        refresh,
+        updateInscriptionLocal,
+        deleteInscriptionLocal 
+    } = useData();
+    
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
         statut: "",
@@ -52,12 +58,9 @@ export function RegistrationManagement() {
     });
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
-    
-    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
-    const isLoadingRef = useRef(false);
 
     // Fonction pour formater une inscription
-    const formatRegistration = (row) => ({
+    const formatRegistration = useCallback((row) => ({
         id: row.id,
         reference_id: row.reference_id || 'N/A',
         nom: row.nom,
@@ -80,170 +83,26 @@ export function RegistrationManagement() {
         }),
         type_inscription: row.type_inscription,
         originalData: row,
-    });
+    }), []);
 
-    // Charger les inscriptions depuis Supabase
-    const loadInscriptions = useCallback(async (isMounted = true) => {
-        // Éviter les appels simultanés
-        if (isLoadingRef.current) return;
-        isLoadingRef.current = true;
-        
-        try {
-            if (isMounted) setLoading(true);
-            const { data, error } = await supabase
-                .from('inscriptions')
-                .select(`
-                    *,
-                    chef_quartier:chefs_quartier(nom_complet, zone)
-                `)
-                .order('created_at', { ascending: false });
+    // Formater les inscriptions depuis le DataContext
+    const registrations = useMemo(() => {
+        return inscriptions.map(formatRegistration);
+    }, [inscriptions, formatRegistration]);
 
-            if (error) throw error;
-
-            const formatted = data.map(formatRegistration);
-            if (isMounted) setRegistrations(formatted);
-        } catch (error) {
-            console.error('Erreur chargement inscriptions:', error);
-            if (isMounted) alert('Erreur lors du chargement des inscriptions');
-        } finally {
-            isLoadingRef.current = false;
-            if (isMounted) setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        let isMounted = true;
-        
-        if (user) {
-            loadInscriptions(isMounted);
-        }
-
-        // Souscription temps réel pour les inscriptions ET paiements
-        const channel = supabase
-            .channel('inscriptions-realtime')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'inscriptions'
-                },
-                async (payload) => {
-                    console.log('Nouvelle inscription reçue:', payload.new);
-                    // Récupérer les données complètes avec le chef de quartier
-                    const { data, error } = await supabase
-                        .from('inscriptions')
-                        .select(`
-                            *,
-                            chef_quartier:chefs_quartier(nom_complet, zone)
-                        `)
-                        .eq('id', payload.new.id)
-                        .single();
-
-                    if (!error && data) {
-                        const newRegistration = formatRegistration(data);
-                        setRegistrations(prev => [newRegistration, ...prev]);
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'inscriptions'
-                },
-                async (payload) => {
-                    console.log('Inscription mise à jour:', payload.new);
-                    // Récupérer les données complètes
-                    const { data, error } = await supabase
-                        .from('inscriptions')
-                        .select(`
-                            *,
-                            chef_quartier:chefs_quartier(nom_complet, zone)
-                        `)
-                        .eq('id', payload.new.id)
-                        .single();
-
-                    if (!error && data) {
-                        const updatedRegistration = formatRegistration(data);
-                        setRegistrations(prev =>
-                            prev.map(r => r.id === payload.new.id ? updatedRegistration : r)
-                        );
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'DELETE',
-                    schema: 'public',
-                    table: 'inscriptions'
-                },
-                (payload) => {
-                    console.log('Inscription supprimée:', payload.old);
-                    setRegistrations(prev => prev.filter(r => r.id !== payload.old.id));
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'paiements'
-                },
-                () => {
-                    console.log('Changement paiements détecté, rechargement...');
-                    if (isMounted) loadInscriptions(true);
-                }
-            )
-            .subscribe();
-
-        // Cleanup: se désabonner quand le composant est démonté
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [user, loadInscriptions]);
-
-    // Charger la liste des chefs de quartier et dortoirs une seule fois
-    useEffect(() => {
-        async function loadReferenceData() {
-            // Chefs de quartier
-            const { data: chefsData, error: chefsError } = await supabase
-                .from('chefs_quartier')
-                .select('*')
-                .order('nom_complet');
-
-            if (!chefsError) {
-                setChefsQuartier(chefsData || []);
-            }
-
-            // Dortoirs
-            const { data: dortoirsData, error: dortoirsError } = await supabase
-                .from('dortoirs')
-                .select('*')
-                .order('nom');
-
-            if (!dortoirsError) {
-                setDortoirs(dortoirsData || []);
-            }
-        }
-        loadReferenceData();
-    }, []);
-
-    // Fonction de rafraîchissement pour le bouton
-    const handleRefresh = () => loadInscriptions(true);
-
-    const filteredRegistrations = registrations.filter((r) => {
-        const matchesSearch =
-            r.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.prenom.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = !filters.statut || r.statut === filters.statut;
-        const matchesChef = !filters.chefQuartier || r.chefQuartier.includes(filters.chefQuartier);
-        const matchesNiveau = !filters.niveau || r.niveau === filters.niveau;
-        const matchesSexe = !filters.sexe || r.sexe === filters.sexe;
-        return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
-    });
+    // Filtrer les inscriptions
+    const filteredRegistrations = useMemo(() => {
+        return registrations.filter((r) => {
+            const matchesSearch =
+                r.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                r.prenom.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesStatus = !filters.statut || r.statut === filters.statut;
+            const matchesChef = !filters.chefQuartier || r.chefQuartier.includes(filters.chefQuartier);
+            const matchesNiveau = !filters.niveau || r.niveau === filters.niveau;
+            const matchesSexe = !filters.sexe || r.sexe === filters.sexe;
+            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
+        });
+    }, [registrations, searchTerm, filters]);
 
     const handleValidateOne = async (id) => {
         try {
@@ -254,10 +113,8 @@ export function RegistrationManagement() {
 
             if (error) throw error;
 
-            // Mettre à jour l'état local
-            setRegistrations(
-                registrations.map((r) => (r.id === id ? { ...r, statut: 'valide' } : r))
-            );
+            // Mise à jour optimiste locale
+            updateInscriptionLocal(id, { statut: 'valide' });
         } catch (error) {
             console.error('Erreur validation:', error);
             alert('Erreur lors de la validation de l\'inscription');
@@ -273,8 +130,8 @@ export function RegistrationManagement() {
 
             if (error) throw error;
 
-            // Mettre à jour l'état local
-            setRegistrations(registrations.filter((r) => r.id !== id));
+            // Mise à jour optimiste locale
+            deleteInscriptionLocal(id);
             setDeleteModal({ open: false, registration: null });
             setEditModal({ open: false, registration: null });
         } catch (error) {
@@ -306,37 +163,23 @@ export function RegistrationManagement() {
 
             if (error) throw error;
 
-            // Recharger les inscriptions pour avoir les données à jour
-            const { data, error: fetchError } = await supabase
-                .from('inscriptions')
-                .select(`
-                    *,
-                    chef_quartier:chefs_quartier(nom_complet, zone)
-                `)
-                .eq('id', id)
-                .single();
-
-            if (fetchError) throw fetchError;
-
-            // Mettre à jour l'état local
-            const updatedRegistration = formatRegistration(data);
-
-            setRegistrations(
-                registrations.map((r) => (r.id === id ? updatedRegistration : r))
-            );
+            // Mise à jour optimiste locale
+            updateInscriptionLocal(id, updateData);
 
             // Fermer le modal seulement si demandé
             if (closeModal) {
                 setEditModal({ open: false, registration: null });
-            } else {
-                // Mettre à jour le modal avec les nouvelles données
-                setEditModal(prev => ({ ...prev, registration: updatedRegistration }));
             }
         } catch (error) {
             console.error('Erreur mise à jour:', error);
             alert('Erreur lors de la mise à jour de l\'inscription');
         }
     };
+
+    // Rafraîchissement via le DataContext
+    const handleRefresh = useCallback(() => {
+        refresh();
+    }, [refresh]);
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
@@ -350,10 +193,21 @@ export function RegistrationManagement() {
                         Gérez, filtrez et validez les inscriptions au séminaire.
                     </p>
                 </div>
-                <Button className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Ajouter une inscription
-                </Button>
+                <div className="flex gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        Actualiser
+                    </Button>
+                    <Button className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Ajouter une inscription
+                    </Button>
+                </div>
             </header>
 
             {/* Scrollable Content */}
@@ -455,7 +309,7 @@ export function RegistrationManagement() {
 
                     {/* Data Table */}
                     <Card className="overflow-hidden">
-                        {loading ? (
+                        {loading && !registrations.length ? (
                             <div className="flex flex-col items-center justify-center py-16">
                                 <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
                                 <p className="text-text-secondary dark:text-gray-400">Chargement des inscriptions...</p>
@@ -540,8 +394,8 @@ export function RegistrationManagement() {
                                                         {registration.chefQuartier}
                                                     </td>
                                                     <td className="p-4">
-                                                        <Badge variant={statusConfig[registration.statut].variant}>
-                                                            {statusConfig[registration.statut].label}
+                                                        <Badge variant={statusConfig[registration.statut]?.variant || 'secondary'}>
+                                                            {statusConfig[registration.statut]?.label || registration.statut}
                                                         </Badge>
                                                     </td>
                                                     <td className="p-4 text-text-secondary dark:text-gray-400 text-xs">
@@ -585,7 +439,7 @@ export function RegistrationManagement() {
                                             <ChevronLeft className="h-4 w-4 mr-1" />
                                             Précédent
                                         </Button>
-                                        <Button variant="outline" size="sm">
+                                        <Button variant="outline" size="sm" disabled>
                                             Suivant
                                             <ChevronRight className="h-4 w-4 ml-1" />
                                         </Button>

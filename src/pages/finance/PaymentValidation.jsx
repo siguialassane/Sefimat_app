@@ -1,99 +1,110 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
     Search,
     CheckCircle,
     XCircle,
     Eye,
-    AlertCircle,
     DollarSign,
     X,
+    RefreshCw,
+    Download,
+    Filter,
+    Users,
+    Clock,
+    CheckCheck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts";
+import { useAuth, useData } from "@/contexts";
 
 export function PaymentValidation() {
     const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [inscriptions, setInscriptions] = useState([]);
+    
+    // Utiliser le DataContext global
+    const { 
+        inscriptions: allInscriptions,
+        chefsQuartier,
+        loading, 
+        refresh,
+        updateInscriptionLocal
+    } = useData();
+    
     const [searchTerm, setSearchTerm] = useState("");
+    const [filterStatus, setFilterStatus] = useState("en_attente"); // "en_attente", "valides", "tous"
+    const [filterChef, setFilterChef] = useState("");
     const [selectedInscription, setSelectedInscription] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
-    
-    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
-    const isLoadingRef = useRef(false);
 
-    const loadPendingValidations = useCallback(async (isMounted = true) => {
-        // Éviter les appels simultanés
-        if (isLoadingRef.current) return;
-        isLoadingRef.current = true;
+    // Calculer les statistiques
+    const stats = useMemo(() => {
+        const enAttente = allInscriptions.filter(i => 
+            (i.statut_paiement === "partiel" || i.statut_paiement === "non_payé") &&
+            (i.montant_total_paye || 0) < (i.montant_requis || 4000)
+        ).length;
+        
+        const valides = allInscriptions.filter(i => 
+            i.statut_paiement === "valide_financier" || 
+            i.statut_paiement === "soldé" ||
+            (i.montant_total_paye || 0) >= (i.montant_requis || 4000)
+        ).length;
+        
+        const totalCollecte = allInscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
+        const totalRestant = allInscriptions.reduce(
+            (acc, i) => acc + Math.max(0, (i.montant_requis || 4000) - (i.montant_total_paye || 0)),
+            0
+        );
+        
+        return { enAttente, valides, totalCollecte, totalRestant, total: allInscriptions.length };
+    }, [allInscriptions]);
 
-        // Timeout de sécurité: reset après 10 secondes
-        const timeoutId = setTimeout(() => {
-            isLoadingRef.current = false;
-        }, 10000);
-
-        if (isMounted) setLoading(true);
-        if (isMounted) setError(null);
-        try {
-            console.log('PaymentValidation: Chargement des validations...');
-            const { data, error: fetchError } = await supabase
-                .from("inscriptions")
-                .select(`
-                    *,
-                    chef_quartier:chefs_quartier(nom_complet, zone)
-                `)
-                .or("statut_paiement.eq.partiel,statut_paiement.eq.non_payé")
-                .lt("montant_total_paye", 4000)
-                .order("created_at", { ascending: false });
-
-            if (fetchError) {
-                console.error('PaymentValidation: Erreur Supabase:', fetchError);
-                throw fetchError;
-            }
-
-            console.log('PaymentValidation: Données reçues:', data?.length || 0, 'inscriptions en attente');
-            if (isMounted) setInscriptions(data || []);
-        } catch (err) {
-            console.error("PaymentValidation: Exception chargement:", err);
-            if (isMounted) setError(err.message || "Erreur lors du chargement");
-        } finally {
-            clearTimeout(timeoutId);
-            isLoadingRef.current = false;
-            if (isMounted) setLoading(false);
+    // Filtrer les inscriptions selon le filtre actif
+    const filteredInscriptions = useMemo(() => {
+        let filtered = [...allInscriptions];
+        
+        // Filtre par statut
+        if (filterStatus === "en_attente") {
+            filtered = filtered.filter(i => 
+                (i.statut_paiement === "partiel" || i.statut_paiement === "non_payé") &&
+                (i.montant_total_paye || 0) < (i.montant_requis || 4000)
+            );
+        } else if (filterStatus === "valides") {
+            filtered = filtered.filter(i => 
+                i.statut_paiement === "valide_financier" || 
+                i.statut_paiement === "soldé" ||
+                (i.montant_total_paye || 0) >= (i.montant_requis || 4000)
+            );
         }
-    }, []);
+        
+        // Filtre par président de section
+        if (filterChef) {
+            if (filterChef === "presentiel") {
+                filtered = filtered.filter(i => !i.chef_quartier_id);
+            } else {
+                filtered = filtered.filter(i => i.chef_quartier_id === filterChef);
+            }
+        }
+        
+        // Filtre par recherche
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            filtered = filtered.filter(i =>
+                `${i.nom} ${i.prenom}`.toLowerCase().includes(term) ||
+                i.reference_id?.toLowerCase().includes(term)
+            );
+        }
+        
+        return filtered;
+    }, [allInscriptions, filterStatus, filterChef, searchTerm]);
 
-    useEffect(() => {
-        let isMounted = true;
-        loadPendingValidations(isMounted);
-
-        // Subscription Realtime pour inscriptions ET paiements
-        const channel = supabase
-            .channel('payment-validation-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
-                console.log('PaymentValidation: Changement inscriptions détecté');
-                if (isMounted) loadPendingValidations(true);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => {
-                console.log('PaymentValidation: Changement paiements détecté');
-                if (isMounted) loadPendingValidations(true);
-            })
-            .subscribe();
-
-        return () => {
-            isMounted = false;
-            supabase.removeChannel(channel);
-        };
-    }, [loadPendingValidations]);
-
-    // Fonction de rafraîchissement pour le bouton
-    const handleRefresh = () => loadPendingValidations(true);
+    const handleRefresh = useCallback(() => {
+        refresh();
+    }, [refresh]);
 
     const handleValidate = async (inscriptionId) => {
         setActionLoading(true);
@@ -109,8 +120,12 @@ export function PaymentValidation() {
 
             if (error) throw error;
 
-            // Retirer de la liste
-            setInscriptions(inscriptions.filter((i) => i.id !== inscriptionId));
+            updateInscriptionLocal(inscriptionId, {
+                statut_paiement: "valide_financier",
+                valide_par_financier: user.id,
+                date_validation_financier: new Date().toISOString(),
+            });
+            
             setModalOpen(false);
             setSelectedInscription(null);
         } catch (error) {
@@ -137,7 +152,12 @@ export function PaymentValidation() {
 
             if (error) throw error;
 
-            setInscriptions(inscriptions.filter((i) => i.id !== inscriptionId));
+            updateInscriptionLocal(inscriptionId, {
+                statut_paiement: "refuse",
+                valide_par_financier: user.id,
+                date_validation_financier: new Date().toISOString(),
+            });
+            
             setModalOpen(false);
             setSelectedInscription(null);
         } catch (error) {
@@ -152,172 +172,356 @@ export function PaymentValidation() {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
-    const filteredInscriptions = inscriptions.filter((i) =>
-        `${i.nom} ${i.prenom}`.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const getStatutBadge = (inscription) => {
+        if (inscription.statut_paiement === "valide_financier") {
+            return <Badge className="bg-emerald-500 text-white">Validé</Badge>;
+        }
+        if (inscription.statut_paiement === "soldé" || (inscription.montant_total_paye || 0) >= (inscription.montant_requis || 4000)) {
+            return <Badge className="bg-blue-500 text-white">Soldé</Badge>;
+        }
+        if (inscription.statut_paiement === "refuse") {
+            return <Badge variant="destructive">Refusé</Badge>;
+        }
+        if (inscription.statut_paiement === "partiel") {
+            return <Badge className="bg-amber-500 text-white">Partiel</Badge>;
+        }
+        return <Badge variant="secondary">Non payé</Badge>;
+    };
+
+    // Export CSV
+    const exportToCSV = () => {
+        const headers = ["Référence", "Nom", "Prénom", "Téléphone", "Président", "Montant payé", "Reste", "Statut", "Date"];
+        const rows = filteredInscriptions.map(i => [
+            i.reference_id || "",
+            i.nom,
+            i.prenom,
+            i.telephone || "",
+            i.chef_quartier?.nom_complet || "Présentiel",
+            i.montant_total_paye || 0,
+            Math.max(0, (i.montant_requis || 4000) - (i.montant_total_paye || 0)),
+            i.statut_paiement,
+            new Date(i.created_at).toLocaleDateString("fr-FR"),
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8," +
+            [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+
+        const link = document.createElement("a");
+        link.setAttribute("href", encodeURI(csvContent));
+        link.setAttribute("download", `paiements_${filterStatus}_${new Date().toISOString().split("T")[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
             {/* Header */}
-            <header className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark py-4 px-8 flex justify-between items-center z-10 flex-shrink-0">
+            <header className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark py-4 px-8 flex justify-between items-center z-10 shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold text-text-main dark:text-white tracking-tight">
-                        Validations de Paiements
+                        Gestion des Paiements
                     </h1>
                     <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                        Paiements inférieurs à 4.000 FCFA en attente de votre validation
+                        Validez et suivez tous les paiements des participants
                     </p>
                 </div>
-                <Badge variant="outline" className="text-lg px-4 py-2 border-emerald-500 text-emerald-600">
-                    {inscriptions.length} en attente
-                </Badge>
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        Actualiser
+                    </Button>
+                    <Button onClick={exportToCSV} className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Exporter CSV
+                    </Button>
+                </div>
             </header>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-[1400px] mx-auto space-y-6">
-                    {/* Search */}
+                    {/* Statistics Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Card 
+                            className={`p-5 cursor-pointer transition-all ${filterStatus === "en_attente" ? "ring-2 ring-amber-500" : "hover:shadow-md"}`}
+                            onClick={() => setFilterStatus("en_attente")}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                                    <Clock className="h-5 w-5 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-text-secondary">En attente</p>
+                                    <p className="text-xl font-bold text-amber-600">{stats.enAttente}</p>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card 
+                            className={`p-5 cursor-pointer transition-all ${filterStatus === "valides" ? "ring-2 ring-emerald-500" : "hover:shadow-md"}`}
+                            onClick={() => setFilterStatus("valides")}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                                    <CheckCheck className="h-5 w-5 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-text-secondary">Validés / Soldés</p>
+                                    <p className="text-xl font-bold text-emerald-600">{stats.valides}</p>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="p-5">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                    <DollarSign className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-text-secondary">Total collecté</p>
+                                    <p className="text-xl font-bold text-blue-600">{formatMontant(stats.totalCollecte)}</p>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card 
+                            className={`p-5 cursor-pointer transition-all ${filterStatus === "tous" ? "ring-2 ring-primary" : "hover:shadow-md"}`}
+                            onClick={() => setFilterStatus("tous")}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-primary/10">
+                                    <Users className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-text-secondary">Total inscriptions</p>
+                                    <p className="text-xl font-bold text-primary">{stats.total}</p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* Filters */}
                     <Card className="p-4">
-                        <div className="relative max-w-md">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                            <Input
-                                placeholder="Rechercher par nom..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                            />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <Label className="mb-1.5 block text-xs">Recherche</Label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                    <Input
+                                        placeholder="Nom, prénom ou référence..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <Label className="mb-1.5 block text-xs">Statut</Label>
+                                <Select
+                                    value={filterStatus}
+                                    onChange={(e) => setFilterStatus(e.target.value)}
+                                >
+                                    <option value="en_attente">🕐 En attente de validation</option>
+                                    <option value="valides">✅ Validés / Soldés</option>
+                                    <option value="tous">📋 Tous les paiements</option>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="mb-1.5 block text-xs">Président de section</Label>
+                                <Select
+                                    value={filterChef}
+                                    onChange={(e) => setFilterChef(e.target.value)}
+                                >
+                                    <option value="">Tous</option>
+                                    <option value="presentiel">🟡 Présentiel uniquement</option>
+                                    {chefsQuartier.map((chef) => (
+                                        <option key={chef.id} value={chef.id}>
+                                            {chef.nom_complet}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
                         </div>
                     </Card>
 
                     {/* Table */}
                     <Card className="overflow-hidden">
-                        {loading ? (
+                        {loading && !allInscriptions.length ? (
                             <div className="flex flex-col items-center justify-center py-16">
                                 <div className="h-12 w-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
-                                <p className="text-text-secondary">Chargement des validations...</p>
+                                <p className="text-text-secondary">Chargement...</p>
                             </div>
                         ) : filteredInscriptions.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16">
                                 <CheckCircle className="h-16 w-16 text-emerald-500 mb-4" />
                                 <p className="text-text-main dark:text-white text-lg font-medium">
-                                    Toutes les validations sont à jour
+                                    {filterStatus === "en_attente" ? "Aucun paiement en attente" : "Aucun résultat"}
                                 </p>
                                 <p className="text-text-secondary">
-                                    Aucun paiement n'est en attente de validation.
+                                    {filterStatus === "en_attente" 
+                                        ? "Tous les paiements ont été traités." 
+                                        : "Aucune inscription ne correspond à vos critères."}
                                 </p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
-                                        <tr>
-                                            <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                Participant
-                                            </th>
-                                            <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                Référence
-                                            </th>
-                                            <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                Président de section
-                                            </th>
-                                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                                Montant payé
-                                            </th>
-                                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                                Reste
-                                            </th>
-                                            <th className="p-4 font-semibold text-text-main dark:text-white text-right">
-                                                Actions
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border-light dark:divide-border-dark">
-                                        {filteredInscriptions.map((inscription) => (
-                                            <tr
-                                                key={inscription.id}
-                                                className="hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors"
-                                            >
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
-                                                            {inscription.photo_url ? (
-                                                                <img
-                                                                    src={inscription.photo_url}
-                                                                    alt={inscription.nom}
-                                                                    className="h-full w-full object-cover"
-                                                                />
+                            <>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
+                                            <tr>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">
+                                                    Participant
+                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">
+                                                    Référence
+                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">
+                                                    Président de section
+                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">
+                                                    Montant payé
+                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">
+                                                    Reste
+                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">
+                                                    Statut
+                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-right">
+                                                    Actions
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border-light dark:divide-border-dark">
+                                            {filteredInscriptions.map((inscription) => {
+                                                const isPresentiel = !inscription.chef_quartier_id;
+                                                const isComplete = (inscription.montant_total_paye || 0) >= (inscription.montant_requis || 4000);
+                                                const isValidated = inscription.statut_paiement === "valide_financier" || inscription.statut_paiement === "soldé";
+                                                
+                                                return (
+                                                    <tr
+                                                        key={inscription.id}
+                                                        className={`transition-colors ${
+                                                            isComplete || isValidated
+                                                                ? "bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20"
+                                                                : "hover:bg-gray-50 dark:hover:bg-white/5"
+                                                        }`}
+                                                    >
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
+                                                                    {inscription.photo_url ? (
+                                                                        <img
+                                                                            src={inscription.photo_url}
+                                                                            alt={inscription.nom}
+                                                                            className="h-full w-full object-cover"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="text-lg text-gray-400">
+                                                                            {inscription.nom?.charAt(0)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-medium text-text-main dark:text-white">
+                                                                        {inscription.nom} {inscription.prenom}
+                                                                    </p>
+                                                                    <p className="text-xs text-text-secondary">
+                                                                        {inscription.telephone || "N/A"}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 font-mono text-sm text-primary">
+                                                            {inscription.reference_id || "N/A"}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            {isPresentiel ? (
+                                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                                                                    🏢 Présentiel
+                                                                </span>
                                                             ) : (
-                                                                <span className="text-lg text-gray-400">
-                                                                    {inscription.nom?.charAt(0)}
+                                                                <span className="text-text-secondary">
+                                                                    {inscription.chef_quartier?.nom_complet}
                                                                 </span>
                                                             )}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium text-text-main dark:text-white">
-                                                                {inscription.nom} {inscription.prenom}
-                                                            </p>
-                                                            <p className="text-xs text-text-secondary">
-                                                                {inscription.telephone || "N/A"}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 font-mono text-sm text-primary">
-                                                    {inscription.reference_id || "N/A"}
-                                                </td>
-                                                <td className="p-4 text-text-secondary">
-                                                    {inscription.chef_quartier?.nom_complet || "Présentiel"}
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <span className="font-bold text-emerald-600">
-                                                        {formatMontant(inscription.montant_total_paye)}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <span className="text-red-500">
-                                                        {formatMontant(
-                                                            (inscription.montant_requis || 4000) -
-                                                            (inscription.montant_total_paye || 0)
-                                                        )}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setSelectedInscription(inscription);
-                                                                setModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <Eye className="h-4 w-4 mr-1" />
-                                                            Détails
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            className="bg-emerald-600 hover:bg-emerald-700"
-                                                            onClick={() => handleValidate(inscription.id)}
-                                                            disabled={actionLoading}
-                                                        >
-                                                            <CheckCircle className="h-4 w-4 mr-1" />
-                                                            Valider
-                                                        </Button>
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="sm"
-                                                            onClick={() => handleReject(inscription.id)}
-                                                            disabled={actionLoading}
-                                                        >
-                                                            <XCircle className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <span className={`font-bold ${isComplete ? "text-emerald-600" : "text-blue-600"}`}>
+                                                                {formatMontant(inscription.montant_total_paye)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            {isComplete ? (
+                                                                <span className="text-emerald-600 font-medium">Soldé</span>
+                                                            ) : (
+                                                                <span className="text-red-500">
+                                                                    {formatMontant(
+                                                                        (inscription.montant_requis || 4000) -
+                                                                        (inscription.montant_total_paye || 0)
+                                                                    )}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            {getStatutBadge(inscription)}
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setSelectedInscription(inscription);
+                                                                        setModalOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Eye className="h-4 w-4 mr-1" />
+                                                                    Détails
+                                                                </Button>
+                                                                {!isComplete && !isValidated && (
+                                                                    <>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            className="bg-emerald-600 hover:bg-emerald-700"
+                                                                            onClick={() => handleValidate(inscription.id)}
+                                                                            disabled={actionLoading}
+                                                                        >
+                                                                            <CheckCircle className="h-4 w-4 mr-1" />
+                                                                            Valider
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="destructive"
+                                                                            size="sm"
+                                                                            onClick={() => handleReject(inscription.id)}
+                                                                            disabled={actionLoading}
+                                                                        >
+                                                                            <XCircle className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="bg-surface-light dark:bg-surface-dark px-4 py-3 flex items-center justify-between border-t border-border-light dark:border-border-dark">
+                                    <p className="text-sm text-text-secondary">
+                                        <span className="font-medium text-text-main dark:text-white">
+                                            {filteredInscriptions.length}
+                                        </span>{" "}
+                                        résultats affichés
+                                    </p>
+                                </div>
+                            </>
                         )}
                     </Card>
                 </div>
@@ -377,7 +581,11 @@ export function PaymentValidation() {
                                 <div>
                                     <p className="text-text-secondary">Président de section</p>
                                     <p className="font-medium text-text-main dark:text-white">
-                                        {selectedInscription.chef_quartier?.nom_complet || "Présentiel"}
+                                        {selectedInscription.chef_quartier?.nom_complet || (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                                Présentiel
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
                                 <div>
@@ -414,11 +622,17 @@ export function PaymentValidation() {
                                     <p className="text-emerald-700 dark:text-emerald-400 text-sm">Reste à payer</p>
                                     <p className="font-bold text-red-600 text-xl">
                                         {formatMontant(
-                                            (selectedInscription.montant_requis || 4000) -
-                                            (selectedInscription.montant_total_paye || 0)
+                                            Math.max(0, (selectedInscription.montant_requis || 4000) -
+                                            (selectedInscription.montant_total_paye || 0))
                                         )}
                                     </p>
                                 </div>
+                            </div>
+
+                            {/* Statut */}
+                            <div className="flex items-center justify-center gap-2">
+                                <span className="text-text-secondary">Statut:</span>
+                                {getStatutBadge(selectedInscription)}
                             </div>
                         </div>
 
@@ -434,22 +648,28 @@ export function PaymentValidation() {
                             >
                                 Fermer
                             </Button>
-                            <Button
-                                variant="destructive"
-                                onClick={() => handleReject(selectedInscription.id)}
-                                disabled={actionLoading}
-                            >
-                                <XCircle className="h-4 w-4 mr-2" />
-                                Refuser
-                            </Button>
-                            <Button
-                                className="bg-emerald-600 hover:bg-emerald-700"
-                                onClick={() => handleValidate(selectedInscription.id)}
-                                disabled={actionLoading}
-                            >
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Valider le paiement
-                            </Button>
+                            {selectedInscription.statut_paiement !== "valide_financier" && 
+                             selectedInscription.statut_paiement !== "soldé" &&
+                             (selectedInscription.montant_total_paye || 0) < (selectedInscription.montant_requis || 4000) && (
+                                <>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => handleReject(selectedInscription.id)}
+                                        disabled={actionLoading}
+                                    >
+                                        <XCircle className="h-4 w-4 mr-2" />
+                                        Refuser
+                                    </Button>
+                                    <Button
+                                        className="bg-emerald-600 hover:bg-emerald-700"
+                                        onClick={() => handleValidate(selectedInscription.id)}
+                                        disabled={actionLoading}
+                                    >
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                        Valider
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </Card>
                 </div>

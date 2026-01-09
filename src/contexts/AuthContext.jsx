@@ -129,14 +129,13 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Timeout de sécurité - 15 secondes max (augmenté)
+    // Timeout de sécurité - 8 secondes (optimisé)
     const timeoutId = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('AuthContext: Timeout de session - arrêt du chargement');
-        // Ne pas afficher d'erreur, juste terminer le chargement
         setLoading(false);
       }
-    }, 15000);
+    }, 8000);
 
     // Vérifier la session au chargement
     const checkSession = async () => {
@@ -240,24 +239,14 @@ export function AuthProvider({ children }) {
     isLoadingProfile.current = false;
 
     try {
-      // Nettoyer le cache AVANT de tenter la connexion pour éviter les conflits
-      console.log("AuthContext: Nettoyage cache avant connexion...");
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('sb-') || key.includes('supabase'))) {
-          keysToRemove.push(key);
-        }
-      }
-      if (keysToRemove.length > 0) {
-        console.log("AuthContext: Suppression de", keysToRemove.length, "clés avant connexion");
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-      }
-
+      const startTime = Date.now();
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+      
+      console.log(`AuthContext: Auth Supabase en ${Date.now() - startTime}ms`);
 
       if (error) {
         console.error("AuthContext: Erreur signIn", error);

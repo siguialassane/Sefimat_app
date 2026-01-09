@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +16,7 @@ import {
     ChevronRight,
     AlertCircle,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useDataLoader, supabaseQuery } from "@/hooks";
+import { useData } from "@/contexts";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
@@ -215,66 +214,27 @@ function BadgePreview({ participant, badgeRef }) {
 }
 
 export function BadgeManagement() {
-    const [filteredParticipants, setFilteredParticipants] = useState([]);
+    // Utiliser le DataContext global
+    const { inscriptions: allInscriptions, dortoirs, loading, refresh } = useData();
+    
     const [searchTerm, setSearchTerm] = useState("");
     const [dortoirFilter, setDortoirFilter] = useState("");
     const [selectedParticipant, setSelectedParticipant] = useState(null);
     const [generating, setGenerating] = useState(false);
     const badgeRef = useRef(null);
 
-    // Fonction de chargement des participants validés
-    const fetchParticipants = useCallback(async (signal) => {
-        const data = await supabaseQuery(
-            supabase
-                .from("inscriptions")
-                .select(`*, dortoir:dortoirs(id, nom)`)
-                .eq("statut", "valide")
-                .order("nom"),
-            signal
-        );
+    // Filtrer les participants validés depuis le DataContext
+    const participants = useMemo(() => {
+        return allInscriptions
+            .filter(p => p.statut === "valide")
+            .map((p) => ({
+                ...p,
+                dortoir_nom: p.dortoir?.nom || dortoirs.find(d => d.id === p.dortoir_id)?.nom || "Non assigné",
+            }));
+    }, [allInscriptions, dortoirs]);
 
-        return data.map((p) => ({
-            ...p,
-            dortoir_nom: p.dortoir?.nom || "Non assigné",
-        }));
-    }, []);
-
-    // Fonction de chargement des dortoirs
-    const fetchDortoirs = useCallback(async (signal) => {
-        return await supabaseQuery(
-            supabase.from("dortoirs").select("*").order("nom"),
-            signal
-        );
-    }, []);
-
-    // Utiliser le hook useDataLoader pour les participants
-    const {
-        data: participants,
-        loading,
-        error: participantsError,
-        reload: reloadParticipants,
-    } = useDataLoader(fetchParticipants, {
-        timeout: 15000,
-        onSuccess: (data) => {
-            setFilteredParticipants(data);
-            if (data.length > 0 && !selectedParticipant) {
-                setSelectedParticipant(data[0]);
-            }
-        },
-    });
-
-    // Utiliser le hook useDataLoader pour les dortoirs
-    const {
-        data: dortoirs,
-        error: dortoirsError,
-    } = useDataLoader(fetchDortoirs, {
-        timeout: 10000,
-    });
-
-    // Filtrer les participants quand les critères changent
-    useEffect(() => {
-        if (!participants) return;
-
+    // Filtrer les participants selon les critères de recherche
+    const filteredParticipants = useMemo(() => {
         let filtered = [...participants];
 
         if (searchTerm) {
@@ -291,11 +251,15 @@ export function BadgeManagement() {
             filtered = filtered.filter((p) => p.dortoir_id === dortoirFilter);
         }
 
-        setFilteredParticipants(filtered);
-    }, [searchTerm, dortoirFilter, participants]);
+        return filtered;
+    }, [participants, searchTerm, dortoirFilter]);
 
-    // Erreur combinée
-    const error = participantsError || dortoirsError;
+    // Sélectionner automatiquement le premier participant si aucun n'est sélectionné
+    useEffect(() => {
+        if (filteredParticipants.length > 0 && !selectedParticipant) {
+            setSelectedParticipant(filteredParticipants[0]);
+        }
+    }, [filteredParticipants, selectedParticipant]);
 
     // Fonction utilitaire pour précharger une image
     const preloadImage = (src) => {
@@ -540,33 +504,24 @@ export function BadgeManagement() {
 
                     {/* Liste */}
                     <div className="flex-1 overflow-y-auto">
-                        {loading ? (
+                        {loading && !participants.length ? (
                             <div className="flex flex-col items-center justify-center h-full">
                                 <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3" />
                                 <p className="text-text-secondary">Chargement...</p>
-                            </div>
-                        ) : error ? (
-                            <div className="flex flex-col items-center justify-center h-full p-6">
-                                <AlertCircle className="w-12 h-12 text-red-500 mb-3" />
-                                <p className="text-red-600 dark:text-red-400 font-medium mb-2 text-center">
-                                    Erreur de chargement
-                                </p>
-                                <p className="text-text-secondary text-sm mb-4 text-center max-w-xs">
-                                    {error}
-                                </p>
-                                <Button
-                                    onClick={reloadParticipants}
-                                    variant="outline"
-                                    className="gap-2"
-                                >
-                                    <RefreshCw className="h-4 w-4" />
-                                    Réessayer
-                                </Button>
                             </div>
                         ) : filteredParticipants.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-text-secondary">
                                 <Users className="w-12 h-12 mb-3 opacity-50" />
                                 <p>Aucun participant trouvé</p>
+                                <p className="text-sm mt-2">({participants.length} validés au total)</p>
+                                <Button
+                                    onClick={refresh}
+                                    variant="outline"
+                                    className="gap-2 mt-4"
+                                >
+                                    <RefreshCw className="h-4 w-4" />
+                                    Actualiser
+                                </Button>
                             </div>
                         ) : (
                             <div className="divide-y divide-border-light dark:divide-border-dark">

@@ -25,11 +25,6 @@ const menuItems = [
         label: "Validations",
         path: "/finance/validation",
     },
-    {
-        icon: FileSpreadsheet,
-        label: "Récapitulatif",
-        path: "/finance/synthese",
-    },
 ];
 
 export function FinanceLayout() {

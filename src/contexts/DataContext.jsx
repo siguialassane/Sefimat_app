@@ -1,0 +1,347 @@
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from './AuthContext';
+
+const DataContext = createContext({});
+
+export const useData = () => {
+  const context = useContext(DataContext);
+  if (!context) {
+    throw new Error('useData must be used within DataProvider');
+  }
+  return context;
+};
+
+/**
+ * DataProvider - Contexte global pour toutes les données de l'application
+ * 
+ * AVANTAGES:
+ * - Cache des données entre les navigations (plus de rechargement constant)
+ * - Une seule subscription Realtime pour toute l'app
+ * - Évite les requêtes parallèles et les race conditions
+ * - Chargement initial unique, mise à jour incrémentale ensuite
+ */
+export function DataProvider({ children }) {
+  const { user } = useAuth();
+  
+  // === ÉTATS DES DONNÉES ===
+  const [inscriptions, setInscriptions] = useState([]);
+  const [chefsQuartier, setChefsQuartier] = useState([]);
+  const [dortoirs, setDortoirs] = useState([]);
+  const [paiements, setPaiements] = useState([]);
+  
+  // === ÉTATS DE CHARGEMENT ===
+  const [loading, setLoading] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  
+  // === REFS POUR ÉVITER LES RACE CONDITIONS ===
+  const isLoadingRef = useRef(false);
+  const channelRef = useRef(null);
+  const isMountedRef = useRef(true);
+
+  // === FONCTION DE CHARGEMENT PRINCIPAL ===
+  const loadAllData = useCallback(async (forceReload = false) => {
+    // Ne pas recharger si déjà en cours ou si déjà chargé (sauf forceReload)
+    if (isLoadingRef.current) {
+      console.log('DataContext: Chargement déjà en cours, ignoré');
+      return;
+    }
+    
+    if (initialLoaded && !forceReload) {
+      console.log('DataContext: Données déjà en cache, pas de rechargement');
+      return;
+    }
+
+    isLoadingRef.current = true;
+    setLoading(true);
+    setError(null);
+
+    // Timeout de sécurité: 15 secondes max
+    const timeoutId = setTimeout(() => {
+      console.warn('DataContext: Timeout atteint, forçage fin chargement');
+      isLoadingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+        setInitialLoaded(true); // Marquer comme chargé même en cas de timeout
+      }
+    }, 15000);
+
+    console.log('DataContext: Chargement de toutes les données...');
+    const startTime = Date.now();
+
+    try {
+      // Charger toutes les données en parallèle
+      const [inscriptionsRes, chefsRes, dortoirsRes, paiementsRes] = await Promise.all([
+        supabase
+          .from('inscriptions')
+          .select(`
+            *,
+            chef_quartier:chefs_quartier(id, nom_complet, zone),
+            dortoir:dortoirs(id, nom)
+          `)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('chefs_quartier')
+          .select('*')
+          .order('nom_complet'),
+        
+        supabase
+          .from('dortoirs')
+          .select('*')
+          .order('nom'),
+        
+        supabase
+          .from('paiements')
+          .select(`
+            *,
+            inscription:inscriptions(id, nom, prenom, type_inscription)
+          `)
+          .order('date_paiement', { ascending: false })
+      ]);
+
+      // Vérifier les erreurs
+      if (inscriptionsRes.error) throw inscriptionsRes.error;
+      if (chefsRes.error) throw chefsRes.error;
+      if (dortoirsRes.error) throw dortoirsRes.error;
+      if (paiementsRes.error) throw paiementsRes.error;
+
+      if (isMountedRef.current) {
+        setInscriptions(inscriptionsRes.data || []);
+        setChefsQuartier(chefsRes.data || []);
+        setDortoirs(dortoirsRes.data || []);
+        setPaiements(paiementsRes.data || []);
+        setInitialLoaded(true);
+        setLastUpdate(new Date());
+        
+        const elapsed = Date.now() - startTime;
+        console.log(`DataContext: Données chargées en ${elapsed}ms`, {
+          inscriptions: inscriptionsRes.data?.length || 0,
+          chefs: chefsRes.data?.length || 0,
+          dortoirs: dortoirsRes.data?.length || 0,
+          paiements: paiementsRes.data?.length || 0
+        });
+      }
+    } catch (err) {
+      console.error('DataContext: Erreur chargement:', err);
+      if (isMountedRef.current) {
+        setError(err.message || 'Erreur lors du chargement des données');
+        setInitialLoaded(true); // Marquer comme chargé même en erreur pour éviter boucle infinie
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      isLoadingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [initialLoaded]);
+
+  // === MISE À JOUR INCRÉMENTALE (plus rapide que rechargement complet) ===
+  const handleInscriptionChange = useCallback(async (payload) => {
+    console.log('DataContext: Changement inscription:', payload.eventType);
+    
+    if (payload.eventType === 'INSERT') {
+      // Charger la nouvelle inscription avec ses relations
+      const { data, error } = await supabase
+        .from('inscriptions')
+        .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+        .eq('id', payload.new.id)
+        .single();
+      
+      if (!error && data && isMountedRef.current) {
+        setInscriptions(prev => [data, ...prev]);
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'UPDATE') {
+      const { data, error } = await supabase
+        .from('inscriptions')
+        .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+        .eq('id', payload.new.id)
+        .single();
+      
+      if (!error && data && isMountedRef.current) {
+        setInscriptions(prev => prev.map(i => i.id === data.id ? data : i));
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'DELETE') {
+      if (isMountedRef.current) {
+        setInscriptions(prev => prev.filter(i => i.id !== payload.old.id));
+        setLastUpdate(new Date());
+      }
+    }
+  }, []);
+
+  const handlePaiementChange = useCallback(async (payload) => {
+    console.log('DataContext: Changement paiement:', payload.eventType);
+    
+    if (payload.eventType === 'INSERT') {
+      const { data, error } = await supabase
+        .from('paiements')
+        .select(`*, inscription:inscriptions(id, nom, prenom, type_inscription)`)
+        .eq('id', payload.new.id)
+        .single();
+      
+      if (!error && data && isMountedRef.current) {
+        setPaiements(prev => [data, ...prev]);
+        // Recharger aussi l'inscription associée pour avoir le montant_total_paye à jour
+        if (payload.new.inscription_id) {
+          const { data: inscData } = await supabase
+            .from('inscriptions')
+            .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+            .eq('id', payload.new.inscription_id)
+            .single();
+          if (inscData) {
+            setInscriptions(prev => prev.map(i => i.id === inscData.id ? inscData : i));
+          }
+        }
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'UPDATE') {
+      const { data, error } = await supabase
+        .from('paiements')
+        .select(`*, inscription:inscriptions(id, nom, prenom, type_inscription)`)
+        .eq('id', payload.new.id)
+        .single();
+      
+      if (!error && data && isMountedRef.current) {
+        setPaiements(prev => prev.map(p => p.id === data.id ? data : p));
+        // Recharger l'inscription associée
+        if (payload.new.inscription_id) {
+          const { data: inscData } = await supabase
+            .from('inscriptions')
+            .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+            .eq('id', payload.new.inscription_id)
+            .single();
+          if (inscData) {
+            setInscriptions(prev => prev.map(i => i.id === inscData.id ? inscData : i));
+          }
+        }
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'DELETE') {
+      if (isMountedRef.current) {
+        setPaiements(prev => prev.filter(p => p.id !== payload.old.id));
+        setLastUpdate(new Date());
+      }
+    }
+  }, []);
+
+  // === EFFET PRINCIPAL: Charger les données et s'abonner aux changements ===
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Ne charger que si l'utilisateur est connecté
+    if (!user) {
+      setInscriptions([]);
+      setChefsQuartier([]);
+      setDortoirs([]);
+      setPaiements([]);
+      setInitialLoaded(false);
+      return;
+    }
+
+    // Charger les données initiales
+    loadAllData();
+
+    // S'abonner aux changements Realtime (UNE SEULE subscription pour toute l'app)
+    if (!channelRef.current) {
+      console.log('DataContext: Création subscription Realtime...');
+      channelRef.current = supabase
+        .channel('data-context-global')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'inscriptions' },
+          handleInscriptionChange
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'paiements' },
+          handlePaiementChange
+        )
+        .subscribe((status) => {
+          console.log('DataContext: Subscription status:', status);
+        });
+    }
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [user, loadAllData, handleInscriptionChange, handlePaiementChange]);
+
+  // === CLEANUP: Supprimer la subscription à la déconnexion ===
+  useEffect(() => {
+    return () => {
+      if (channelRef.current) {
+        console.log('DataContext: Suppression subscription Realtime');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, []);
+
+  // === STATISTIQUES CALCULÉES (dérivées des données en cache) ===
+  const stats = {
+    // Inscriptions
+    totalInscriptions: inscriptions.length,
+    inscriptionsValidees: inscriptions.filter(i => i.statut === 'valide').length,
+    inscriptionsEnAttente: inscriptions.filter(i => i.statut === 'en_attente').length,
+    inscriptionsRejetees: inscriptions.filter(i => i.statut === 'rejete').length,
+    
+    // Paiements
+    totalCollecte: inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+    paiementsEnAttente: inscriptions.filter(i => i.statut_paiement === 'partiel' && (i.montant_total_paye || 0) < (i.montant_requis || 4000)).length,
+    paiementsPartiels: inscriptions.filter(i => i.statut_paiement === 'partiel').length,
+    paiementsComplets: inscriptions.filter(i => i.statut_paiement === 'soldé' || i.statut_paiement === 'valide_financier').length,
+    paiementsValides: paiements.filter(p => p.statut === 'validé').length,
+    paiementsNonValides: paiements.filter(p => p.statut === 'attente' || p.statut === 'en_attente').length,
+    
+    // Démographiques
+    hommes: inscriptions.filter(i => i.sexe === 'homme').length,
+    femmes: inscriptions.filter(i => i.sexe === 'femme').length,
+    
+    // Par type
+    inscriptionsEnLigne: inscriptions.filter(i => i.type_inscription === 'en_ligne').length,
+    inscriptionsPresentielle: inscriptions.filter(i => i.type_inscription === 'presentielle').length,
+  };
+
+  // === FONCTIONS EXPOSÉES ===
+  const refresh = useCallback(() => {
+    setInitialLoaded(false); // Force le rechargement
+    return loadAllData(true);
+  }, [loadAllData]);
+
+  // Mise à jour locale d'une inscription (optimistic update)
+  const updateInscriptionLocal = useCallback((id, updates) => {
+    setInscriptions(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+  }, []);
+
+  // Suppression locale d'une inscription (optimistic update)
+  const deleteInscriptionLocal = useCallback((id) => {
+    setInscriptions(prev => prev.filter(i => i.id !== id));
+  }, []);
+
+  const value = {
+    // Données
+    inscriptions,
+    chefsQuartier,
+    dortoirs,
+    paiements,
+    stats,
+    
+    // États
+    loading,
+    initialLoaded,
+    error,
+    lastUpdate,
+    
+    // Actions
+    refresh,
+    updateInscriptionLocal,
+    deleteInscriptionLocal,
+  };
+
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+}

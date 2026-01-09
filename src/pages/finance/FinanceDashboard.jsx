@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,187 +15,58 @@ import {
     UserCheck,
     Building2,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts";
+import { useAuth, useData } from "@/contexts";
 
 export function FinanceDashboard() {
     const navigate = useNavigate();
     const { userProfile } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({
-        totalCollecte: 0,
-        paiementsEnAttente: 0,
-        paiementsPartiels: 0,
-        paiementsComplets: 0,
-        nombreInscrits: 0,
-        paiementsValides: 0,
-        paiementsNonValides: 0,
-        paiementsPresident: 0,
-        paiementsSecretariat: 0,
-    });
-    const [recentPayments, setRecentPayments] = useState([]);
-    const [pendingValidations, setPendingValidations] = useState([]);
     
-    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
-    const isLoadingRef = useRef(false);
+    // Utiliser le DataContext global au lieu de charger localement
+    const { 
+        inscriptions, 
+        paiements, 
+        stats: globalStats,
+        loading, 
+        lastUpdate,
+        refresh 
+    } = useData();
 
-    const loadDashboardData = useCallback(async (isMounted = true) => {
-        // Éviter les appels simultanés
-        if (isLoadingRef.current) return;
-        isLoadingRef.current = true;
-
-        // Timeout de sécurité: reset après 10 secondes
-        const timeoutId = setTimeout(() => {
-            isLoadingRef.current = false;
-        }, 10000);
-
-        if (isMounted) setLoading(true);
-        try {
-            console.log('FinanceDashboard: Chargement des données...');
-
-            // Charger les statistiques des inscriptions
-            const { data: inscriptions, error: inscError } = await supabase
-                .from("inscriptions")
-                .select("montant_total_paye, montant_requis, statut_paiement, type_inscription");
-
-            if (inscError) {
-                console.error('FinanceDashboard: Erreur inscriptions:', inscError);
-                throw inscError;
-            }
-
-            console.log('FinanceDashboard: Inscriptions reçues:', inscriptions?.length || 0);
-
-            const totalCollecte = (inscriptions || []).reduce(
-                (acc, i) => acc + (i.montant_total_paye || 0),
-                0
-            );
-            const paiementsEnAttente = (inscriptions || []).filter(
-                (i) => i.statut_paiement === "partiel" && i.montant_total_paye < (i.montant_requis || 4000)
-            ).length;
-            const paiementsPartiels = (inscriptions || []).filter(
-                (i) => i.statut_paiement === "partiel"
-            ).length;
-            const paiementsComplets = (inscriptions || []).filter(
-                (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
-            ).length;
-
-            // Charger les paiements avec statut et source
-            const { data: allPaiements, error: paiementsStatError } = await supabase
-                .from("paiements")
-                .select(`
-                    id,
-                    montant,
-                    statut,
-                    inscription:inscriptions(type_inscription)
-                `);
-
-            let paiementsValides = 0;
-            let paiementsNonValides = 0;
-            let paiementsPresident = 0;
-            let paiementsSecretariat = 0;
-
-            if (!paiementsStatError && allPaiements) {
-                paiementsValides = allPaiements.filter(p => p.statut === "validé").length;
-                paiementsNonValides = allPaiements.filter(p => p.statut === "attente" || p.statut === "en_attente").length;
-                paiementsPresident = allPaiements.filter(p => p.inscription?.type_inscription === "en_ligne").length;
-                paiementsSecretariat = allPaiements.filter(p => p.inscription?.type_inscription === "presentielle").length;
-            }
-
-            if (isMounted) {
-                setStats({
-                    totalCollecte,
-                    paiementsEnAttente,
-                    paiementsPartiels,
-                    paiementsComplets,
-                    nombreInscrits: (inscriptions || []).length,
-                    paiementsValides,
-                    paiementsNonValides,
-                    paiementsPresident,
-                    paiementsSecretariat,
-                });
-            }
-
-            // Charger les inscriptions en attente de validation financière
-            const { data: pending, error: pendingError } = await supabase
-                .from("inscriptions")
-                .select(`
-                    id,
-                    reference_id,
-                    nom,
-                    prenom,
-                    montant_total_paye,
-                    montant_requis,
-                    statut_paiement,
-                    photo_url,
-                    created_at,
-                    chef_quartier:chefs_quartier(nom_complet, zone)
-                `)
-                .eq("statut_paiement", "partiel")
-                .lt("montant_total_paye", 4000)
-                .order("created_at", { ascending: false })
-                .limit(5);
-
-            if (pendingError) {
-                console.error('FinanceDashboard: Erreur pending:', pendingError);
-            } else {
-                console.log('FinanceDashboard: Validations en attente:', pending?.length || 0);
-                if (isMounted) setPendingValidations(pending || []);
-            }
-
-            // Charger les derniers paiements avec source
-            const { data: payments, error: paymentsError } = await supabase
-                .from("paiements")
-                .select(`
-                    id,
-                    montant,
-                    date_paiement,
-                    mode_paiement,
-                    statut,
-                    inscription:inscriptions(nom, prenom, reference_id, type_inscription)
-                `)
-                .order("date_paiement", { ascending: false })
-                .limit(10);
-
-            if (paymentsError) {
-                console.error('FinanceDashboard: Erreur paiements:', paymentsError);
-            } else {
-                console.log('FinanceDashboard: Paiements récents:', payments?.length || 0);
-                if (isMounted) setRecentPayments(payments || []);
-            }
-        } catch (error) {
-            console.error("FinanceDashboard: Exception chargement:", error);
-        } finally {
-            clearTimeout(timeoutId);
-            isLoadingRef.current = false;
-            if (isMounted) setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        let isMounted = true;
-        loadDashboardData(isMounted);
-
-        // Subscription Realtime pour inscriptions ET paiements
-        const channel = supabase
-            .channel('finance-dashboard-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
-                console.log('FinanceDashboard: Changement inscriptions détecté');
-                if (isMounted) loadDashboardData(true);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => {
-                console.log('FinanceDashboard: Changement paiements détecté');
-                if (isMounted) loadDashboardData(true);
-            })
-            .subscribe();
-
-        return () => {
-            isMounted = false;
-            supabase.removeChannel(channel);
+    // Calculer les stats depuis le DataContext
+    const stats = useMemo(() => {
+        const paiementsValides = paiements.filter(p => p.statut === "validé").length;
+        const paiementsNonValides = paiements.filter(p => p.statut === "attente" || p.statut === "en_attente").length;
+        const paiementsPresident = paiements.filter(p => p.inscription?.type_inscription === "en_ligne").length;
+        const paiementsSecretariat = paiements.filter(p => p.inscription?.type_inscription === "presentielle").length;
+        
+        return {
+            totalCollecte: globalStats.totalCollecte,
+            paiementsEnAttente: globalStats.paiementsEnAttente,
+            paiementsPartiels: globalStats.paiementsPartiels,
+            paiementsComplets: globalStats.paiementsComplets,
+            nombreInscrits: inscriptions.length,
+            paiementsValides,
+            paiementsNonValides,
+            paiementsPresident,
+            paiementsSecretariat,
         };
-    }, [loadDashboardData]);
+    }, [inscriptions, paiements, globalStats]);
 
-    // Fonction de rafraîchissement pour le bouton
-    const handleRefresh = () => loadDashboardData(true);
+    // Validations en attente (depuis DataContext)
+    const pendingValidations = useMemo(() => {
+        return inscriptions
+            .filter(i => i.statut_paiement === "partiel" && (i.montant_total_paye || 0) < (i.montant_requis || 4000))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 5);
+    }, [inscriptions]);
+
+    // Derniers paiements (depuis DataContext)
+    const recentPayments = useMemo(() => {
+        return paiements.slice(0, 10);
+    }, [paiements]);
+
+    const handleRefresh = useCallback(() => {
+        refresh();
+    }, [refresh]);
 
     const formatMontant = (montant) => {
         return new Intl.NumberFormat("fr-FR").format(montant) + " FCFA";
@@ -265,6 +136,12 @@ export function FinanceDashboard() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <span className="hidden md:block text-sm text-text-secondary dark:text-gray-400 bg-white dark:bg-white/5 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark">
+                        {lastUpdate 
+                            ? `Mise à jour : ${lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Chargement...'
+                        }
+                    </span>
                     <Button
                         variant="outline"
                         onClick={handleRefresh}
@@ -283,7 +160,7 @@ export function FinanceDashboard() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {loading
+                {loading && !inscriptions.length
                     ? Array.from({ length: 4 }).map((_, index) => (
                         <Card key={index} className="p-5 flex flex-col gap-4 animate-pulse">
                             <div className="flex justify-between items-start">
@@ -361,7 +238,7 @@ export function FinanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        {loading ? (
+                        {loading && !inscriptions.length ? (
                             <div className="p-8 text-center">
                                 <div className="h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
                             </div>
@@ -434,7 +311,7 @@ export function FinanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        {loading ? (
+                        {loading && !paiements.length ? (
                             <div className="p-8 text-center">
                                 <div className="h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
                             </div>
