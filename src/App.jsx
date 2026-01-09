@@ -11,6 +11,7 @@ import {
   Exports,
   FinanceDashboard,
   PaymentValidation,
+  PaymentList,
   PaymentSummary,
   PresidentRegistration,
   PresidentPayments,
@@ -59,6 +60,7 @@ function App() {
                 <Route index element={<Navigate to="/finance/dashboard" replace />} />
                 <Route path="dashboard" element={<FinanceDashboard />} />
                 <Route path="validation" element={<PaymentValidation />} />
+                <Route path="liste" element={<PaymentList />} />
                 <Route path="synthese" element={<PaymentSummary />} />
               </Route>
 

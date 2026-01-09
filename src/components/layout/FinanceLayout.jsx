@@ -8,6 +8,7 @@ import {
     Menu,
     X,
     DollarSign,
+    List,
 } from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -24,6 +25,11 @@ const menuItems = [
         icon: CheckCircle,
         label: "Validations",
         path: "/finance/validation",
+    },
+    {
+        icon: List,
+        label: "Liste Paiement",
+        path: "/finance/liste",
     },
 ];
 
