@@ -12,6 +12,8 @@ import {
     Users,
     Download,
     RefreshCw,
+    UserCheck,
+    Building2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts";
@@ -26,26 +28,35 @@ export function FinanceDashboard() {
         paiementsPartiels: 0,
         paiementsComplets: 0,
         nombreInscrits: 0,
+        paiementsValides: 0,
+        paiementsNonValides: 0,
+        paiementsPresident: 0,
+        paiementsSecretariat: 0,
     });
     const [recentPayments, setRecentPayments] = useState([]);
     const [pendingValidations, setPendingValidations] = useState([]);
     
-    // Protection contre les doubles appels
-    const hasLoaded = useRef(false);
+    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
+    const isLoadingRef = useRef(false);
 
-    const loadDashboardData = useCallback(async (forceRefresh = false) => {
-        // Éviter les doubles appels sauf si refresh forcé
-        if (!forceRefresh && hasLoaded.current) return;
-        hasLoaded.current = true;
-        
-        setLoading(true);
+    const loadDashboardData = useCallback(async (isMounted = true) => {
+        // Éviter les appels simultanés
+        if (isLoadingRef.current) return;
+        isLoadingRef.current = true;
+
+        // Timeout de sécurité: reset après 10 secondes
+        const timeoutId = setTimeout(() => {
+            isLoadingRef.current = false;
+        }, 10000);
+
+        if (isMounted) setLoading(true);
         try {
             console.log('FinanceDashboard: Chargement des données...');
 
             // Charger les statistiques des inscriptions
             const { data: inscriptions, error: inscError } = await supabase
                 .from("inscriptions")
-                .select("montant_total_paye, montant_requis, statut_paiement");
+                .select("montant_total_paye, montant_requis, statut_paiement, type_inscription");
 
             if (inscError) {
                 console.error('FinanceDashboard: Erreur inscriptions:', inscError);
@@ -68,13 +79,41 @@ export function FinanceDashboard() {
                 (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
             ).length;
 
-            setStats({
-                totalCollecte,
-                paiementsEnAttente,
-                paiementsPartiels,
-                paiementsComplets,
-                nombreInscrits: (inscriptions || []).length,
-            });
+            // Charger les paiements avec statut et source
+            const { data: allPaiements, error: paiementsStatError } = await supabase
+                .from("paiements")
+                .select(`
+                    id,
+                    montant,
+                    statut,
+                    inscription:inscriptions(type_inscription)
+                `);
+
+            let paiementsValides = 0;
+            let paiementsNonValides = 0;
+            let paiementsPresident = 0;
+            let paiementsSecretariat = 0;
+
+            if (!paiementsStatError && allPaiements) {
+                paiementsValides = allPaiements.filter(p => p.statut === "validé").length;
+                paiementsNonValides = allPaiements.filter(p => p.statut === "attente" || p.statut === "en_attente").length;
+                paiementsPresident = allPaiements.filter(p => p.inscription?.type_inscription === "en_ligne").length;
+                paiementsSecretariat = allPaiements.filter(p => p.inscription?.type_inscription === "presentielle").length;
+            }
+
+            if (isMounted) {
+                setStats({
+                    totalCollecte,
+                    paiementsEnAttente,
+                    paiementsPartiels,
+                    paiementsComplets,
+                    nombreInscrits: (inscriptions || []).length,
+                    paiementsValides,
+                    paiementsNonValides,
+                    paiementsPresident,
+                    paiementsSecretariat,
+                });
+            }
 
             // Charger les inscriptions en attente de validation financière
             const { data: pending, error: pendingError } = await supabase
@@ -100,10 +139,10 @@ export function FinanceDashboard() {
                 console.error('FinanceDashboard: Erreur pending:', pendingError);
             } else {
                 console.log('FinanceDashboard: Validations en attente:', pending?.length || 0);
-                setPendingValidations(pending || []);
+                if (isMounted) setPendingValidations(pending || []);
             }
 
-            // Charger les derniers paiements
+            // Charger les derniers paiements avec source
             const { data: payments, error: paymentsError } = await supabase
                 .from("paiements")
                 .select(`
@@ -111,7 +150,8 @@ export function FinanceDashboard() {
                     montant,
                     date_paiement,
                     mode_paiement,
-                    inscription:inscriptions(nom, prenom, reference_id)
+                    statut,
+                    inscription:inscriptions(nom, prenom, reference_id, type_inscription)
                 `)
                 .order("date_paiement", { ascending: false })
                 .limit(10);
@@ -120,17 +160,38 @@ export function FinanceDashboard() {
                 console.error('FinanceDashboard: Erreur paiements:', paymentsError);
             } else {
                 console.log('FinanceDashboard: Paiements récents:', payments?.length || 0);
-                setRecentPayments(payments || []);
+                if (isMounted) setRecentPayments(payments || []);
             }
         } catch (error) {
             console.error("FinanceDashboard: Exception chargement:", error);
         } finally {
-            setLoading(false);
+            clearTimeout(timeoutId);
+            isLoadingRef.current = false;
+            if (isMounted) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        loadDashboardData();
+        let isMounted = true;
+        loadDashboardData(isMounted);
+
+        // Subscription Realtime pour inscriptions ET paiements
+        const channel = supabase
+            .channel('finance-dashboard-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
+                console.log('FinanceDashboard: Changement inscriptions détecté');
+                if (isMounted) loadDashboardData(true);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => {
+                console.log('FinanceDashboard: Changement paiements détecté');
+                if (isMounted) loadDashboardData(true);
+            })
+            .subscribe();
+
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(channel);
+        };
     }, [loadDashboardData]);
 
     // Fonction de rafraîchissement pour le bouton
@@ -147,29 +208,47 @@ export function FinanceDashboard() {
             icon: DollarSign,
             iconBg: "bg-emerald-50 dark:bg-emerald-900/20",
             iconColor: "text-emerald-600 dark:text-emerald-400",
-            trend: "+12%",
-            trendUp: true,
         },
         {
-            title: "En attente de validation",
-            value: stats.paiementsEnAttente.toString(),
+            title: "Paiements Validés",
+            value: stats.paiementsValides.toString(),
+            icon: CheckCircle,
+            iconBg: "bg-green-50 dark:bg-green-900/20",
+            iconColor: "text-green-600 dark:text-green-400",
+        },
+        {
+            title: "En attente validation",
+            value: stats.paiementsNonValides.toString(),
             icon: Clock,
-            iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
-            iconColor: "text-indigo-600 dark:text-indigo-400",
-        },
-        {
-            title: "Paiements Partiels",
-            value: stats.paiementsPartiels.toString(),
-            icon: AlertCircle,
-            iconBg: "bg-blue-50 dark:bg-blue-900/20",
-            iconColor: "text-blue-600 dark:text-blue-400",
+            iconBg: "bg-amber-50 dark:bg-amber-900/20",
+            iconColor: "text-amber-600 dark:text-amber-400",
         },
         {
             title: "Paiements Complets",
             value: stats.paiementsComplets.toString(),
-            icon: CheckCircle,
+            icon: Users,
             iconBg: "bg-blue-50 dark:bg-blue-900/20",
             iconColor: "text-blue-600 dark:text-blue-400",
+        },
+    ];
+
+    // Cartes secondaires pour la source des paiements
+    const sourceCards = [
+        {
+            title: "Par Président Section",
+            value: stats.paiementsPresident.toString(),
+            icon: UserCheck,
+            iconBg: "bg-purple-50 dark:bg-purple-900/20",
+            iconColor: "text-purple-600 dark:text-purple-400",
+            description: "Inscriptions en ligne",
+        },
+        {
+            title: "Par Secrétariat",
+            value: stats.paiementsSecretariat.toString(),
+            icon: Building2,
+            iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
+            iconColor: "text-indigo-600 dark:text-indigo-400",
+            description: "Inscriptions présentielles",
         },
     ];
 
@@ -225,14 +304,6 @@ export function FinanceDashboard() {
                                 <div className={`p-2 rounded-lg ${stat.iconBg}`}>
                                     <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
                                 </div>
-                                {stat.trend && (
-                                    <span
-                                        className={`text-xs font-medium ${stat.trendUp ? "text-emerald-600" : "text-red-600"
-                                            }`}
-                                    >
-                                        {stat.trend}
-                                    </span>
-                                )}
                             </div>
                             <div>
                                 <p className="text-text-secondary dark:text-gray-400 text-sm font-medium">
@@ -244,6 +315,29 @@ export function FinanceDashboard() {
                             </div>
                         </Card>
                     ))}
+            </div>
+
+            {/* Source des paiements */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sourceCards.map((stat, index) => (
+                    <Card
+                        key={index}
+                        className="p-5 flex items-center gap-4 hover:border-emerald-500/50 transition-colors"
+                    >
+                        <div className={`p-3 rounded-xl ${stat.iconBg}`}>
+                            <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-text-secondary dark:text-gray-400 text-sm font-medium">
+                                {stat.title}
+                            </p>
+                            <p className="text-2xl font-bold text-text-main dark:text-white">
+                                {stat.value} <span className="text-sm font-normal text-text-secondary">paiements</span>
+                            </p>
+                            <p className="text-xs text-text-secondary mt-1">{stat.description}</p>
+                        </div>
+                    </Card>
+                ))}
             </div>
 
             {/* Content Grid */}
@@ -357,15 +451,27 @@ export function FinanceDashboard() {
                                         className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                                                <DollarSign className="h-5 w-5 text-emerald-600" />
+                                            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                                                payment.inscription?.type_inscription === "en_ligne"
+                                                    ? "bg-purple-100 dark:bg-purple-900/30"
+                                                    : "bg-indigo-100 dark:bg-indigo-900/30"
+                                            }`}>
+                                                {payment.inscription?.type_inscription === "en_ligne" ? (
+                                                    <UserCheck className="h-5 w-5 text-purple-600" />
+                                                ) : (
+                                                    <Building2 className="h-5 w-5 text-indigo-600" />
+                                                )}
                                             </div>
                                             <div>
                                                 <p className="font-medium text-text-main dark:text-white">
                                                     {payment.inscription?.nom} {payment.inscription?.prenom}
                                                 </p>
                                                 <p className="text-xs text-text-secondary">
-                                                    {new Date(payment.date_paiement).toLocaleDateString("fr-FR")}
+                                                    {new Date(payment.date_paiement).toLocaleDateString("fr-FR")} • {
+                                                        payment.inscription?.type_inscription === "en_ligne" 
+                                                            ? "Président Section" 
+                                                            : "Secrétariat"
+                                                    }
                                                 </p>
                                             </div>
                                         </div>
@@ -373,9 +479,14 @@ export function FinanceDashboard() {
                                             <p className="font-bold text-emerald-600">
                                                 +{formatMontant(payment.montant)}
                                             </p>
-                                            <Badge variant="secondary" className="text-xs">
-                                                {payment.mode_paiement === "especes" ? "Espèces" : payment.mode_paiement}
-                                            </Badge>
+                                            <div className="flex items-center gap-1 justify-end">
+                                                <Badge 
+                                                    variant={payment.statut === "validé" ? "success" : "warning"} 
+                                                    className="text-xs"
+                                                >
+                                                    {payment.statut === "validé" ? "Validé" : "En attente"}
+                                                </Badge>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

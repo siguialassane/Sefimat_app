@@ -33,8 +33,8 @@ export function PaymentSummary() {
         nombrePartiel: 0,
     });
     
-    // Protection contre les doubles appels
-    const hasLoaded = useRef(false);
+    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
+    const isLoadingRef = useRef(false);
 
     const loadChefsQuartier = useCallback(async () => {
         const { data } = await supabase
@@ -44,13 +44,18 @@ export function PaymentSummary() {
         setChefsQuartier(data || []);
     }, []);
 
-    const loadData = useCallback(async (forceRefresh = false) => {
-        // Éviter les doubles appels sauf si refresh forcé
-        if (!forceRefresh && hasLoaded.current) return;
-        hasLoaded.current = true;
-        
-        setLoading(true);
-        setError(null);
+    const loadData = useCallback(async (isMounted = true) => {
+        // Éviter les appels simultanés
+        if (isLoadingRef.current) return;
+        isLoadingRef.current = true;
+
+        // Timeout de sécurité: reset après 10 secondes
+        const timeoutId = setTimeout(() => {
+            isLoadingRef.current = false;
+        }, 10000);
+
+        if (isMounted) setLoading(true);
+        if (isMounted) setError(null);
         try {
             console.log('PaymentSummary: Chargement des données...');
             const { data, error: fetchError } = await supabase
@@ -67,7 +72,7 @@ export function PaymentSummary() {
             }
 
             console.log('PaymentSummary: Données reçues:', data?.length || 0, 'inscriptions');
-            setInscriptions(data || []);
+            if (isMounted) setInscriptions(data || []);
 
             // Calculer les totaux
             const totalCollecte = (data || []).reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
@@ -80,18 +85,39 @@ export function PaymentSummary() {
             ).length;
             const nombrePartiel = (data || []).filter((i) => i.statut_paiement === "partiel").length;
 
-            setTotals({ totalCollecte, totalRestant, nombreComplet, nombrePartiel });
+            if (isMounted) setTotals({ totalCollecte, totalRestant, nombreComplet, nombrePartiel });
         } catch (err) {
             console.error("PaymentSummary: Exception chargement:", err);
-            setError(err.message || "Erreur lors du chargement des données");
+            if (isMounted) setError(err.message || "Erreur lors du chargement des données");
         } finally {
-            setLoading(false);
+            clearTimeout(timeoutId);
+            isLoadingRef.current = false;
+            if (isMounted) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        loadData();
+        let isMounted = true;
+        loadData(isMounted);
         loadChefsQuartier();
+
+        // Subscription Realtime pour inscriptions ET paiements
+        const channel = supabase
+            .channel('payment-summary-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
+                console.log('PaymentSummary: Changement inscriptions détecté');
+                if (isMounted) loadData(true);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => {
+                console.log('PaymentSummary: Changement paiements détecté');
+                if (isMounted) loadData(true);
+            })
+            .subscribe();
+
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(channel);
+        };
     }, [loadData, loadChefsQuartier]);
 
     // Fonction de rafraîchissement pour le bouton

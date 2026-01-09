@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
     ChevronRight,
     Building,
     BookOpen,
+    RefreshCw,
 } from "lucide-react";
 import {
     AreaChart,
@@ -37,157 +38,161 @@ export function Dashboard() {
     const [dortoirStats, setDortoirStats] = useState([]);
     const [niveauFormationStats, setNiveauFormationStats] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
+    
+    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
+    const isLoadingRef = useRef(false);
 
-    // Charger les statistiques globales
-    useEffect(() => {
-        async function loadStats() {
-            try {
-                setLoading(true);
+    // Charger toutes les statistiques
+    const loadAllStats = useCallback(async (isMounted) => {
+        // Éviter les appels simultanés
+        if (isLoadingRef.current) return;
+        isLoadingRef.current = true;
 
-                // Compter toutes les inscriptions par statut
-                const { data: inscriptions, error } = await supabase
-                    .from('inscriptions')
-                    .select('statut, sexe, niveau_etude');
+        // Timeout de sécurité: reset après 10 secondes
+        const timeoutId = setTimeout(() => {
+            isLoadingRef.current = false;
+        }, 10000);
 
-                if (error) throw error;
+        try {
+            if (isMounted) setLoading(true);
 
-                const total = inscriptions.length;
-                const valide = inscriptions.filter(i => i.statut === 'valide').length;
-                const en_attente = inscriptions.filter(i => i.statut === 'en_attente').length;
-                const rejete = inscriptions.filter(i => i.statut === 'rejete').length;
+            // Compter toutes les inscriptions par statut
+            const { data: inscriptions, error } = await supabase
+                .from('inscriptions')
+                .select('statut, sexe, niveau_etude');
 
-                // Calculer démographiques
-                const hommes = inscriptions.filter(i => i.sexe === 'homme').length;
-                const femmes = inscriptions.filter(i => i.sexe === 'femme').length;
+            if (error) throw error;
 
-                const niveauCounts = inscriptions.reduce((acc, i) => {
-                    acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
-                    return acc;
-                }, {});
+            const total = inscriptions.length;
+            const valide = inscriptions.filter(i => i.statut === 'valide').length;
+            const en_attente = inscriptions.filter(i => i.statut === 'en_attente').length;
+            const rejete = inscriptions.filter(i => i.statut === 'rejete').length;
 
-                setStats([
-                    {
-                        title: "Total Inscriptions",
-                        value: total.toString(),
-                        icon: Users,
-                        iconBg: "bg-blue-50 dark:bg-blue-900/20",
-                        iconColor: "text-blue-600 dark:text-blue-400",
-                    },
-                    {
-                        title: "Validées",
-                        value: valide.toString(),
-                        icon: CheckCircle,
-                        iconBg: "bg-green-50 dark:bg-green-900/20",
-                        iconColor: "text-green-600 dark:text-green-400",
-                    },
-                    {
-                        title: "En attente",
-                        value: en_attente.toString(),
-                        icon: Clock,
-                        iconBg: "bg-amber-50 dark:bg-amber-900/20",
-                        iconColor: "text-amber-600 dark:text-amber-400",
-                    },
-                ]);
+            // Calculer démographiques
+            const hommes = inscriptions.filter(i => i.sexe === 'homme').length;
+            const femmes = inscriptions.filter(i => i.sexe === 'femme').length;
 
-                setDemographics({
-                    hommesPercent: total > 0 ? Math.round((hommes / total) * 100) : 0,
-                    femmesPercent: total > 0 ? Math.round((femmes / total) * 100) : 0,
-                    total,
-                    niveauPercent: {
-                        primaire: total > 0 ? Math.round(((niveauCounts.primaire || 0) / total) * 100) : 0,
-                        secondaire: total > 0 ? Math.round(((niveauCounts.secondaire || 0) / total) * 100) : 0,
-                        superieur: total > 0 ? Math.round(((niveauCounts.superieur || 0) / total) * 100) : 0,
-                    }
-                });
+            const niveauCounts = inscriptions.reduce((acc, i) => {
+                acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
+                return acc;
+            }, {});
 
-            } catch (error) {
-                console.error('Erreur chargement stats:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
+            setStats([
+                {
+                    title: "Total Inscriptions",
+                    value: total.toString(),
+                    icon: Users,
+                    iconBg: "bg-blue-50 dark:bg-blue-900/20",
+                    iconColor: "text-blue-600 dark:text-blue-400",
+                },
+                {
+                    title: "Validées",
+                    value: valide.toString(),
+                    icon: CheckCircle,
+                    iconBg: "bg-green-50 dark:bg-green-900/20",
+                    iconColor: "text-green-600 dark:text-green-400",
+                },
+                {
+                    title: "En attente",
+                    value: en_attente.toString(),
+                    icon: Clock,
+                    iconBg: "bg-amber-50 dark:bg-amber-900/20",
+                    iconColor: "text-amber-600 dark:text-amber-400",
+                },
+            ]);
 
-        loadStats();
-    }, []);
+            setDemographics({
+                hommesPercent: total > 0 ? Math.round((hommes / total) * 100) : 0,
+                femmesPercent: total > 0 ? Math.round((femmes / total) * 100) : 0,
+                total,
+                niveauPercent: {
+                    primaire: total > 0 ? Math.round(((niveauCounts.primaire || 0) / total) * 100) : 0,
+                    secondaire: total > 0 ? Math.round(((niveauCounts.secondaire || 0) / total) * 100) : 0,
+                    superieur: total > 0 ? Math.round(((niveauCounts.superieur || 0) / total) * 100) : 0,
+                }
+            });
 
-    // Charger la performance des chefs de quartier
-    useEffect(() => {
-        async function loadLeadersData() {
-            try {
-                const { data: chefs, error } = await supabase
-                    .from('chefs_quartier')
-                    .select(`
-                        id,
-                        nom_complet,
-                        zone,
-                        inscriptions:inscriptions(statut)
-                    `);
+            // Charger la performance des chefs de quartier
+            const { data: chefs, error: chefsError } = await supabase
+                .from('chefs_quartier')
+                .select(`
+                    id,
+                    nom_complet,
+                    zone,
+                    inscriptions:inscriptions(statut)
+                `);
 
-                if (error) throw error;
-
+            if (!chefsError && chefs) {
                 const formattedLeaders = chefs.map(chef => {
-                    const total = chef.inscriptions.length;
+                    const totalChef = chef.inscriptions.length;
                     const validated = chef.inscriptions.filter(i => i.statut === 'valide').length;
                     const pending = chef.inscriptions.filter(i => i.statut === 'en_attente').length;
-                    const progress = total > 0 ? Math.round((validated / total) * 100) : 0;
+                    const progress = totalChef > 0 ? Math.round((validated / totalChef) * 100) : 0;
 
                     return {
                         id: chef.id,
                         name: chef.nom_complet,
                         zone: chef.zone,
-                        total,
+                        total: totalChef,
                         validated,
                         pending,
                         progress,
                         avatar: chef.nom_complet.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
                     };
-                }).sort((a, b) => b.total - a.total); // Trier par total décroissant
+                }).sort((a, b) => b.total - a.total);
 
                 setLeadersData(formattedLeaders);
-            } catch (error) {
-                console.error('Erreur chargement leaders:', error);
             }
-        }
 
-        loadLeadersData();
+            // Charger les statistiques des dortoirs
+            const { data: dortoirsData, error: dortoirsError } = await supabase
+                .from('vue_statistiques_dortoirs')
+                .select('*')
+                .order('nom');
+
+            if (!dortoirsError) {
+                setDortoirStats(dortoirsData || []);
+            }
+
+            // Charger les statistiques des niveaux de formation
+            const { data: niveauxData, error: niveauxError } = await supabase
+                .from('vue_statistiques_niveaux_formation')
+                .select('*');
+
+            if (!niveauxError) {
+                if (isMounted) setNiveauFormationStats(niveauxData || []);
+            }
+
+        } catch (error) {
+            console.error('Erreur chargement stats:', error);
+        } finally {
+            clearTimeout(timeoutId);
+            isLoadingRef.current = false;
+            if (isMounted) setLoading(false);
+        }
     }, []);
 
-    // Charger les statistiques des dortoirs
     useEffect(() => {
-        async function loadDortoirStats() {
-            try {
-                const { data, error } = await supabase
-                    .from('vue_statistiques_dortoirs')
-                    .select('*')
-                    .order('nom');
+        let isMounted = true;
+        loadAllStats(isMounted);
 
-                if (error) throw error;
-                setDortoirStats(data || []);
-            } catch (error) {
-                console.error('Erreur chargement stats dortoirs:', error);
-            }
-        }
+        // Subscription Realtime pour inscriptions
+        const channel = supabase
+            .channel('dashboard-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
+                console.log('Dashboard: Changement inscriptions détecté');
+                if (isMounted) loadAllStats(true);
+            })
+            .subscribe();
 
-        loadDortoirStats();
-    }, []);
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(channel);
+        };
+    }, [loadAllStats]);
 
-    // Charger les statistiques des niveaux de formation
-    useEffect(() => {
-        async function loadNiveauFormationStats() {
-            try {
-                const { data, error } = await supabase
-                    .from('vue_statistiques_niveaux_formation')
-                    .select('*');
-
-                if (error) throw error;
-                setNiveauFormationStats(data || []);
-            } catch (error) {
-                console.error('Erreur chargement stats niveaux:', error);
-            }
-        }
-
-        loadNiveauFormationStats();
-    }, []);
+    // Fonction de rafraîchissement pour le bouton
+    const handleRefresh = () => loadAllStats(true);
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex flex-col gap-8">
@@ -203,8 +208,17 @@ export function Dashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="hidden md:block text-sm text-text-secondary dark:text-gray-400 bg-white dark:bg-white/5 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark">
-                        Dernière mise à jour : Aujourd'hui, 10:45
+                        Dernière mise à jour : Aujourd'hui, {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                     </span>
+                    <Button
+                        variant="outline"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        Actualiser
+                    </Button>
                     <Button className="gap-2">
                         <Download className="h-4 w-4" />
                         Exporter

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,9 @@ export function RegistrationManagement() {
     });
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
+    
+    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
+    const isLoadingRef = useRef(false);
 
     // Fonction pour formater une inscription
     const formatRegistration = (row) => ({
@@ -80,35 +83,42 @@ export function RegistrationManagement() {
     });
 
     // Charger les inscriptions depuis Supabase
+    const loadInscriptions = useCallback(async (isMounted = true) => {
+        // Éviter les appels simultanés
+        if (isLoadingRef.current) return;
+        isLoadingRef.current = true;
+        
+        try {
+            if (isMounted) setLoading(true);
+            const { data, error } = await supabase
+                .from('inscriptions')
+                .select(`
+                    *,
+                    chef_quartier:chefs_quartier(nom_complet, zone)
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            const formatted = data.map(formatRegistration);
+            if (isMounted) setRegistrations(formatted);
+        } catch (error) {
+            console.error('Erreur chargement inscriptions:', error);
+            if (isMounted) alert('Erreur lors du chargement des inscriptions');
+        } finally {
+            isLoadingRef.current = false;
+            if (isMounted) setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
-        async function loadInscriptions() {
-            try {
-                setLoading(true);
-                const { data, error } = await supabase
-                    .from('inscriptions')
-                    .select(`
-                        *,
-                        chef_quartier:chefs_quartier(nom_complet, zone)
-                    `)
-                    .order('created_at', { ascending: false });
-
-                if (error) throw error;
-
-                const formatted = data.map(formatRegistration);
-                setRegistrations(formatted);
-            } catch (error) {
-                console.error('Erreur chargement inscriptions:', error);
-                alert('Erreur lors du chargement des inscriptions');
-            } finally {
-                setLoading(false);
-            }
-        }
-
+        let isMounted = true;
+        
         if (user) {
-            loadInscriptions();
+            loadInscriptions(isMounted);
         }
 
-        // Souscription temps réel pour les nouvelles inscriptions
+        // Souscription temps réel pour les inscriptions ET paiements
         const channel = supabase
             .channel('inscriptions-realtime')
             .on(
@@ -175,47 +185,54 @@ export function RegistrationManagement() {
                     setRegistrations(prev => prev.filter(r => r.id !== payload.old.id));
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'paiements'
+                },
+                () => {
+                    console.log('Changement paiements détecté, rechargement...');
+                    if (isMounted) loadInscriptions(true);
+                }
+            )
             .subscribe();
 
         // Cleanup: se désabonner quand le composant est démonté
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user, loadInscriptions]);
 
-    // Charger la liste des chefs de quartier pour le filtre
+    // Charger la liste des chefs de quartier et dortoirs une seule fois
     useEffect(() => {
-        async function loadChefs() {
-            const { data, error } = await supabase
+        async function loadReferenceData() {
+            // Chefs de quartier
+            const { data: chefsData, error: chefsError } = await supabase
                 .from('chefs_quartier')
                 .select('*')
                 .order('nom_complet');
 
-            if (error) {
-                console.error('Erreur chargement chefs:', error);
-            } else {
-                setChefsQuartier(data || []);
+            if (!chefsError) {
+                setChefsQuartier(chefsData || []);
             }
-        }
-        loadChefs();
-    }, []);
 
-    // Charger la liste des dortoirs
-    useEffect(() => {
-        async function loadDortoirs() {
-            const { data, error } = await supabase
+            // Dortoirs
+            const { data: dortoirsData, error: dortoirsError } = await supabase
                 .from('dortoirs')
                 .select('*')
                 .order('nom');
 
-            if (error) {
-                console.error('Erreur chargement dortoirs:', error);
-            } else {
-                setDortoirs(data || []);
+            if (!dortoirsError) {
+                setDortoirs(dortoirsData || []);
             }
         }
-        loadDortoirs();
+        loadReferenceData();
     }, []);
+
+    // Fonction de rafraîchissement pour le bouton
+    const handleRefresh = () => loadInscriptions(true);
 
     const filteredRegistrations = registrations.filter((r) => {
         const matchesSearch =

@@ -25,16 +25,21 @@ export function PaymentValidation() {
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     
-    // Protection contre les doubles appels
-    const hasLoaded = useRef(false);
+    // Protection contre les appels simultanés (pas hasLoaded qui ne se reset jamais!)
+    const isLoadingRef = useRef(false);
 
-    const loadPendingValidations = useCallback(async (forceRefresh = false) => {
-        // Éviter les doubles appels sauf si refresh forcé
-        if (!forceRefresh && hasLoaded.current) return;
-        hasLoaded.current = true;
-        
-        setLoading(true);
-        setError(null);
+    const loadPendingValidations = useCallback(async (isMounted = true) => {
+        // Éviter les appels simultanés
+        if (isLoadingRef.current) return;
+        isLoadingRef.current = true;
+
+        // Timeout de sécurité: reset après 10 secondes
+        const timeoutId = setTimeout(() => {
+            isLoadingRef.current = false;
+        }, 10000);
+
+        if (isMounted) setLoading(true);
+        if (isMounted) setError(null);
         try {
             console.log('PaymentValidation: Chargement des validations...');
             const { data, error: fetchError } = await supabase
@@ -53,17 +58,38 @@ export function PaymentValidation() {
             }
 
             console.log('PaymentValidation: Données reçues:', data?.length || 0, 'inscriptions en attente');
-            setInscriptions(data || []);
+            if (isMounted) setInscriptions(data || []);
         } catch (err) {
             console.error("PaymentValidation: Exception chargement:", err);
-            setError(err.message || "Erreur lors du chargement");
+            if (isMounted) setError(err.message || "Erreur lors du chargement");
         } finally {
-            setLoading(false);
+            clearTimeout(timeoutId);
+            isLoadingRef.current = false;
+            if (isMounted) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        loadPendingValidations();
+        let isMounted = true;
+        loadPendingValidations(isMounted);
+
+        // Subscription Realtime pour inscriptions ET paiements
+        const channel = supabase
+            .channel('payment-validation-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inscriptions' }, () => {
+                console.log('PaymentValidation: Changement inscriptions détecté');
+                if (isMounted) loadPendingValidations(true);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => {
+                console.log('PaymentValidation: Changement paiements détecté');
+                if (isMounted) loadPendingValidations(true);
+            })
+            .subscribe();
+
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(channel);
+        };
     }, [loadPendingValidations]);
 
     // Fonction de rafraîchissement pour le bouton

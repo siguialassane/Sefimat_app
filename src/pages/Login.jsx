@@ -59,17 +59,45 @@ export function Login() {
         }
     }, [authError]);
 
+    // Fonction pour nettoyer le cache et réessayer
+    const handleClearCacheAndRetry = () => {
+        console.log("Login: Nettoyage cache manuel...");
+        // Nettoyer tout le cache Supabase
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('supabase') || key.includes('sb-'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // Nettoyer sessionStorage aussi
+        const sessionKeysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key && (key.includes('supabase') || key.includes('sb-'))) {
+                sessionKeysToRemove.push(key);
+            }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+
+        setError(null);
+        // Recharger la page pour réinitialiser complètement
+        window.location.reload();
+    };
+
     const onSubmit = async (data) => {
         console.log("Login: Tentative de connexion...");
         setIsLoading(true);
         setError(null);
 
-        // Timeout de sécurité - 12 secondes
+        // Timeout de sécurité - 20 secondes (augmenté)
         const timeoutId = setTimeout(() => {
             console.warn("Login: Timeout de connexion");
             setIsLoading(false);
-            setError("La connexion prend trop de temps. Vérifiez votre connexion internet et réessayez.");
-        }, 12000);
+            setError("La connexion prend trop de temps. Cliquez sur 'Vider le cache' ci-dessous pour réessayer.");
+        }, 20000);
 
         try {
             const result = await signIn(data.email, data.password);
@@ -102,6 +130,13 @@ export function Login() {
                 <div className="flex flex-col items-center gap-4">
                     <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                     <p className="text-text-secondary">Vérification de la session...</p>
+                    <button
+                        type="button"
+                        onClick={handleClearCacheAndRetry}
+                        className="mt-4 py-2 px-4 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-text-main dark:text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                        Problème de chargement ? Cliquez ici
+                    </button>
                 </div>
             </div>
         );
@@ -157,12 +192,23 @@ export function Login() {
 
                         {/* Error Alert */}
                         {error && (
-                            <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-400 flex items-start gap-3 animate-fade-in">
-                                <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                <div className="text-sm">
-                                    <p className="font-bold">Échec de la connexion</p>
-                                    <p>{error}</p>
+                            <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-400 animate-fade-in">
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                                    <div className="text-sm flex-1">
+                                        <p className="font-bold">Échec de la connexion</p>
+                                        <p>{error}</p>
+                                    </div>
                                 </div>
+                                {error.includes("trop de temps") && (
+                                    <button
+                                        type="button"
+                                        onClick={handleClearCacheAndRetry}
+                                        className="mt-3 w-full py-2 px-4 bg-red-100 dark:bg-red-800/30 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-800 dark:text-red-300 rounded-lg text-sm font-medium transition-colors"
+                                    >
+                                        Vider le cache et réessayer
+                                    </button>
+                                )}
                             </div>
                         )}
 
