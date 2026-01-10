@@ -23,7 +23,7 @@ export function ListeClasses() {
             if (filterNiveau !== 'all' && classe.niveau !== filterNiveau) {
                 return false;
             }
-            if (filterClasse !== 'all' && classe.id !== filterClasse) {
+            if (filterClasse !== 'all' && String(classe.id) !== filterClasse) {
                 return false;
             }
             return true;
@@ -55,7 +55,36 @@ export function ListeClasses() {
         return dortoir?.nom || '-';
     }, [dortoirs]);
 
-    // Exporter une classe en PDF
+    // Convertir une image URL en base64
+    const loadImageAsBase64 = useCallback(async (url) => {
+        if (!url) return null;
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            console.warn('Erreur chargement image:', error);
+            return null;
+        }
+    }, []);
+
+    // Couleurs par niveau pour les PDF
+    const getNiveauColor = useCallback((niveau) => {
+        switch (niveau) {
+            case 'niveau_1': return { r: 239, g: 68, b: 68 };     // Rouge
+            case 'niveau_2': return { r: 249, g: 115, b: 22 };    // Orange
+            case 'niveau_3': return { r: 234, g: 179, b: 8 };     // Jaune
+            case 'niveau_superieur': return { r: 34, g: 197, b: 94 }; // Vert
+            default: return { r: 59, g: 130, b: 246 };            // Bleu par défaut
+        }
+    }, []);
+
+    // Exporter une classe en PDF avec photos et couleur par niveau
     const exportClassePDF = useCallback(async (classe) => {
         setExporting(true);
         try {
@@ -63,6 +92,11 @@ export function ListeClasses() {
 
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pageWidth = pdf.internal.pageSize.getWidth();
+            const photoSize = 12; // Taille de la photo en mm
+            const rowHeight = photoSize + 4; // Hauteur de chaque ligne avec photo
+            
+            // Couleur selon le niveau
+            const niveauColor = getNiveauColor(classe.niveau);
 
             // Titre
             pdf.setFontSize(18);
@@ -83,44 +117,96 @@ export function ListeClasses() {
             pdf.setFontSize(12);
             pdf.text(`Effectif: ${participants.length} participant(s)`, 14, 40);
 
-            // En-têtes tableau
+            // En-têtes tableau avec couleur du niveau
             let y = 50;
-            pdf.setFillColor(59, 130, 246);
-            pdf.rect(14, y, pageWidth - 28, 8, 'F');
+            pdf.setFillColor(niveauColor.r, niveauColor.g, niveauColor.b);
+            pdf.rect(14, y, pageWidth - 28, 10, 'F');
             pdf.setTextColor(255, 255, 255);
             pdf.setFontSize(10);
             pdf.setFont('helvetica', 'bold');
-            pdf.text('N°', 18, y + 6);
-            pdf.text('Nom & Prénom', 30, y + 6);
-            pdf.text('Note Entrée', 100, y + 6);
-            pdf.text('Dortoir', 130, y + 6);
-            pdf.text('Sexe', 170, y + 6);
+            pdf.text('N°', 18, y + 7);
+            pdf.text('Photo', 28, y + 7);
+            pdf.text('Nom & Prénom', 46, y + 7);
+            pdf.text('Note', 115, y + 7);
+            pdf.text('Dortoir', 135, y + 7);
+            pdf.text('Sexe', 175, y + 7);
 
-            // Données
-            y += 10;
+            // Données avec photos
+            y += 12;
             pdf.setTextColor(0, 0, 0);
             pdf.setFont('helvetica', 'normal');
 
-            participants.forEach((participant, index) => {
+            for (let index = 0; index < participants.length; index++) {
+                const participant = participants[index];
+                
+                // Nouvelle page si nécessaire
                 if (y > 270) {
                     pdf.addPage();
                     y = 20;
                 }
 
-                // Alternance couleur
+                // Alternance couleur (teinte claire du niveau)
                 if (index % 2 === 0) {
-                    pdf.setFillColor(243, 244, 246);
-                    pdf.rect(14, y - 4, pageWidth - 28, 8, 'F');
+                    pdf.setFillColor(
+                        Math.min(255, niveauColor.r + 150),
+                        Math.min(255, niveauColor.g + 150),
+                        Math.min(255, niveauColor.b + 150)
+                    );
+                    pdf.rect(14, y - 2, pageWidth - 28, rowHeight, 'F');
                 }
 
-                pdf.text(`${index + 1}`, 18, y + 2);
-                pdf.text(`${participant.inscription?.nom || ''} ${participant.inscription?.prenom || ''}`, 30, y + 2);
-                pdf.text(`${participant.note_entree?.toFixed(1) || '-'}`, 100, y + 2);
-                pdf.text(getDortoirNom(participant.inscription?.dortoir_id), 130, y + 2);
-                pdf.text(participant.inscription?.sexe === 'homme' ? 'H' : 'F', 170, y + 2);
+                // Numéro
+                pdf.text(`${index + 1}`, 18, y + 8);
 
-                y += 8;
-            });
+                // Photo
+                const photoUrl = participant.inscription?.photo_url;
+                if (photoUrl) {
+                    try {
+                        const base64Image = await loadImageAsBase64(photoUrl);
+                        if (base64Image) {
+                            pdf.addImage(base64Image, 'JPEG', 28, y, photoSize, photoSize);
+                        } else {
+                            // Placeholder si échec de chargement
+                            pdf.setFillColor(229, 231, 235);
+                            pdf.roundedRect(28, y, photoSize, photoSize, 2, 2, 'F');
+                            pdf.setFontSize(6);
+                            pdf.setTextColor(107, 114, 128);
+                            pdf.text('N/A', 32, y + 7);
+                            pdf.setFontSize(10);
+                            pdf.setTextColor(0, 0, 0);
+                        }
+                    } catch (err) {
+                        // Placeholder en cas d'erreur
+                        pdf.setFillColor(229, 231, 235);
+                        pdf.roundedRect(28, y, photoSize, photoSize, 2, 2, 'F');
+                    }
+                } else {
+                    // Placeholder si pas de photo
+                    pdf.setFillColor(229, 231, 235);
+                    pdf.roundedRect(28, y, photoSize, photoSize, 2, 2, 'F');
+                    pdf.setFontSize(6);
+                    pdf.setTextColor(107, 114, 128);
+                    pdf.text('N/A', 32, y + 7);
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(0, 0, 0);
+                }
+
+                // Nom & Prénom
+                const fullName = `${participant.inscription?.nom || ''} ${participant.inscription?.prenom || ''}`;
+                pdf.text(fullName.substring(0, 35), 46, y + 8);
+
+                // Note entrée
+                pdf.text(`${participant.note_entree?.toFixed(1) || '-'}`, 115, y + 8);
+
+                // Dortoir
+                const dortoir = getDortoirNom(participant.inscription?.dortoir_id);
+                pdf.text(dortoir.substring(0, 20), 135, y + 8);
+
+                // Sexe
+                pdf.text(participant.inscription?.sexe === 'homme' ? 'H' : 'F', 178, y + 8);
+
+                y += rowHeight;
+            }
 
             // Pied de page
             const pageCount = pdf.internal.getNumberOfPages();
@@ -138,14 +224,16 @@ export function ListeClasses() {
         } finally {
             setExporting(false);
         }
-    }, [participantsParClasse, getDortoirNom]);
+    }, [participantsParClasse, getDortoirNom, loadImageAsBase64, getNiveauColor]);
 
-    // Exporter toutes les classes
+    // Exporter toutes les classes avec photos et couleurs par niveau
     const exportToutPDF = useCallback(async () => {
         setExporting(true);
         try {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pageWidth = pdf.internal.pageSize.getWidth();
+            const photoSize = 10; // Taille de la photo en mm
+            const rowHeight = photoSize + 3; // Hauteur de chaque ligne avec photo
             let isFirstPage = true;
 
             for (const classe of classesFiltrees) {
@@ -156,6 +244,9 @@ export function ListeClasses() {
                     pdf.addPage();
                 }
                 isFirstPage = false;
+
+                // Couleur selon le niveau
+                const niveauColor = getNiveauColor(classe.niveau);
 
                 // Titre
                 pdf.setFontSize(16);
@@ -168,40 +259,79 @@ export function ListeClasses() {
                 pdf.setFont('helvetica', 'normal');
                 pdf.text(`Effectif: ${participants.length}`, 14, 30);
 
-                // Tableau
+                // Tableau avec couleur du niveau
                 let y = 40;
-                pdf.setFillColor(59, 130, 246);
-                pdf.rect(14, y, pageWidth - 28, 7, 'F');
+                pdf.setFillColor(niveauColor.r, niveauColor.g, niveauColor.b);
+                pdf.rect(14, y, pageWidth - 28, 8, 'F');
                 pdf.setTextColor(255, 255, 255);
                 pdf.setFontSize(9);
                 pdf.setFont('helvetica', 'bold');
-                pdf.text('N°', 18, y + 5);
-                pdf.text('Nom & Prénom', 30, y + 5);
-                pdf.text('Note', 110, y + 5);
-                pdf.text('Dortoir', 130, y + 5);
+                pdf.text('N°', 18, y + 6);
+                pdf.text('Photo', 26, y + 6);
+                pdf.text('Nom & Prénom', 42, y + 6);
+                pdf.text('Note', 110, y + 6);
+                pdf.text('Dortoir', 130, y + 6);
+                pdf.text('Sexe', 175, y + 6);
 
-                y += 9;
+                y += 10;
                 pdf.setTextColor(0, 0, 0);
                 pdf.setFont('helvetica', 'normal');
 
-                participants.forEach((participant, index) => {
-                    if (y > 275) {
+                for (let index = 0; index < participants.length; index++) {
+                    const participant = participants[index];
+                    
+                    if (y > 270) {
                         pdf.addPage();
                         y = 20;
                     }
 
+                    // Alternance avec teinte claire du niveau
                     if (index % 2 === 0) {
-                        pdf.setFillColor(243, 244, 246);
-                        pdf.rect(14, y - 3, pageWidth - 28, 7, 'F');
+                        pdf.setFillColor(
+                            Math.min(255, niveauColor.r + 150),
+                            Math.min(255, niveauColor.g + 150),
+                            Math.min(255, niveauColor.b + 150)
+                        );
+                        pdf.rect(14, y - 1, pageWidth - 28, rowHeight, 'F');
                     }
 
-                    pdf.text(`${index + 1}`, 18, y + 2);
-                    pdf.text(`${participant.inscription?.nom || ''} ${participant.inscription?.prenom || ''}`.substring(0, 40), 30, y + 2);
-                    pdf.text(`${participant.note_entree?.toFixed(1) || '-'}`, 110, y + 2);
-                    pdf.text(getDortoirNom(participant.inscription?.dortoir_id).substring(0, 20), 130, y + 2);
+                    // Numéro
+                    pdf.text(`${index + 1}`, 18, y + 7);
 
-                    y += 7;
-                });
+                    // Photo
+                    const photoUrl = participant.inscription?.photo_url;
+                    if (photoUrl) {
+                        try {
+                            const base64Image = await loadImageAsBase64(photoUrl);
+                            if (base64Image) {
+                                pdf.addImage(base64Image, 'JPEG', 26, y, photoSize, photoSize);
+                            } else {
+                                pdf.setFillColor(229, 231, 235);
+                                pdf.roundedRect(26, y, photoSize, photoSize, 1, 1, 'F');
+                            }
+                        } catch (err) {
+                            pdf.setFillColor(229, 231, 235);
+                            pdf.roundedRect(26, y, photoSize, photoSize, 1, 1, 'F');
+                        }
+                    } else {
+                        pdf.setFillColor(229, 231, 235);
+                        pdf.roundedRect(26, y, photoSize, photoSize, 1, 1, 'F');
+                    }
+
+                    // Nom
+                    pdf.text(`${participant.inscription?.nom || ''} ${participant.inscription?.prenom || ''}`.substring(0, 35), 42, y + 7);
+                    
+                    // Note
+                    pdf.text(`${participant.note_entree?.toFixed(1) || '-'}`, 110, y + 7);
+                    
+                    // Dortoir
+                    pdf.text(getDortoirNom(participant.inscription?.dortoir_id).substring(0, 20), 130, y + 7);
+                    
+                    // Sexe
+                    pdf.text(participant.inscription?.sexe === 'homme' ? 'H' : 'F', 178, y + 7);
+
+                    y += rowHeight;
+                }
             }
 
             // Date en première page
@@ -218,12 +348,13 @@ export function ListeClasses() {
         } finally {
             setExporting(false);
         }
-    }, [classesFiltrees, participantsParClasse, getDortoirNom]);
+    }, [classesFiltrees, participantsParClasse, getDortoirNom, loadImageAsBase64, getNiveauColor]);
 
     const niveauLabels = {
-        debutant: { label: 'Débutant', color: 'destructive' },
-        moyen: { label: 'Moyen', color: 'warning' },
-        superieur: { label: 'Supérieur', color: 'success' },
+        niveau_1: { label: 'Niveau 1', color: 'destructive' },
+        niveau_2: { label: 'Niveau 2', color: 'warning' },
+        niveau_3: { label: 'Niveau 3', color: 'default' },
+        niveau_superieur: { label: 'Niveau Supérieur', color: 'success' },
     };
 
     return (
@@ -254,9 +385,10 @@ export function ListeClasses() {
                     onValueChange={setFilterNiveau}
                 >
                     <option value="all">Tous les niveaux</option>
-                    <option value="debutant">Débutant</option>
-                    <option value="moyen">Moyen</option>
-                    <option value="superieur">Supérieur</option>
+                    <option value="niveau_1">Niveau 1</option>
+                    <option value="niveau_2">Niveau 2</option>
+                    <option value="niveau_3">Niveau 3</option>
+                    <option value="niveau_superieur">Niveau Supérieur</option>
                 </Select>
                 <Select
                     value={filterClasse}

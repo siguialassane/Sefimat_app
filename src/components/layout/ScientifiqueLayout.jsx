@@ -10,6 +10,7 @@ import {
     Menu,
     X,
     GraduationCap,
+    FileText,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/contexts";
@@ -35,6 +36,11 @@ const menuItems = [
         icon: Users,
         label: "Liste des classes",
         path: "/scientifique/classes",
+    },
+    {
+        icon: FileText,
+        label: "Bulletins",
+        path: "/scientifique/bulletins",
     },
     {
         icon: Settings,

@@ -162,28 +162,41 @@ export function ScientifiqueDashboard() {
                             <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20">
                                 <div className="flex items-center gap-3">
                                     <div className="h-3 w-3 rounded-full bg-red-500" />
-                                    <span className="font-medium text-text-main dark:text-white">Débutant</span>
+                                    <span className="font-medium text-text-main dark:text-white">Niveau 1</span>
+                                    <span className="text-xs text-text-secondary">(0-5)</span>
                                 </div>
                                 <Badge variant="destructive">
-                                    {statsScientifique.parNiveau.debutant} participants
+                                    {statsScientifique.parNiveau.niveau_1} participants
                                 </Badge>
                             </div>
                             <div className="flex items-center justify-between p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20">
                                 <div className="flex items-center gap-3">
                                     <div className="h-3 w-3 rounded-full bg-orange-500" />
-                                    <span className="font-medium text-text-main dark:text-white">Moyen</span>
+                                    <span className="font-medium text-text-main dark:text-white">Niveau 2</span>
+                                    <span className="text-xs text-text-secondary">(5-10)</span>
                                 </div>
                                 <Badge variant="warning">
-                                    {statsScientifique.parNiveau.moyen} participants
+                                    {statsScientifique.parNiveau.niveau_2} participants
+                                </Badge>
+                            </div>
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                                    <span className="font-medium text-text-main dark:text-white">Niveau 3</span>
+                                    <span className="text-xs text-text-secondary">(10-14)</span>
+                                </div>
+                                <Badge variant="default">
+                                    {statsScientifique.parNiveau.niveau_3} participants
                                 </Badge>
                             </div>
                             <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
                                 <div className="flex items-center gap-3">
                                     <div className="h-3 w-3 rounded-full bg-green-500" />
-                                    <span className="font-medium text-text-main dark:text-white">Supérieur</span>
+                                    <span className="font-medium text-text-main dark:text-white">Niveau Supérieur</span>
+                                    <span className="text-xs text-text-secondary">(15-20)</span>
                                 </div>
                                 <Badge variant="success">
-                                    {statsScientifique.parNiveau.superieur} participants
+                                    {statsScientifique.parNiveau.niveau_superieur} participants
                                 </Badge>
                             </div>
                         </div>

@@ -83,9 +83,10 @@ export function ConfigClasses() {
     const hasChanges = Object.keys(editedCapacites).length > 0;
 
     const niveaux = [
-        { key: 'debutant', label: 'Débutant', description: 'Note < 10', color: 'bg-red-500' },
-        { key: 'moyen', label: 'Moyen', description: '10 ≤ Note < 15', color: 'bg-orange-500' },
-        { key: 'superieur', label: 'Supérieur', description: 'Note ≥ 15', color: 'bg-green-500' },
+        { key: 'niveau_1', label: 'Niveau 1', description: 'Note 0 à 5', color: 'bg-red-500' },
+        { key: 'niveau_2', label: 'Niveau 2', description: 'Note 5 à 10', color: 'bg-orange-500' },
+        { key: 'niveau_3', label: 'Niveau 3', description: 'Note 10 à 14', color: 'bg-yellow-500' },
+        { key: 'niveau_superieur', label: 'Niveau Supérieur', description: 'Note 15 à 20', color: 'bg-green-500' },
     ];
 
     return (
@@ -133,7 +134,7 @@ export function ConfigClasses() {
                             <p>
                                 La capacité définit le nombre maximum de participants par classe.
                                 Lorsqu'une classe est pleine, une nouvelle classe est automatiquement créée
-                                (ex: Débutant 1, Débutant 2, etc.).
+                                (ex: Niveau 1 - 1, Niveau 1 - 2, etc.).
                             </p>
                         </div>
                     </div>
@@ -141,7 +142,7 @@ export function ConfigClasses() {
             </Card>
 
             {/* Configuration par niveau */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {niveaux.map(niveau => {
                     const stats = getStatsNiveau(niveau.key);
                     const capacite = getCapaciteValue(niveau.key);

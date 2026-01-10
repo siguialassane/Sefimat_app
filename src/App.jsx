@@ -20,6 +20,7 @@ import {
   GestionNotes,
   ListeClasses,
   ConfigClasses,
+  GestionBulletins,
 } from "@/pages";
 import { AdminLayout, FinanceLayout, PresidentLayout, ScientifiqueLayout } from "@/components/layout";
 
@@ -80,6 +81,7 @@ function App() {
                 <Route path="test-entree" element={<TestEntree />} />
                 <Route path="notes" element={<GestionNotes />} />
                 <Route path="classes" element={<ListeClasses />} />
+                <Route path="bulletins" element={<GestionBulletins />} />
                 <Route path="config" element={<ConfigClasses />} />
               </Route>
 

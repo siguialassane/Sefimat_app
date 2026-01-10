@@ -44,9 +44,10 @@ export function TestEntree() {
 
     // Déterminer le niveau selon la note
     const determinerNiveau = useCallback((note) => {
-        if (note < 10) return 'debutant';
-        if (note < 15) return 'moyen';
-        return 'superieur';
+        if (note <= 5) return 'niveau_1';
+        if (note <= 10) return 'niveau_2';
+        if (note <= 14) return 'niveau_3';
+        return 'niveau_superieur';
     }, []);
 
     // Trouver ou créer une classe disponible
@@ -259,9 +260,10 @@ export function TestEntree() {
     }, [noteInputs, determinerNiveau]);
 
     const niveauLabels = {
-        debutant: { label: 'Débutant', color: 'destructive' },
-        moyen: { label: 'Moyen', color: 'warning' },
-        superieur: { label: 'Supérieur', color: 'success' },
+        niveau_1: { label: 'Niveau 1', color: 'destructive' },
+        niveau_2: { label: 'Niveau 2', color: 'warning' },
+        niveau_3: { label: 'Niveau 3', color: 'default' },
+        niveau_superieur: { label: 'Niveau Supérieur', color: 'success' },
     };
 
     return (
@@ -284,9 +286,10 @@ export function TestEntree() {
                         <div className="text-sm text-blue-800 dark:text-blue-200">
                             <p className="font-medium mb-1">Attribution automatique :</p>
                             <ul className="list-disc list-inside space-y-1">
-                                <li>Note &lt; 10 → Niveau <span className="font-semibold">Débutant</span></li>
-                                <li>Note entre 10 et 14 → Niveau <span className="font-semibold">Moyen</span></li>
-                                <li>Note ≥ 15 → Niveau <span className="font-semibold">Supérieur</span></li>
+                                <li>Note 0 à 5 → <span className="font-semibold">Niveau 1</span></li>
+                                <li>Note 5 à 10 → <span className="font-semibold">Niveau 2</span></li>
+                                <li>Note 10 à 14 → <span className="font-semibold">Niveau 3</span></li>
+                                <li>Note 15 à 20 → <span className="font-semibold">Niveau Supérieur</span></li>
                             </ul>
                         </div>
                     </div>

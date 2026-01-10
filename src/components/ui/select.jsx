@@ -2,7 +2,17 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
-const Select = React.forwardRef(({ className, children, ...props }, ref) => {
+const Select = React.forwardRef(({ className, children, onValueChange, onChange, ...props }, ref) => {
+    // Support both onValueChange (custom) and onChange (native)
+    const handleChange = (e) => {
+        if (onValueChange) {
+            onValueChange(e.target.value);
+        }
+        if (onChange) {
+            onChange(e);
+        }
+    };
+
     return (
         <div className="relative">
             <select
@@ -14,6 +24,7 @@ const Select = React.forwardRef(({ className, children, ...props }, ref) => {
                     className
                 )}
                 ref={ref}
+                onChange={handleChange}
                 {...props}
             >
                 {children}

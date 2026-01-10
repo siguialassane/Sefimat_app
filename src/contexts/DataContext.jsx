@@ -471,9 +471,10 @@ export function DataProvider({ children }) {
     participantsAvecNoteEntree: notesExamens.filter(n => n.note_entree != null).length,
     participantsSansNoteEntree: inscriptions.filter(i => i.statut === 'valide').length - notesExamens.filter(n => n.note_entree != null).length,
     parNiveau: {
-      debutant: notesExamens.filter(n => n.niveau_attribue === 'debutant').length,
-      moyen: notesExamens.filter(n => n.niveau_attribue === 'moyen').length,
-      superieur: notesExamens.filter(n => n.niveau_attribue === 'superieur').length,
+      niveau_1: notesExamens.filter(n => n.niveau_attribue === 'niveau_1').length,
+      niveau_2: notesExamens.filter(n => n.niveau_attribue === 'niveau_2').length,
+      niveau_3: notesExamens.filter(n => n.niveau_attribue === 'niveau_3').length,
+      niveau_superieur: notesExamens.filter(n => n.niveau_attribue === 'niveau_superieur').length,
     },
     participantsAvecMoyenne: notesExamens.filter(n => n.moyenne != null).length,
     totalClasses: classes.length,

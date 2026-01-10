@@ -36,7 +36,7 @@ export function GestionNotes() {
                     return false;
                 }
                 // Filtre classe
-                if (filterClasse !== 'all' && note.classe_id !== filterClasse) {
+                if (filterClasse !== 'all' && String(note.classe_id) !== filterClasse) {
                     return false;
                 }
                 return true;
@@ -66,17 +66,36 @@ export function GestionNotes() {
         return value;
     }, []);
 
+    // Suivre si l'utilisateur a manuellement modifié la conduite
+    const [conduiteModifieeManuel, setConduiteModifieeManuel] = useState(new Set());
+
     // Gérer les changements de notes avec validation
+    // Si on modifie la note cahiers, dupliquer automatiquement vers conduite
     const handleNoteChange = useCallback((noteId, field, value) => {
         const validatedValue = validateNote(value);
-        setEditingNotes(prev => ({
-            ...prev,
-            [noteId]: {
-                ...prev[noteId],
-                [field]: validatedValue
+        
+        setEditingNotes(prev => {
+            const newEdits = {
+                ...prev,
+                [noteId]: {
+                    ...prev[noteId],
+                    [field]: validatedValue
+                }
+            };
+            
+            // Si c'est la note cahiers, dupliquer vers conduite (sauf si modifiée manuellement)
+            if (field === 'note_cahiers' && !conduiteModifieeManuel.has(noteId)) {
+                newEdits[noteId].note_conduite = validatedValue;
             }
-        }));
-    }, [validateNote]);
+            
+            // Si l'utilisateur modifie manuellement la conduite, marquer comme modifié
+            if (field === 'note_conduite') {
+                setConduiteModifieeManuel(prev => new Set([...prev, noteId]));
+            }
+            
+            return newEdits;
+        });
+    }, [validateNote, conduiteModifieeManuel]);
 
     // Calculer la moyenne en temps réel pour une note
     const calculatePreviewMoyenne = useCallback((note) => {
@@ -206,9 +225,10 @@ export function GestionNotes() {
     }, []);
 
     const niveauLabels = {
-        debutant: { label: 'Débutant', color: 'destructive' },
-        moyen: { label: 'Moyen', color: 'warning' },
-        superieur: { label: 'Supérieur', color: 'success' },
+        niveau_1: { label: 'Niveau 1', color: 'destructive' },
+        niveau_2: { label: 'Niveau 2', color: 'warning' },
+        niveau_3: { label: 'Niveau 3', color: 'default' },
+        niveau_superieur: { label: 'Niveau Supérieur', color: 'success' },
     };
 
     return (
@@ -240,9 +260,10 @@ export function GestionNotes() {
                         onValueChange={setFilterNiveau}
                     >
                         <option value="all">Tous les niveaux</option>
-                        <option value="debutant">Débutant</option>
-                        <option value="moyen">Moyen</option>
-                        <option value="superieur">Supérieur</option>
+                        <option value="niveau_1">Niveau 1</option>
+                        <option value="niveau_2">Niveau 2</option>
+                        <option value="niveau_3">Niveau 3</option>
+                        <option value="niveau_superieur">Niveau Supérieur</option>
                     </Select>
                     <Select
                         value={filterClasse}
