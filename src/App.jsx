@@ -15,8 +15,13 @@ import {
   PaymentSummary,
   PresidentRegistration,
   PresidentPayments,
+  ScientifiqueDashboard,
+  TestEntree,
+  GestionNotes,
+  ListeClasses,
+  ConfigClasses,
 } from "@/pages";
-import { AdminLayout, FinanceLayout, PresidentLayout } from "@/components/layout";
+import { AdminLayout, FinanceLayout, PresidentLayout, ScientifiqueLayout } from "@/components/layout";
 
 function App() {
   return (
@@ -62,6 +67,20 @@ function App() {
                 <Route path="validation" element={<PaymentValidation />} />
                 <Route path="liste" element={<PaymentList />} />
                 <Route path="synthese" element={<PaymentSummary />} />
+              </Route>
+
+              {/* Scientifique Routes (Cellule Scientifique) */}
+              <Route path="/scientifique" element={
+                <ProtectedRoute>
+                  <ScientifiqueLayout />
+                </ProtectedRoute>
+              }>
+                <Route index element={<Navigate to="/scientifique/dashboard" replace />} />
+                <Route path="dashboard" element={<ScientifiqueDashboard />} />
+                <Route path="test-entree" element={<TestEntree />} />
+                <Route path="notes" element={<GestionNotes />} />
+                <Route path="classes" element={<ListeClasses />} />
+                <Route path="config" element={<ConfigClasses />} />
               </Route>
 
               {/* Fallback */}

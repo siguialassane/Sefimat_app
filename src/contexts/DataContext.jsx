@@ -29,6 +29,11 @@ export function DataProvider({ children }) {
   const [chefsQuartier, setChefsQuartier] = useState([]);
   const [dortoirs, setDortoirs] = useState([]);
   const [paiements, setPaiements] = useState([]);
+
+  // === ÉTATS CELLULE SCIENTIFIQUE ===
+  const [notesExamens, setNotesExamens] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [configCapaciteClasses, setConfigCapaciteClasses] = useState([]);
   
   // === ÉTATS DE CHARGEMENT ===
   const [loading, setLoading] = useState(false);
@@ -73,7 +78,7 @@ export function DataProvider({ children }) {
 
     try {
       // Charger toutes les données en parallèle
-      const [inscriptionsRes, chefsRes, dortoirsRes, paiementsRes] = await Promise.all([
+      const [inscriptionsRes, chefsRes, dortoirsRes, paiementsRes, notesRes, classesRes, configCapaciteRes] = await Promise.all([
         supabase
           .from('inscriptions')
           .select(`
@@ -82,24 +87,45 @@ export function DataProvider({ children }) {
             dortoir:dortoirs(id, nom)
           `)
           .order('created_at', { ascending: false }),
-        
+
         supabase
           .from('chefs_quartier')
           .select('*')
           .order('nom_complet'),
-        
+
         supabase
           .from('dortoirs')
           .select('*')
           .order('nom'),
-        
+
         supabase
           .from('paiements')
           .select(`
             *,
             inscription:inscriptions(id, nom, prenom, type_inscription)
           `)
-          .order('date_paiement', { ascending: false })
+          .order('date_paiement', { ascending: false }),
+
+        // Cellule Scientifique
+        supabase
+          .from('notes_examens')
+          .select(`
+            *,
+            inscription:inscriptions(id, nom, prenom, photo_url, sexe, age, dortoir_id),
+            classe:classes(id, nom, niveau, numero)
+          `)
+          .order('created_at', { ascending: false }),
+
+        supabase
+          .from('classes')
+          .select('*')
+          .order('niveau')
+          .order('numero'),
+
+        supabase
+          .from('config_capacite_classes')
+          .select('*')
+          .order('niveau')
       ]);
 
       // Vérifier les erreurs
@@ -107,21 +133,33 @@ export function DataProvider({ children }) {
       if (chefsRes.error) throw chefsRes.error;
       if (dortoirsRes.error) throw dortoirsRes.error;
       if (paiementsRes.error) throw paiementsRes.error;
+      // Pour les tables scientifiques, on ignore les erreurs si elles n'existent pas encore
+      if (notesRes.error && !notesRes.error.message?.includes('does not exist')) {
+        console.warn('DataContext: Erreur notes_examens:', notesRes.error);
+      }
+      if (classesRes.error && !classesRes.error.message?.includes('does not exist')) {
+        console.warn('DataContext: Erreur classes:', classesRes.error);
+      }
 
       if (isMountedRef.current) {
         setInscriptions(inscriptionsRes.data || []);
         setChefsQuartier(chefsRes.data || []);
         setDortoirs(dortoirsRes.data || []);
         setPaiements(paiementsRes.data || []);
+        setNotesExamens(notesRes.data || []);
+        setClasses(classesRes.data || []);
+        setConfigCapaciteClasses(configCapaciteRes.data || []);
         setInitialLoaded(true);
         setLastUpdate(new Date());
-        
+
         const elapsed = Date.now() - startTime;
         console.log(`DataContext: Données chargées en ${elapsed}ms`, {
           inscriptions: inscriptionsRes.data?.length || 0,
           chefs: chefsRes.data?.length || 0,
           dortoirs: dortoirsRes.data?.length || 0,
-          paiements: paiementsRes.data?.length || 0
+          paiements: paiementsRes.data?.length || 0,
+          notes: notesRes.data?.length || 0,
+          classes: classesRes.data?.length || 0
         });
       }
     } catch (err) {
@@ -176,14 +214,14 @@ export function DataProvider({ children }) {
 
   const handlePaiementChange = useCallback(async (payload) => {
     console.log('DataContext: Changement paiement:', payload.eventType);
-    
+
     if (payload.eventType === 'INSERT') {
       const { data, error } = await supabase
         .from('paiements')
         .select(`*, inscription:inscriptions(id, nom, prenom, type_inscription)`)
         .eq('id', payload.new.id)
         .single();
-      
+
       if (!error && data && isMountedRef.current) {
         setPaiements(prev => [data, ...prev]);
         // Recharger aussi l'inscription associée pour avoir le montant_total_paye à jour
@@ -205,7 +243,7 @@ export function DataProvider({ children }) {
         .select(`*, inscription:inscriptions(id, nom, prenom, type_inscription)`)
         .eq('id', payload.new.id)
         .single();
-      
+
       if (!error && data && isMountedRef.current) {
         setPaiements(prev => prev.map(p => p.id === data.id ? data : p));
         // Recharger l'inscription associée
@@ -229,6 +267,79 @@ export function DataProvider({ children }) {
     }
   }, []);
 
+  // === HANDLER POUR NOTES EXAMENS (Cellule Scientifique) ===
+  const handleNotesChange = useCallback(async (payload) => {
+    console.log('DataContext: Changement notes_examens:', payload.eventType);
+
+    if (payload.eventType === 'INSERT') {
+      const { data, error } = await supabase
+        .from('notes_examens')
+        .select(`
+          *,
+          inscription:inscriptions(id, nom, prenom, photo_url, sexe, age, dortoir_id),
+          classe:classes(id, nom, niveau, numero)
+        `)
+        .eq('id', payload.new.id)
+        .single();
+
+      if (!error && data && isMountedRef.current) {
+        setNotesExamens(prev => [data, ...prev]);
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'UPDATE') {
+      const { data, error } = await supabase
+        .from('notes_examens')
+        .select(`
+          *,
+          inscription:inscriptions(id, nom, prenom, photo_url, sexe, age, dortoir_id),
+          classe:classes(id, nom, niveau, numero)
+        `)
+        .eq('id', payload.new.id)
+        .single();
+
+      if (!error && data && isMountedRef.current) {
+        setNotesExamens(prev => prev.map(n => n.id === data.id ? data : n));
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'DELETE') {
+      if (isMountedRef.current) {
+        setNotesExamens(prev => prev.filter(n => n.id !== payload.old.id));
+        setLastUpdate(new Date());
+      }
+    }
+  }, []);
+
+  // === HANDLER POUR CLASSES ===
+  const handleClassesChange = useCallback(async (payload) => {
+    console.log('DataContext: Changement classes:', payload.eventType);
+
+    if (payload.eventType === 'INSERT') {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('id', payload.new.id)
+        .single();
+
+      if (!error && data && isMountedRef.current) {
+        setClasses(prev => [...prev, data].sort((a, b) => {
+          if (a.niveau !== b.niveau) return a.niveau.localeCompare(b.niveau);
+          return a.numero - b.numero;
+        }));
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'UPDATE') {
+      if (isMountedRef.current) {
+        setClasses(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+        setLastUpdate(new Date());
+      }
+    } else if (payload.eventType === 'DELETE') {
+      if (isMountedRef.current) {
+        setClasses(prev => prev.filter(c => c.id !== payload.old.id));
+        setLastUpdate(new Date());
+      }
+    }
+  }, []);
+
   // === EFFET PRINCIPAL: Charger les données et s'abonner aux changements ===
   useEffect(() => {
     isMountedRef.current = true;
@@ -239,6 +350,9 @@ export function DataProvider({ children }) {
       setChefsQuartier([]);
       setDortoirs([]);
       setPaiements([]);
+      setNotesExamens([]);
+      setClasses([]);
+      setConfigCapaciteClasses([]);
       setInitialLoaded(false);
       return;
     }
@@ -261,6 +375,16 @@ export function DataProvider({ children }) {
           { event: '*', schema: 'public', table: 'paiements' },
           handlePaiementChange
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'notes_examens' },
+          handleNotesChange
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'classes' },
+          handleClassesChange
+        )
         .subscribe((status) => {
           console.log('DataContext: Subscription status:', status);
         });
@@ -269,7 +393,7 @@ export function DataProvider({ children }) {
     return () => {
       isMountedRef.current = false;
     };
-  }, [user, loadAllData, handleInscriptionChange, handlePaiementChange]);
+  }, [user, loadAllData, handleInscriptionChange, handlePaiementChange, handleNotesChange, handleClassesChange]);
 
   // === CLEANUP: Supprimer la subscription à la déconnexion ===
   useEffect(() => {
@@ -323,6 +447,38 @@ export function DataProvider({ children }) {
     setInscriptions(prev => prev.filter(i => i.id !== id));
   }, []);
 
+  // Mise à jour locale d'une note (optimistic update)
+  const updateNoteLocal = useCallback((id, updates) => {
+    setNotesExamens(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+  }, []);
+
+  // Ajout local d'une note (optimistic update)
+  const addNoteLocal = useCallback((note) => {
+    setNotesExamens(prev => [note, ...prev]);
+  }, []);
+
+  // Ajout local d'une classe (optimistic update)
+  const addClasseLocal = useCallback((classe) => {
+    setClasses(prev => [...prev, classe].sort((a, b) => {
+      if (a.niveau !== b.niveau) return a.niveau.localeCompare(b.niveau);
+      return a.numero - b.numero;
+    }));
+  }, []);
+
+  // === STATISTIQUES CELLULE SCIENTIFIQUE ===
+  const statsScientifique = {
+    totalParticipantsValides: inscriptions.filter(i => i.statut === 'valide').length,
+    participantsAvecNoteEntree: notesExamens.filter(n => n.note_entree != null).length,
+    participantsSansNoteEntree: inscriptions.filter(i => i.statut === 'valide').length - notesExamens.filter(n => n.note_entree != null).length,
+    parNiveau: {
+      debutant: notesExamens.filter(n => n.niveau_attribue === 'debutant').length,
+      moyen: notesExamens.filter(n => n.niveau_attribue === 'moyen').length,
+      superieur: notesExamens.filter(n => n.niveau_attribue === 'superieur').length,
+    },
+    participantsAvecMoyenne: notesExamens.filter(n => n.moyenne != null).length,
+    totalClasses: classes.length,
+  };
+
   const value = {
     // Données
     inscriptions,
@@ -330,17 +486,28 @@ export function DataProvider({ children }) {
     dortoirs,
     paiements,
     stats,
-    
+
+    // Données Cellule Scientifique
+    notesExamens,
+    classes,
+    configCapaciteClasses,
+    statsScientifique,
+
     // États
     loading,
     initialLoaded,
     error,
     lastUpdate,
-    
+
     // Actions
     refresh,
     updateInscriptionLocal,
     deleteInscriptionLocal,
+
+    // Actions Cellule Scientifique
+    updateNoteLocal,
+    addNoteLocal,
+    addClasseLocal,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

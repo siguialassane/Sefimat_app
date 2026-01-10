@@ -7,3 +7,4 @@ export { BadgeManagement } from "./BadgeManagement";
 export { Exports } from "./Exports";
 export { FinanceDashboard, PaymentValidation, PaymentList, PaymentSummary } from "./finance";
 export { PresidentRegistration, PresidentPayments } from "./president";
+export { ScientifiqueDashboard, TestEntree, GestionNotes, ListeClasses, ConfigClasses } from "./scientifique";

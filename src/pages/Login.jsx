@@ -22,6 +22,8 @@ const getRedirectPath = (role) => {
             return "/finance/dashboard";
         case "secretariat":
             return "/admin/dashboard";
+        case "scientifique":
+            return "/scientifique/dashboard";
         case "president_section":
             return "/president";
         default:
