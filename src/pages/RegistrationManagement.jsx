@@ -28,6 +28,14 @@ const statusConfig = {
     rejete: { label: "Rejeté", variant: "destructive" },
 };
 
+// Configuration des statuts du workflow
+const workflowConfig = {
+    en_attente_finance: { label: "En attente Finance", variant: "warning" },
+    en_attente_secretariat: { label: "En attente Secrétariat", variant: "default" },
+    valide: { label: "Validé", variant: "success" },
+    rejete: { label: "Rejeté", variant: "destructive" },
+};
+
 // Mapping des niveaux d'étude
 const niveauEtudeMap = {
     aucun: "Aucun",
@@ -55,6 +63,7 @@ export function RegistrationManagement() {
         chefQuartier: "",
         niveau: "",
         sexe: "",
+        workflow: "en_attente_secretariat", // Par défaut, afficher les inscriptions à valider par le secrétariat
     });
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
@@ -73,6 +82,7 @@ export function RegistrationManagement() {
             ? `${row.chef_quartier.nom_complet} (${row.chef_quartier.zone})`
             : 'Inscription Présentielle',
         statut: row.statut,
+        statut_workflow: row.statut_workflow || 'en_attente_finance',
         date: new Date(row.created_at).toLocaleDateString('fr-FR'),
         dateTime: new Date(row.created_at).toLocaleString('fr-FR', {
             day: '2-digit',
@@ -100,21 +110,36 @@ export function RegistrationManagement() {
             const matchesChef = !filters.chefQuartier || r.chefQuartier.includes(filters.chefQuartier);
             const matchesNiveau = !filters.niveau || r.niveau === filters.niveau;
             const matchesSexe = !filters.sexe || r.sexe === filters.sexe;
-            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
+            // Filtre workflow: si un filtre workflow est sélectionné, l'appliquer
+            const matchesWorkflow = !filters.workflow || r.statut_workflow === filters.workflow;
+            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe && matchesWorkflow;
         });
     }, [registrations, searchTerm, filters]);
 
     const handleValidateOne = async (id) => {
         try {
+            const { data: userData } = await supabase.auth.getUser();
+
             const { error } = await supabase
                 .from('inscriptions')
-                .update({ statut: 'valide' })
+                .update({
+                    statut: 'valide',
+                    // Workflow: validation par le secrétariat -> passe à 'valide' (visible en scientifique)
+                    statut_workflow: 'valide',
+                    valide_par_secretariat: userData?.user?.id || null,
+                    date_validation_secretariat: new Date().toISOString(),
+                })
                 .eq('id', id);
 
             if (error) throw error;
 
             // Mise à jour optimiste locale
-            updateInscriptionLocal(id, { statut: 'valide' });
+            updateInscriptionLocal(id, {
+                statut: 'valide',
+                statut_workflow: 'valide',
+                valide_par_secretariat: userData?.user?.id || null,
+                date_validation_secretariat: new Date().toISOString(),
+            });
         } catch (error) {
             console.error('Erreur validation:', error);
             alert('Erreur lors de la validation de l\'inscription');
@@ -286,6 +311,21 @@ export function RegistrationManagement() {
                                     <option value="">Tous</option>
                                     <option value="H">Homme</option>
                                     <option value="F">Femme</option>
+                                </Select>
+                            </div>
+
+                            {/* Workflow Filter */}
+                            <div>
+                                <Label className="mb-1.5 block text-xs">Étape du workflow</Label>
+                                <Select
+                                    value={filters.workflow}
+                                    onChange={(e) => setFilters({ ...filters, workflow: e.target.value })}
+                                >
+                                    <option value="">Toutes les étapes</option>
+                                    <option value="en_attente_secretariat">À valider (Secrétariat)</option>
+                                    <option value="valide">Validées</option>
+                                    <option value="en_attente_finance">En attente Finance</option>
+                                    <option value="rejete">Rejetées</option>
                                 </Select>
                             </div>
                         </div>

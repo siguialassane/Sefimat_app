@@ -23,13 +23,14 @@ export function PaymentValidation() {
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Filtrer uniquement les paiements en attente de validation
+    // Filtrer uniquement les paiements en attente de validation (workflow: en_attente_finance)
     const paiementsEnAttente = useMemo(() => {
-        return allInscriptions.filter(i => 
+        return allInscriptions.filter(i =>
+            // Workflow: inscriptions en attente de validation financière
+            (i.statut_workflow === "en_attente_finance" || !i.statut_workflow) &&
             (i.statut_paiement === "partiel" || i.statut_paiement === "non_payé") &&
             i.statut_paiement !== "valide_financier" &&
-            i.statut_paiement !== "soldé" &&
-            (i.montant_total_paye || 0) < (i.montant_requis || 4000)
+            i.statut_paiement !== "soldé"
         );
     }, [allInscriptions]);
 
@@ -71,6 +72,8 @@ export function PaymentValidation() {
                     statut_paiement: "valide_financier",
                     valide_par_financier: user.id,
                     date_validation_financier: new Date().toISOString(),
+                    // Workflow: passer à l'étape secrétariat
+                    statut_workflow: "en_attente_secretariat",
                 })
                 .eq("id", inscriptionId);
 
@@ -80,8 +83,9 @@ export function PaymentValidation() {
                 statut_paiement: "valide_financier",
                 valide_par_financier: user.id,
                 date_validation_financier: new Date().toISOString(),
+                statut_workflow: "en_attente_secretariat",
             });
-            
+
             setModalOpen(false);
             setSelectedInscription(null);
         } catch (error) {
@@ -103,6 +107,8 @@ export function PaymentValidation() {
                     statut_paiement: "refuse",
                     valide_par_financier: user.id,
                     date_validation_financier: new Date().toISOString(),
+                    // Workflow: marquer comme rejeté
+                    statut_workflow: "rejete",
                 })
                 .eq("id", inscriptionId);
 
@@ -112,8 +118,9 @@ export function PaymentValidation() {
                 statut_paiement: "refuse",
                 valide_par_financier: user.id,
                 date_validation_financier: new Date().toISOString(),
+                statut_workflow: "rejete",
             });
-            
+
             setModalOpen(false);
             setSelectedInscription(null);
         } catch (error) {

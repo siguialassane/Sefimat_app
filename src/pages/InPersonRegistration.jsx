@@ -207,11 +207,18 @@ export function InPersonRegistration() {
                     admin_id: user.id,
                     type_inscription: 'presentielle',
                     statut: 'valide', // Automatiquement validé
+                    // Workflow: inscriptions présentielles sont directement validées
+                    // (le secrétaire a validé le paiement et l'attribution dortoir en même temps)
+                    statut_workflow: 'valide',
+                    valide_par_secretariat: user.id,
+                    date_validation_secretariat: new Date().toISOString(),
+                    valide_par_financier: user.id,
+                    date_validation_financier: new Date().toISOString(),
                     chef_quartier_id: null,
                     photo_url: photoUrl,
                     dortoir_id: data.dortoirId,
                     montant_total_paye: data.montantPaye,
-                    statut_paiement: data.montantPaye >= 4000 ? "soldé" : (data.montantPaye > 0 ? "partiel" : "non_payé"),
+                    statut_paiement: data.montantPaye >= 4000 ? "valide_financier" : (data.montantPaye > 0 ? "partiel" : "non_payé"),
                     niveau_formation: null, // Sera complété par la section scientifique
                 })
                 .select()

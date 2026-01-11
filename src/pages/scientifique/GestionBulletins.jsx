@@ -116,6 +116,13 @@ export default function GestionBulletins() {
         }
     };
 
+    // Charger les logos du bulletin
+    const loadLogos = async () => {
+        const logo1 = await loadImageAsBase64('/logoBulletin1.png');
+        const logo2 = await loadImageAsBase64('/logoBulletin2.png');
+        return { logo1, logo2 };
+    };
+
     // Nom du dortoir
     const getDortoirNom = useCallback((dortoirId) => {
         const dortoir = dortoirs?.find(d => String(d.id) === String(dortoirId));
@@ -130,178 +137,315 @@ export default function GestionBulletins() {
         niveau_superieur: 'Niveau Supérieur'
     };
 
+    // Calculer le rang d'un participant dans sa classe
+    const calculerRang = useCallback((note, participantsAvecNotes) => {
+        // Filtrer les participants de la même classe
+        const memeClasse = participantsAvecNotes.filter(n => n.classe_id === note.classe_id);
+        // Trier par moyenne décroissante
+        const triee = [...memeClasse].sort((a, b) => parseFloat(b.moyenne) - parseFloat(a.moyenne));
+        // Trouver le rang
+        const rang = triee.findIndex(n => n.id === note.id) + 1;
+        // Formater le rang
+        if (rang === 1) return '1er/ère';
+        return `${rang}ème`;
+    }, []);
+
     // Générer le bulletin PDF pour un participant (note = objet de notes_examens)
-    const genererBulletin = useCallback(async (note) => {
+    const genererBulletin = useCallback(async (note, allParticipants) => {
         setExporting(true);
         try {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pageWidth = pdf.internal.pageSize.getWidth();
-            const moyenne = parseFloat(note.moyenne);
-            const appreciation = getAppreciation(moyenne);
-            const niveauColor = getNiveauColor(note.classe?.niveau);
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 15;
 
-            // En-tête coloré selon le niveau
-            pdf.setFillColor(niveauColor.r, niveauColor.g, niveauColor.b);
-            pdf.rect(0, 0, pageWidth, 45, 'F');
+            // Charger les logos
+            const logos = await loadLogos();
 
-            // Logo / Titre
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(24);
+            // Calculer les valeurs
+            const note1 = parseFloat(note.note_entree) || 0;
+            const note2 = parseFloat(note.note_cahiers) || 0;
+            const conduite = parseFloat(note.note_conduite) || 0;
+            const testSortie = parseFloat(note.note_sortie) || 0;
+            const total = note1 + note2 + conduite + testSortie;
+            const moyenne = parseFloat(note.moyenne) || (total / 4);
+            const rang = calculerRang(note, allParticipants || participantsAvecNotes);
+
+            // Niveau formaté
+            const niveauLabel = {
+                niveau_1: 'DEBUTANT',
+                niveau_2: 'NIVEAU 2',
+                niveau_3: 'NIVEAU 3',
+                niveau_superieur: 'SUPERIEUR'
+            }[note.classe?.niveau] || 'N/A';
+
+            let y = 10;
+
+            // ===== EN-TÊTE AVEC LOGOS =====
+            // Logo AEEMCI à gauche
+            if (logos.logo1) {
+                try {
+                    pdf.addImage(logos.logo1, 'PNG', margin, y, 30, 30);
+                } catch (e) {
+                    console.error('Erreur logo1:', e);
+                }
+            }
+
+            // Texte central - Bismillah
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('Bismillahi Rahmani Rahim', pageWidth / 2, y + 5, { align: 'center' });
+
+            pdf.setFontSize(12);
             pdf.setFont('helvetica', 'bold');
-            pdf.text('SEFIMAP', pageWidth / 2, 18, { align: 'center' });
-            
+            pdf.text('AEEMCI', pageWidth / 2, y + 12, { align: 'center' });
+
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text("Association des Élèves et Étudiants Musulmans de Côte d'Ivoire", pageWidth / 2, y + 18, { align: 'center' });
+            pdf.text('Secrétariat Régional Abidjan Sud', pageWidth / 2, y + 23, { align: 'center' });
+            pdf.text('Sous-Comité de Port-bouet', pageWidth / 2, y + 28, { align: 'center' });
+
+            // Logo SEFIMAP à droite
+            if (logos.logo2) {
+                try {
+                    pdf.addImage(logos.logo2, 'PNG', pageWidth - margin - 30, y, 30, 30);
+                } catch (e) {
+                    console.error('Erreur logo2:', e);
+                }
+            }
+
+            y += 38;
+
+            // ===== TITRE PRINCIPAL =====
             pdf.setFontSize(14);
-            pdf.text('Séminaire de Formation Islamique Malikite et Planification', pageWidth / 2, 28, { align: 'center' });
-            
-            pdf.setFontSize(18);
-            pdf.text('BULLETIN DE NOTES', pageWidth / 2, 40, { align: 'center' });
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(0, 0, 0);
+            pdf.text('SEMINAIRE COMMUNAL DE FORMATION ISLAMIQUE', pageWidth / 2, y, { align: 'center' });
+
+            y += 10;
+
+            // Badge "BULLETIN DU SEFIMAP 2025"
+            const badgeWidth = 80;
+            const badgeHeight = 10;
+            const badgeX = (pageWidth - badgeWidth) / 2;
+            pdf.setFillColor(80, 80, 80);
+            pdf.roundedRect(badgeX, y, badgeWidth, badgeHeight, 2, 2, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(11);
+            pdf.text('BULLETIN DU SEFIMAP 2025', pageWidth / 2, y + 7, { align: 'center' });
+
+            y += 18;
+
+            // ===== INFORMATIONS DU PARTICIPANT AVEC PHOTO =====
+            const photoWidth = 30;
+            const photoHeight = 35;
+            const photoX = pageWidth - margin - photoWidth;
+            const infoStartY = y;
+
+            // Cadre photo à droite
+            pdf.setDrawColor(200, 120, 50); // Couleur orange/marron comme sur l'image
+            pdf.setLineWidth(1);
+            pdf.rect(photoX, y, photoWidth, photoHeight, 'S');
 
             // Photo du participant
             const photoUrl = note.inscription?.photo_url;
-            let y = 55;
-            
             if (photoUrl) {
                 try {
-                    const base64Image = await loadImageAsBase64(photoUrl);
-                    if (base64Image) {
-                        // Cadre photo
-                        pdf.setDrawColor(niveauColor.r, niveauColor.g, niveauColor.b);
-                        pdf.setLineWidth(1);
-                        pdf.roundedRect(14, y, 35, 40, 3, 3, 'S');
-                        pdf.addImage(base64Image, 'JPEG', 15, y + 1, 33, 38);
+                    const photoBase64 = await loadImageAsBase64(photoUrl);
+                    if (photoBase64) {
+                        pdf.addImage(photoBase64, 'JPEG', photoX + 1, y + 1, photoWidth - 2, photoHeight - 2);
                     }
-                } catch (err) {
-                    // Placeholder photo
-                    pdf.setFillColor(229, 231, 235);
-                    pdf.roundedRect(14, y, 35, 40, 3, 3, 'F');
-                    pdf.setTextColor(107, 114, 128);
-                    pdf.setFontSize(10);
-                    pdf.text('Photo', 25, y + 22);
+                } catch (e) {
+                    console.error('Erreur photo:', e);
                 }
-            } else {
-                // Placeholder si pas de photo
-                pdf.setFillColor(229, 231, 235);
-                pdf.roundedRect(14, y, 35, 40, 3, 3, 'F');
-                pdf.setTextColor(107, 114, 128);
-                pdf.setFontSize(10);
-                pdf.text('Photo', 25, y + 22);
             }
 
-            // Informations de l'élève
+            // Informations du participant (à gauche de la photo)
             pdf.setTextColor(0, 0, 0);
-            pdf.setFontSize(12);
-            pdf.setFont('helvetica', 'bold');
-            
-            const infoX = 55;
-            pdf.text('Nom:', infoX, y + 8);
-            pdf.text('Prénom:', infoX, y + 16);
-            pdf.text('Classe:', infoX, y + 24);
-            pdf.text('Dortoir:', infoX, y + 32);
-
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(note.inscription?.nom || '-', infoX + 35, y + 8);
-            pdf.text(note.inscription?.prenom || '-', infoX + 35, y + 16);
-            pdf.text(note.classe?.nom || '-', infoX + 35, y + 24);
-            pdf.text(getDortoirNom(note.inscription?.dortoir_id), infoX + 35, y + 32);
-
-            // Tableau des notes
-            y = 105;
-            
-            // En-tête du tableau
-            pdf.setFillColor(niveauColor.r, niveauColor.g, niveauColor.b);
-            pdf.rect(14, y, pageWidth - 28, 10, 'F');
-            pdf.setTextColor(255, 255, 255);
             pdf.setFontSize(11);
             pdf.setFont('helvetica', 'bold');
-            pdf.text('Évaluation', 20, y + 7);
-            pdf.text('Note', 130, y + 7);
-            pdf.text('Observation', 155, y + 7);
+            pdf.text('NOM DU SEMINARISTE : ', margin, y + 5);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(`${note.inscription?.nom || ''} ${note.inscription?.prenom || ''}`.toUpperCase(), margin + 50, y + 5);
 
             y += 12;
-            pdf.setTextColor(0, 0, 0);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('NIVEAU:', margin, y);
             pdf.setFont('helvetica', 'normal');
+            pdf.text(niveauLabel, margin + 20, y);
 
-            // Liste des notes (entrée, cahiers, conduite, sortie)
-            const notesListe = [
-                { label: 'Test d\'entrée', value: note.note_entree },
-                { label: 'Note des cahiers', value: note.note_cahiers },
-                { label: 'Note de conduite', value: note.note_conduite },
-                { label: 'Examen de sortie', value: note.note_sortie }
+            // Ajuster y pour après la photo
+            y = infoStartY + photoHeight + 8;
+
+            // ===== TABLEAU DES NOTES =====
+            const tableX = margin;
+            const tableWidth = pageWidth - (2 * margin);
+            const col1Width = 60; // EVALUATIONS
+            const col2Width = 50; // NOTES
+            const col3Width = tableWidth - col1Width - col2Width; // OBSERVATION
+            const rowHeight = 12;
+
+            // En-tête du tableau (gris foncé)
+            pdf.setFillColor(70, 70, 70);
+            pdf.rect(tableX, y, tableWidth, rowHeight, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('EVALUATIONS', tableX + 5, y + 8);
+            pdf.text('NOTES', tableX + col1Width + 15, y + 8);
+            pdf.text('OBSERVATION', tableX + col1Width + col2Width + 10, y + 8);
+
+            y += rowHeight;
+
+            // Lignes du tableau
+            const notesData = [
+                { label: 'NOTE 1', value: note1 },
+                { label: 'NOTE 2', value: note2 },
+                { label: 'CONDUITE', value: conduite },
+                { label: 'TEST DE SORTIE', value: testSortie }
             ];
 
-            notesListe.forEach((item, i) => {
-                // Alternance couleur
-                if (i % 2 === 0) {
-                    pdf.setFillColor(
-                        Math.min(255, niveauColor.r + 180),
-                        Math.min(255, niveauColor.g + 180),
-                        Math.min(255, niveauColor.b + 180)
-                    );
-                    pdf.rect(14, y - 3, pageWidth - 28, 10, 'F');
+            // Dessiner les bordures verticales et horizontales
+            pdf.setDrawColor(150, 150, 150);
+            pdf.setLineWidth(0.3);
+
+            // Calculer la hauteur totale pour la colonne Observation fusionnée (4 lignes de notes)
+            const observationTotalHeight = rowHeight * 4;
+            const observationStartY = y;
+
+            notesData.forEach((item, index) => {
+                // Fond alterné
+                if (index % 2 === 0) {
+                    pdf.setFillColor(245, 245, 245);
+                    pdf.rect(tableX, y, col1Width + col2Width, rowHeight, 'F');
                 }
 
-                const noteVal = parseFloat(item.value);
-                pdf.text(item.label, 20, y + 3);
-                pdf.text(`${!isNaN(noteVal) ? noteVal.toFixed(1) : '-'}/20`, 130, y + 3);
-                
-                // Observation selon la note
-                const obs = !isNaN(noteVal) ? (noteVal >= 10 ? 'Acquis' : 'À revoir') : '-';
-                pdf.text(obs, 155, y + 3);
+                // Bordures pour les 2 premières colonnes seulement
+                pdf.rect(tableX, y, col1Width, rowHeight, 'S');
+                pdf.rect(tableX + col1Width, y, col2Width, rowHeight, 'S');
 
-                y += 10;
+                // Texte
+                pdf.setTextColor(0, 0, 0);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(10);
+                pdf.text(item.label, tableX + 5, y + 8);
+
+                pdf.setFont('helvetica', 'normal');
+                // Note avec /20
+                pdf.text(String(item.value), tableX + col1Width + 15, y + 8);
+                pdf.setFontSize(9);
+                pdf.text('/20', tableX + col1Width + 30, y + 8);
+
+                y += rowHeight;
             });
 
-            // Ligne de séparation
-            y += 5;
-            pdf.setDrawColor(niveauColor.r, niveauColor.g, niveauColor.b);
-            pdf.setLineWidth(0.5);
-            pdf.line(14, y, pageWidth - 14, y);
+            // Colonne Observation fusionnée sur 4 lignes
+            pdf.rect(tableX + col1Width + col2Width, observationStartY, col3Width, observationTotalHeight, 'S');
 
-            // Moyenne générale
-            y += 12;
-            pdf.setFillColor(niveauColor.r, niveauColor.g, niveauColor.b);
-            pdf.roundedRect(14, y - 5, pageWidth - 28, 20, 3, 3, 'F');
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(14);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('MOYENNE GÉNÉRALE', 20, y + 6);
-            pdf.setFontSize(18);
-            pdf.text(`${moyenne.toFixed(2)}/20`, 155, y + 6);
-
-            // Appréciation
-            y += 30;
+            // Contenu de la colonne Observation (centré verticalement)
+            const obsCenterY = observationStartY + (observationTotalHeight / 2);
             pdf.setTextColor(0, 0, 0);
-            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'italic');
+            pdf.setFontSize(10);
+            pdf.text('Moyenne', tableX + col1Width + col2Width + 10, obsCenterY - 8);
             pdf.setFont('helvetica', 'bold');
-            pdf.text('Appréciation générale:', 20, y);
-            
-            pdf.setFontSize(16);
-            const hexColor = appreciation.color;
-            const r = parseInt(hexColor.slice(1, 3), 16);
-            const g = parseInt(hexColor.slice(3, 5), 16);
-            const b = parseInt(hexColor.slice(5, 7), 16);
-            pdf.setTextColor(r, g, b);
-            pdf.text(appreciation.text, 80, y);
+            pdf.text(moyenne.toFixed(2), tableX + col1Width + col2Width + 45, obsCenterY - 8);
 
-            // Signature
-            y += 20;
+            pdf.setFont('helvetica', 'italic');
+            pdf.setFontSize(10);
+            pdf.text('Rang', tableX + col1Width + col2Width + 10, obsCenterY + 8);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(rang, tableX + col1Width + col2Width + 45, obsCenterY + 8);
+
+            // Ligne TOTAL
+            pdf.setFillColor(245, 245, 245);
+            pdf.rect(tableX, y, tableWidth, rowHeight, 'F');
+            pdf.rect(tableX, y, col1Width, rowHeight, 'S');
+            pdf.rect(tableX + col1Width, y, col2Width, rowHeight, 'S');
+            pdf.rect(tableX + col1Width + col2Width, y, col3Width, rowHeight, 'S');
+
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
+            pdf.text('TOTAL :', tableX + 5, y + 8);
+            pdf.text(String(total), tableX + col1Width + 15, y + 8);
+            pdf.setFontSize(9);
+            pdf.text('/80', tableX + col1Width + 30, y + 8);
+
+            y += rowHeight + 5;
+
+            // ===== SECTION MANAGER / MOT DU FORMATEUR =====
+            const halfWidth = (tableWidth / 2);
+
+            // En-tête gris
+            pdf.setFillColor(70, 70, 70);
+            pdf.rect(tableX, y, halfWidth, 10, 'F');
+            pdf.rect(tableX + halfWidth, y, halfWidth, 10, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('MANAGER', tableX + halfWidth / 2, y + 7, { align: 'center' });
+            pdf.text('MOT DU FORMATEUR', tableX + halfWidth + halfWidth / 2, y + 7, { align: 'center' });
+
+            y += 15;
+
+            // Contenu
             pdf.setTextColor(0, 0, 0);
             pdf.setFontSize(10);
             pdf.setFont('helvetica', 'normal');
-            pdf.text('Signature du Responsable Scientifique:', 14, y);
-            pdf.line(14, y + 15, 80, y + 15);
+            pdf.text('Oustaz Sanga Moussa', tableX + halfWidth / 2, y + 5, { align: 'center' });
+            pdf.text('Imam Ballo Souleymane', tableX + halfWidth + halfWidth / 2, y + 5, { align: 'center' });
 
-            pdf.text('Date:', 140, y);
-            pdf.text(new Date().toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric'
-            }), 155, y);
+            y += 12;
 
-            // Pied de page
+            // Message de félicitation (à droite)
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(9);
+            const felicitationLines = pdf.splitTextToSize('FELICITATION CHERS PARENTS POUR LE SUIVI ISLAMIQUE DE VOTRE ENFANT', halfWidth - 10);
+            pdf.text(felicitationLines, tableX + halfWidth + 5, y);
+
+            // Espace vide réservé pour cachets et signatures (à gauche) - pas de cercle ni ligne
+            // Cet espace sera utilisé pour apposer les cachets et signatures physiquement
+
+            y += 30;
+
+            // Date
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            const today = new Date();
+            const dateStr = `${String(today.getDate()).padStart(2, '0')} /${String(today.getMonth() + 1).padStart(2, '0')} /${today.getFullYear()}`;
+            pdf.text(`Fait à Abidjan le ${dateStr}`, tableX, y);
+
+            y += 15;
+
+            // ===== PIED DE PAGE =====
+            // Message de conservation
+            pdf.setFont('helvetica', 'italic');
+            pdf.setFontSize(9);
+            pdf.text('Conservez précieusement ce présent bulletin jusqu\'au prochain séminaire du SEFIMAP', pageWidth / 2, y, { align: 'center' });
+
+            y += 8;
+
+            // Ligne de séparation
+            pdf.setDrawColor(0, 0, 0);
+            pdf.setLineWidth(0.5);
+            pdf.line(margin, y, pageWidth - margin, y);
+
+            y += 6;
+
+            // Informations de contact
+            pdf.setFont('helvetica', 'normal');
             pdf.setFontSize(8);
-            pdf.setTextColor(128, 128, 128);
-            pdf.text('SEFIMAP - Bulletin généré automatiquement', pageWidth / 2, 285, { align: 'center' });
+            pdf.setTextColor(100, 100, 100);
+            pdf.text('Secrétariats Régional Abidjan Sud / Sous-comité de Port-bouet', pageWidth / 2, y, { align: 'center' });
+            y += 4;
+            pdf.text('Cel: (+225) 07 47 68 14 61 / 07 78 74 26 95', pageWidth / 2, y, { align: 'center' });
+            y += 4;
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('AEEMCI, pour une identité islamique !', pageWidth / 2, y, { align: 'center' });
 
             // Télécharger
             const fileName = `bulletin_${note.inscription?.nom}_${note.inscription?.prenom}.pdf`;
@@ -312,7 +456,7 @@ export default function GestionBulletins() {
         } finally {
             setExporting(false);
         }
-    }, [getDortoirNom]);
+    }, [getDortoirNom, participantsAvecNotes, calculerRang, loadImageAsBase64]);
 
     // Générer tous les bulletins
     const genererTousBulletins = useCallback(async () => {
@@ -324,14 +468,14 @@ export default function GestionBulletins() {
         setExporting(true);
         try {
             for (const note of participantsFiltres) {
-                await genererBulletin(note);
+                await genererBulletin(note, participantsAvecNotes);
                 // Petite pause entre chaque génération
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         } finally {
             setExporting(false);
         }
-    }, [participantsFiltres, genererBulletin]);
+    }, [participantsFiltres, genererBulletin, participantsAvecNotes]);
 
     // Classes uniques pour le filtre
     const classesUniques = useMemo(() => {
@@ -597,7 +741,7 @@ export default function GestionBulletins() {
                                                 <td className="p-3">
                                                     <Button
                                                         size="sm"
-                                                        onClick={() => genererBulletin(note)}
+                                                        onClick={() => genererBulletin(note, participantsAvecNotes)}
                                                         disabled={exporting}
                                                         className="gap-1"
                                                     >

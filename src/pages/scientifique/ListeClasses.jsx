@@ -357,6 +357,27 @@ export function ListeClasses() {
         niveau_superieur: { label: 'Niveau Supérieur', color: 'success' },
     };
 
+    // Calculer le rang d'un participant dans sa classe
+    const calculerRang = useCallback((participant, classeId) => {
+        if (!participant.moyenne) return '-';
+
+        // Obtenir tous les participants de la même classe avec une moyenne
+        const participantsClasse = (participantsParClasse[classeId] || [])
+            .filter(p => p.moyenne !== null && p.moyenne !== undefined);
+
+        // Trier par moyenne décroissante
+        const tries = [...participantsClasse].sort((a, b) =>
+            parseFloat(b.moyenne) - parseFloat(a.moyenne)
+        );
+
+        // Trouver le rang
+        const rang = tries.findIndex(p => p.id === participant.id) + 1;
+
+        if (rang === 0) return '-';
+        if (rang === 1) return '1er';
+        return `${rang}ème`;
+    }, [participantsParClasse]);
+
     return (
         <div className="p-4 lg:p-6 space-y-6">
             {/* Header */}
@@ -453,7 +474,8 @@ export function ListeClasses() {
                                                     <tr className="border-b border-border-light dark:border-border-dark">
                                                         <th className="text-left py-2 px-3 text-sm font-medium text-text-secondary">N°</th>
                                                         <th className="text-left py-2 px-3 text-sm font-medium text-text-secondary">Participant</th>
-                                                        <th className="text-center py-2 px-3 text-sm font-medium text-text-secondary">Note entrée</th>
+                                                        <th className="text-center py-2 px-3 text-sm font-medium text-text-secondary">Moyenne</th>
+                                                        <th className="text-center py-2 px-3 text-sm font-medium text-text-secondary">Rang</th>
                                                         <th className="text-left py-2 px-3 text-sm font-medium text-text-secondary">Dortoir</th>
                                                         <th className="text-center py-2 px-3 text-sm font-medium text-text-secondary">Sexe</th>
                                                         <th className="text-center py-2 px-3 text-sm font-medium text-text-secondary">Action</th>
@@ -487,7 +509,10 @@ export function ListeClasses() {
                                                                 </div>
                                                             </td>
                                                             <td className="py-2 px-3 text-center font-medium text-text-main dark:text-white">
-                                                                {participant.note_entree?.toFixed(1) || '-'}
+                                                                {participant.moyenne ? parseFloat(participant.moyenne).toFixed(2) : '-'}
+                                                            </td>
+                                                            <td className="py-2 px-3 text-center font-medium text-text-main dark:text-white">
+                                                                {calculerRang(participant, classe.id)}
                                                             </td>
                                                             <td className="py-2 px-3 text-text-main dark:text-white">
                                                                 {getDortoirNom(participant.inscription?.dortoir_id)}
@@ -641,13 +666,21 @@ export function ListeClasses() {
                                         </div>
                                     </div>
 
-                                    {/* Moyenne */}
+                                    {/* Moyenne et Rang */}
                                     {selectedParticipant.moyenne && (
-                                        <div className="mt-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                                            <p className="text-xs text-blue-600 dark:text-blue-400">Moyenne générale</p>
-                                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                                {parseFloat(selectedParticipant.moyenne).toFixed(2)} /20
-                                            </p>
+                                        <div className="mt-3 grid grid-cols-2 gap-3">
+                                            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                                <p className="text-xs text-blue-600 dark:text-blue-400">Moyenne générale</p>
+                                                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                                    {parseFloat(selectedParticipant.moyenne).toFixed(2)} /20
+                                                </p>
+                                            </div>
+                                            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+                                                <p className="text-xs text-green-600 dark:text-green-400">Rang dans la classe</p>
+                                                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                                    {calculerRang(selectedParticipant, selectedParticipant.classe_id)}
+                                                </p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

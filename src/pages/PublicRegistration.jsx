@@ -177,6 +177,7 @@ export function PublicRegistration() {
             const photoUrl = await uploadPhoto(photoFile, 'inscription');
 
             // 2. Créer l'inscription avec l'URL de la photo
+            // Workflow: les inscriptions en ligne commencent en attente de validation financière
             const { error } = await supabase
                 .from('inscriptions')
                 .insert({
@@ -196,6 +197,8 @@ export function PublicRegistration() {
                     chef_quartier_id: data.chefQuartier,
                     type_inscription: 'en_ligne',
                     statut: 'en_attente',
+                    // Workflow: inscription en ligne -> en attente de validation par la finance
+                    statut_workflow: 'en_attente_finance',
                     admin_id: null,
                     photo_url: photoUrl,
                     montant_total_paye: data.montantPaye || 0,

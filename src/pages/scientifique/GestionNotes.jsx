@@ -231,6 +231,28 @@ export function GestionNotes() {
         niveau_superieur: { label: 'Niveau Supérieur', color: 'success' },
     };
 
+    // Calculer le rang d'un participant dans sa classe
+    const calculerRang = useCallback((note) => {
+        if (!note.moyenne || !note.classe_id) return '-';
+
+        // Filtrer les participants de la même classe avec une moyenne
+        const memeClasse = notesExamens.filter(n =>
+            n.classe_id === note.classe_id &&
+            n.moyenne !== null &&
+            n.moyenne !== undefined
+        );
+
+        // Trier par moyenne décroissante
+        const triee = [...memeClasse].sort((a, b) => parseFloat(b.moyenne) - parseFloat(a.moyenne));
+
+        // Trouver le rang
+        const rang = triee.findIndex(n => n.id === note.id) + 1;
+
+        if (rang === 0) return '-';
+        if (rang === 1) return '1er';
+        return `${rang}ème`;
+    }, [notesExamens]);
+
     return (
         <div className="p-4 lg:p-6 space-y-6">
             {/* Header */}
@@ -306,6 +328,7 @@ export function GestionNotes() {
                                         <th className="text-center py-3 px-2 text-sm font-medium text-text-secondary">Conduite</th>
                                         <th className="text-center py-3 px-2 text-sm font-medium text-text-secondary">Sortie</th>
                                         <th className="text-center py-3 px-2 text-sm font-medium text-text-secondary">Moyenne</th>
+                                        <th className="text-center py-3 px-2 text-sm font-medium text-text-secondary">Rang</th>
                                         <th className="text-center py-3 px-2 text-sm font-medium text-text-secondary">Action</th>
                                     </tr>
                                 </thead>
@@ -394,6 +417,11 @@ export function GestionNotes() {
                                                 </td>
                                                 <td className="py-3 px-2 text-center">
                                                     {getMoyenneBadge(note.moyenne, calculatePreviewMoyenne(note))}
+                                                </td>
+                                                <td className="py-3 px-2 text-center">
+                                                    <span className="font-medium text-text-main dark:text-white">
+                                                        {calculerRang(note)}
+                                                    </span>
                                                 </td>
                                                 <td className="py-3 px-2 text-center">
                                                     <Button
