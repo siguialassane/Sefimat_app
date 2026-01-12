@@ -179,16 +179,22 @@ export function DataProvider({ children }) {
 
   // === MISE À JOUR INCRÉMENTALE (plus rapide que rechargement complet) ===
   const handleInscriptionChange = useCallback(async (payload) => {
+    // Protection: ne pas exécuter si l'utilisateur n'est pas connecté
+    if (!user || !isMountedRef.current) {
+      console.log('DataContext: Changement inscription ignoré (pas de user ou unmounted)');
+      return;
+    }
+
     console.log('DataContext: Changement inscription:', payload.eventType);
-    
+
     if (payload.eventType === 'INSERT') {
       // Charger la nouvelle inscription avec ses relations
       const { data, error } = await supabase
         .from('inscriptions')
-        .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+        .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone), dortoir:dortoirs(id, nom)`)
         .eq('id', payload.new.id)
         .single();
-      
+
       if (!error && data && isMountedRef.current) {
         setInscriptions(prev => [data, ...prev]);
         setLastUpdate(new Date());
@@ -196,10 +202,10 @@ export function DataProvider({ children }) {
     } else if (payload.eventType === 'UPDATE') {
       const { data, error } = await supabase
         .from('inscriptions')
-        .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+        .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone), dortoir:dortoirs(id, nom)`)
         .eq('id', payload.new.id)
         .single();
-      
+
       if (!error && data && isMountedRef.current) {
         setInscriptions(prev => prev.map(i => i.id === data.id ? data : i));
         setLastUpdate(new Date());
@@ -210,9 +216,15 @@ export function DataProvider({ children }) {
         setLastUpdate(new Date());
       }
     }
-  }, []);
+  }, [user]);
 
   const handlePaiementChange = useCallback(async (payload) => {
+    // Protection: ne pas exécuter si l'utilisateur n'est pas connecté
+    if (!user || !isMountedRef.current) {
+      console.log('DataContext: Changement paiement ignoré (pas de user ou unmounted)');
+      return;
+    }
+
     console.log('DataContext: Changement paiement:', payload.eventType);
 
     if (payload.eventType === 'INSERT') {
@@ -228,7 +240,7 @@ export function DataProvider({ children }) {
         if (payload.new.inscription_id) {
           const { data: inscData } = await supabase
             .from('inscriptions')
-            .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+            .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone), dortoir:dortoirs(id, nom)`)
             .eq('id', payload.new.inscription_id)
             .single();
           if (inscData) {
@@ -250,7 +262,7 @@ export function DataProvider({ children }) {
         if (payload.new.inscription_id) {
           const { data: inscData } = await supabase
             .from('inscriptions')
-            .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone)`)
+            .select(`*, chef_quartier:chefs_quartier(id, nom_complet, zone), dortoir:dortoirs(id, nom)`)
             .eq('id', payload.new.inscription_id)
             .single();
           if (inscData) {
@@ -265,10 +277,16 @@ export function DataProvider({ children }) {
         setLastUpdate(new Date());
       }
     }
-  }, []);
+  }, [user]);
 
   // === HANDLER POUR NOTES EXAMENS (Cellule Scientifique) ===
   const handleNotesChange = useCallback(async (payload) => {
+    // Protection: ne pas exécuter si l'utilisateur n'est pas connecté
+    if (!user || !isMountedRef.current) {
+      console.log('DataContext: Changement notes ignoré (pas de user ou unmounted)');
+      return;
+    }
+
     console.log('DataContext: Changement notes_examens:', payload.eventType);
 
     if (payload.eventType === 'INSERT') {
@@ -307,10 +325,16 @@ export function DataProvider({ children }) {
         setLastUpdate(new Date());
       }
     }
-  }, []);
+  }, [user]);
 
   // === HANDLER POUR CLASSES ===
   const handleClassesChange = useCallback(async (payload) => {
+    // Protection: ne pas exécuter si l'utilisateur n'est pas connecté
+    if (!user || !isMountedRef.current) {
+      console.log('DataContext: Changement classes ignoré (pas de user ou unmounted)');
+      return;
+    }
+
     console.log('DataContext: Changement classes:', payload.eventType);
 
     if (payload.eventType === 'INSERT') {
@@ -338,7 +362,7 @@ export function DataProvider({ children }) {
         setLastUpdate(new Date());
       }
     }
-  }, []);
+  }, [user]);
 
   // === EFFET PRINCIPAL: Charger les données et s'abonner aux changements ===
   useEffect(() => {
@@ -346,6 +370,16 @@ export function DataProvider({ children }) {
 
     // Ne charger que si l'utilisateur est connecté
     if (!user) {
+      console.log('DataContext: Utilisateur déconnecté, nettoyage...');
+
+      // IMPORTANT: Supprimer la subscription Realtime AVANT de réinitialiser les données
+      if (channelRef.current) {
+        console.log('DataContext: Suppression subscription Realtime (déconnexion)');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+
+      // Réinitialiser toutes les données
       setInscriptions([]);
       setChefsQuartier([]);
       setDortoirs([]);
@@ -354,6 +388,9 @@ export function DataProvider({ children }) {
       setClasses([]);
       setConfigCapaciteClasses([]);
       setInitialLoaded(false);
+      setLoading(false);
+      setError(null);
+      isLoadingRef.current = false;
       return;
     }
 
@@ -390,16 +427,17 @@ export function DataProvider({ children }) {
         });
     }
 
+    // Cleanup quand l'effet se re-exécute (changement de user)
     return () => {
       isMountedRef.current = false;
     };
   }, [user, loadAllData, handleInscriptionChange, handlePaiementChange, handleNotesChange, handleClassesChange]);
 
-  // === CLEANUP: Supprimer la subscription à la déconnexion ===
+  // === CLEANUP FINAL: Supprimer la subscription au démontage du composant ===
   useEffect(() => {
     return () => {
       if (channelRef.current) {
-        console.log('DataContext: Suppression subscription Realtime');
+        console.log('DataContext: Suppression subscription Realtime (unmount)');
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
@@ -437,14 +475,22 @@ export function DataProvider({ children }) {
     return loadAllData(true);
   }, [loadAllData]);
 
+  // Ajout local d'une inscription (optimistic update)
+  const addInscriptionLocal = useCallback((inscription) => {
+    setInscriptions(prev => [inscription, ...prev]);
+    setLastUpdate(new Date());
+  }, []);
+
   // Mise à jour locale d'une inscription (optimistic update)
   const updateInscriptionLocal = useCallback((id, updates) => {
     setInscriptions(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+    setLastUpdate(new Date());
   }, []);
 
   // Suppression locale d'une inscription (optimistic update)
   const deleteInscriptionLocal = useCallback((id) => {
     setInscriptions(prev => prev.filter(i => i.id !== id));
+    setLastUpdate(new Date());
   }, []);
 
   // Mise à jour locale d'une note (optimistic update)
@@ -502,6 +548,7 @@ export function DataProvider({ children }) {
 
     // Actions
     refresh,
+    addInscriptionLocal,
     updateInscriptionLocal,
     deleteInscriptionLocal,
 

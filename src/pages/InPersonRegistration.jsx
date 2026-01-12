@@ -21,7 +21,7 @@ import {
     DollarSign,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts";
+import { useAuth, useData } from "@/contexts";
 import { uploadPhoto } from "@/lib/storage";
 import { DormitoryDropdown } from "@/components/DormitoryDropdown";
 
@@ -51,6 +51,7 @@ const registrationSchema = z.object({
 
 export function InPersonRegistration() {
     const { user } = useAuth();
+    const { addInscriptionLocal } = useData();
     const [isLoading, setIsLoading] = useState(false);
     const [registrations, setRegistrations] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
@@ -226,7 +227,8 @@ export function InPersonRegistration() {
 
             if (error) throw error;
 
-            // 3. Créer le paiement si montant > 0 (pour cohérence et validation financière)
+            // 3. Créer le paiement si montant > 0 (pour cohérence)
+            // Les inscriptions présentielles sont automatiquement validées, donc le paiement aussi
             if (data.montantPaye > 0) {
                 const { error: paiementError } = await supabase
                     .from('paiements')
@@ -234,17 +236,30 @@ export function InPersonRegistration() {
                         inscription_id: inscription.id,
                         montant: data.montantPaye,
                         mode_paiement: 'especes',
-                        statut: 'attente', // En attente de validation financière
+                        statut: 'valide', // Validé automatiquement pour inscriptions présentielles
                         type_paiement: 'inscription',
+                        valide_par: user.id,
+                        date_validation: new Date().toISOString(),
                     });
-                
+
                 if (paiementError) {
                     console.error("Erreur enregistrement paiement:", paiementError);
                     // On continue car l'inscription est déjà créée
                 }
             }
 
-            // Ajouter aux inscriptions récentes
+            // Ajouter l'inscription au DataContext global pour mise à jour immédiate
+            // Trouver le dortoir correspondant pour les relations (utiliser les dortoirs locaux car déjà chargés)
+            const selectedDortoir = dortoirs.find(d => d.id === data.dortoirId) || { id: data.dortoirId, nom: 'Non défini' };
+
+            const inscriptionComplete = {
+                ...inscription,
+                dortoir: selectedDortoir,
+                chef_quartier: null, // Pas de chef quartier pour les présentielles
+            };
+            addInscriptionLocal(inscriptionComplete);
+
+            // Ajouter aux inscriptions récentes (affichage local)
             const newRegistration = {
                 id: inscription.id,
                 name: `${data.nom} ${data.prenom}`,

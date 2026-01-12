@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false); // Flag pour signaler la déconnexion
 
   // Refs pour la gestion des appels
   const isLoadingProfile = useRef(false);
@@ -287,17 +288,29 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
-    console.log("AuthContext: Déconnexion...");
+    console.log("AuthContext: Déconnexion en cours...");
+
+    // Signaler immédiatement que la déconnexion est en cours
+    setIsLoggingOut(true);
+
+    // Réinitialiser les états AVANT l'appel async pour éviter les race conditions
+    setUser(null);
+    setUserProfile(null);
+    setUserRole(null);
+    setAuthError(null);
+
+    // Reset les flags
+    isLoadingProfile.current = false;
+    isSigningIn.current = false;
+
     try {
       await supabase.auth.signOut();
+      console.log("AuthContext: Déconnexion réussie");
     } catch (e) {
       console.error("AuthContext: Erreur signOut", e);
       await clearCorruptedSession();
     } finally {
-      setUser(null);
-      setUserProfile(null);
-      setUserRole(null);
-      setAuthError(null);
+      setIsLoggingOut(false);
     }
   };
 
@@ -329,6 +342,7 @@ export function AuthProvider({ children }) {
     userRole,
     loading,
     authError,
+    isLoggingOut,
     signIn,
     signOut,
     refreshSession,

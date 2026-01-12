@@ -23,15 +23,27 @@ export function PaymentValidation() {
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Filtrer uniquement les paiements en attente de validation (workflow: en_attente_finance)
+    // Filtrer les paiements en attente de validation
+    // Inclut: inscriptions en ligne en attente finance OU inscriptions présentielles avec paiement partiel non validé
     const paiementsEnAttente = useMemo(() => {
-        return allInscriptions.filter(i =>
-            // Workflow: inscriptions en attente de validation financière
-            (i.statut_workflow === "en_attente_finance" || !i.statut_workflow) &&
-            (i.statut_paiement === "partiel" || i.statut_paiement === "non_payé") &&
-            i.statut_paiement !== "valide_financier" &&
-            i.statut_paiement !== "soldé"
-        );
+        return allInscriptions.filter(i => {
+            // Exclure les paiements déjà validés par le financier ou soldés
+            if (i.statut_paiement === "valide_financier" || i.statut_paiement === "soldé") {
+                return false;
+            }
+
+            // Cas 1: Inscriptions en ligne en attente de validation finance
+            if (i.type_inscription === "en_ligne" && i.statut_workflow === "en_attente_finance") {
+                return i.statut_paiement === "partiel" || i.statut_paiement === "non_payé";
+            }
+
+            // Cas 2: Inscriptions présentielles avec paiement partiel (à suivre par la finance)
+            if (i.type_inscription === "presentielle" && i.statut_paiement === "partiel") {
+                return true;
+            }
+
+            return false;
+        });
     }, [allInscriptions]);
 
     // Filtrer selon les critères de recherche

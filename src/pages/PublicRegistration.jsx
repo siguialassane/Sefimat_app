@@ -177,7 +177,12 @@ export function PublicRegistration() {
             const photoUrl = await uploadPhoto(photoFile, 'inscription');
 
             // 2. Créer l'inscription avec l'URL de la photo
-            // Workflow: les inscriptions en ligne commencent en attente de validation financière
+            // Workflow:
+            // - Si montant >= 4000F: validation automatique par finance, passe directement au secrétariat
+            // - Si montant < 4000F: en attente de validation par la finance
+            const montantPaye = data.montantPaye || 0;
+            const estPaiementComplet = montantPaye >= 4000;
+
             const { error } = await supabase
                 .from('inscriptions')
                 .insert({
@@ -197,12 +202,14 @@ export function PublicRegistration() {
                     chef_quartier_id: data.chefQuartier,
                     type_inscription: 'en_ligne',
                     statut: 'en_attente',
-                    // Workflow: inscription en ligne -> en attente de validation par la finance
-                    statut_workflow: 'en_attente_finance',
+                    // Workflow: si paiement complet (4000F), validation automatique finance -> secrétariat
+                    statut_workflow: estPaiementComplet ? 'en_attente_secretariat' : 'en_attente_finance',
+                    // Si paiement complet, marquer comme validé par finance automatiquement
+                    statut_paiement: estPaiementComplet ? 'valide_financier' : (montantPaye > 0 ? 'partiel' : 'non_payé'),
+                    date_validation_financier: estPaiementComplet ? new Date().toISOString() : null,
                     admin_id: null,
                     photo_url: photoUrl,
-                    montant_total_paye: data.montantPaye || 0,
-                    statut_paiement: data.montantPaye >= 4000 ? "soldé" : (data.montantPaye > 0 ? "partiel" : "non_payé"),
+                    montant_total_paye: montantPaye,
                 });
 
             if (error) throw error;

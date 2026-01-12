@@ -63,7 +63,7 @@ export function RegistrationManagement() {
         chefQuartier: "",
         niveau: "",
         sexe: "",
-        workflow: "en_attente_secretariat", // Par défaut, afficher les inscriptions à valider par le secrétariat
+        workflow: "", // Par défaut, afficher toutes les inscriptions (inclut les présentielles validées)
     });
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
