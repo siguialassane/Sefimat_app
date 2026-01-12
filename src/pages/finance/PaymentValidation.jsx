@@ -76,6 +76,11 @@ export function PaymentValidation() {
     }, [refresh]);
 
     const handleValidate = async (inscriptionId) => {
+        if (!user?.id) {
+            alert("Erreur: Utilisateur non connecté. Veuillez vous reconnecter.");
+            return;
+        }
+
         setActionLoading(true);
         try {
             const { error } = await supabase
@@ -109,6 +114,11 @@ export function PaymentValidation() {
     };
 
     const handleReject = async (inscriptionId) => {
+        if (!user?.id) {
+            alert("Erreur: Utilisateur non connecté. Veuillez vous reconnecter.");
+            return;
+        }
+
         if (!confirm("Êtes-vous sûr de vouloir refuser ce paiement ?")) return;
 
         setActionLoading(true);

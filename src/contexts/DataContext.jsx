@@ -45,6 +45,7 @@ export function DataProvider({ children }) {
   const isLoadingRef = useRef(false);
   const channelRef = useRef(null);
   const isMountedRef = useRef(true);
+  const initialLoadedRef = useRef(false); // Ref pour éviter la boucle de dépendances
 
   // === FONCTION DE CHARGEMENT PRINCIPAL ===
   const loadAllData = useCallback(async (forceReload = false) => {
@@ -53,8 +54,9 @@ export function DataProvider({ children }) {
       console.log('DataContext: Chargement déjà en cours, ignoré');
       return;
     }
-    
-    if (initialLoaded && !forceReload) {
+
+    // Utiliser la ref pour éviter les boucles de dépendances
+    if (initialLoadedRef.current && !forceReload) {
       console.log('DataContext: Données déjà en cache, pas de rechargement');
       return;
     }
@@ -69,7 +71,8 @@ export function DataProvider({ children }) {
       isLoadingRef.current = false;
       if (isMountedRef.current) {
         setLoading(false);
-        setInitialLoaded(true); // Marquer comme chargé même en cas de timeout
+        setInitialLoaded(true);
+        initialLoadedRef.current = true; // Marquer comme chargé même en cas de timeout
       }
     }, 15000);
 
@@ -150,6 +153,7 @@ export function DataProvider({ children }) {
         setClasses(classesRes.data || []);
         setConfigCapaciteClasses(configCapaciteRes.data || []);
         setInitialLoaded(true);
+        initialLoadedRef.current = true; // Mettre à jour la ref aussi
         setLastUpdate(new Date());
 
         const elapsed = Date.now() - startTime;
@@ -166,7 +170,8 @@ export function DataProvider({ children }) {
       console.error('DataContext: Erreur chargement:', err);
       if (isMountedRef.current) {
         setError(err.message || 'Erreur lors du chargement des données');
-        setInitialLoaded(true); // Marquer comme chargé même en erreur pour éviter boucle infinie
+        setInitialLoaded(true);
+        initialLoadedRef.current = true; // Marquer comme chargé même en erreur pour éviter boucle infinie
       }
     } finally {
       clearTimeout(timeoutId);
@@ -175,7 +180,7 @@ export function DataProvider({ children }) {
         setLoading(false);
       }
     }
-  }, [initialLoaded]);
+  }, []); // Aucune dépendance - utilise des refs pour éviter les boucles
 
   // === MISE À JOUR INCRÉMENTALE (plus rapide que rechargement complet) ===
   const handleInscriptionChange = useCallback(async (payload) => {
@@ -388,6 +393,7 @@ export function DataProvider({ children }) {
       setClasses([]);
       setConfigCapaciteClasses([]);
       setInitialLoaded(false);
+      initialLoadedRef.current = false; // Réinitialiser la ref aussi
       setLoading(false);
       setError(null);
       isLoadingRef.current = false;
@@ -471,6 +477,7 @@ export function DataProvider({ children }) {
 
   // === FONCTIONS EXPOSÉES ===
   const refresh = useCallback(() => {
+    initialLoadedRef.current = false; // Réinitialiser la ref
     setInitialLoaded(false); // Force le rechargement
     return loadAllData(true);
   }, [loadAllData]);
