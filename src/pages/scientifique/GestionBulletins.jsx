@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LazyImage } from '@/components/ui/lazy-image';
 import { useData } from '@/contexts/DataContext';
-import { supabase } from '@/lib/supabase';
 import jsPDF from 'jspdf';
 import {
     Download,
@@ -18,54 +17,49 @@ import {
     Loader2,
     AlertCircle,
     CheckCircle,
-    User
+    User,
+    RefreshCw
 } from 'lucide-react';
 
 export default function GestionBulletins() {
-    const { dortoirs } = useData();
-    const [loading, setLoading] = useState(true);
+    // Utiliser le DataContext global au lieu de charger localement
+    const { 
+        dortoirs, 
+        notesExamens, 
+        loading: dataLoading,
+        lastUpdate,
+        refresh 
+    } = useData();
+    
     const [exporting, setExporting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filtreNiveau, setFiltreNiveau] = useState('');
     const [filtreClasse, setFiltreClasse] = useState('');
-    const [notesExamens, setNotesExamens] = useState([]);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // Charger les notes d'examens avec inscriptions et classes
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('notes_examens')
-                .select(`
-                    *,
-                    inscription:inscriptions(id, nom, prenom, photo_url, sexe, age, dortoir_id),
-                    classe:classes(id, nom, niveau, numero)
-                `)
-                .not('classe_id', 'is', null);
+    // Fonction de rafraîchissement
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await refresh();
+        setRefreshing(false);
+    }, [refresh]);
 
-            if (error) throw error;
+    const loading = dataLoading || refreshing;
 
-            setNotesExamens(data || []);
-        } catch (err) {
-            console.error('Erreur chargement données:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    // Filtrer les notes avec classe_id assignée
+    const notesAvecClasse = useMemo(() => {
+        return notesExamens.filter(note => note.classe_id !== null);
+    }, [notesExamens]);
 
     // Filtrer les participants avec moyenne calculée (notes complètes)
     const participantsAvecNotes = useMemo(() => {
-        return notesExamens.filter(note => note.moyenne !== null);
-    }, [notesExamens]);
+        return notesAvecClasse.filter(note => note.moyenne !== null);
+    }, [notesAvecClasse]);
 
     // Participants sans notes complètes
     const participantsSansNotes = useMemo(() => {
-        return notesExamens.filter(note => note.moyenne === null);
-    }, [notesExamens]);
+        return notesAvecClasse.filter(note => note.moyenne === null);
+    }, [notesAvecClasse]);
 
     // Appliquer les filtres
     const participantsFiltres = useMemo(() => {
@@ -99,50 +93,21 @@ export default function GestionBulletins() {
         }
     };
 
-    // Convertir image en base64 avec support CORS amélioré
-    const loadImageAsBase64 = async (url, timeout = 10000) => {
-        return new Promise((resolve) => {
-            // Créer un timeout pour éviter les blocages
-            const timeoutId = setTimeout(() => {
-                console.warn('Timeout lors du chargement de l\'image:', url);
-                resolve(null);
-            }, timeout);
-
-            const img = new Image();
-            img.crossOrigin = 'anonymous'; // Important pour CORS avec Supabase
-
-            img.onload = () => {
-                clearTimeout(timeoutId);
-                try {
-                    // Créer un canvas pour convertir l'image en base64
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-
-                    // Convertir en base64 (JPEG pour les photos, PNG pour les logos)
-                    const isPhoto = url.includes('photo') || url.includes('inscriptions');
-                    const format = isPhoto ? 'image/jpeg' : 'image/png';
-                    const quality = isPhoto ? 0.9 : 1.0;
-                    const dataUrl = canvas.toDataURL(format, quality);
-                    resolve(dataUrl);
-                } catch (err) {
-                    console.error('Erreur conversion image en base64:', err);
-                    resolve(null);
-                }
-            };
-
-            img.onerror = (err) => {
-                clearTimeout(timeoutId);
-                console.error('Erreur chargement image:', err, url);
-                resolve(null);
-            };
-
-            // Ajouter un cache-buster pour éviter les problèmes de cache CORS
-            const separator = url.includes('?') ? '&' : '?';
-            img.src = `${url}${separator}t=${Date.now()}`;
-        });
+    // Convertir image en base64
+    const loadImageAsBase64 = async (url) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            });
+        } catch (err) {
+            console.error('Erreur chargement image:', err);
+            return null;
+        }
     };
 
     // Charger les logos du bulletin
@@ -282,15 +247,9 @@ export default function GestionBulletins() {
             const photoUrl = note.inscription?.photo_url;
             if (photoUrl) {
                 try {
-                    console.log('Chargement de la photo:', photoUrl);
                     const photoBase64 = await loadImageAsBase64(photoUrl);
                     if (photoBase64) {
-                        // Détecter le format de l'image depuis le data URL
-                        const imageFormat = photoBase64.includes('data:image/png') ? 'PNG' : 'JPEG';
-                        pdf.addImage(photoBase64, imageFormat, photoX + 1, y + 1, photoWidth - 2, photoHeight - 2);
-                        console.log('Photo ajoutée au bulletin avec succès');
-                    } else {
-                        console.warn('Photo non chargée pour:', note.inscription?.nom, note.inscription?.prenom);
+                        pdf.addImage(photoBase64, 'JPEG', photoX + 1, y + 1, photoWidth - 2, photoHeight - 2);
                     }
                 } catch (e) {
                     console.error('Erreur photo:', e);
@@ -543,20 +502,36 @@ export default function GestionBulletins() {
                     </h1>
                     <p className="text-text-secondary mt-1">
                         Générer les bulletins de notes des participants
+                        {lastUpdate && (
+                            <span className="ml-2 text-xs">
+                                • Mis à jour: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
                     </p>
                 </div>
-                <Button
-                    onClick={genererTousBulletins}
-                    disabled={exporting || participantsFiltres.length === 0}
-                    className="gap-2"
-                >
-                    {exporting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Download className="h-4 w-4" />
-                    )}
-                    Exporter tous les bulletins
-                </Button>
+                <div className="flex gap-2">
+                    <Button 
+                        variant="outline"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                        Actualiser
+                    </Button>
+                    <Button 
+                        onClick={genererTousBulletins}
+                        disabled={exporting || participantsFiltres.length === 0}
+                        className="gap-2"
+                    >
+                        {exporting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4" />
+                        )}
+                        Exporter tous les bulletins
+                    </Button>
+                </div>
             </div>
 
             {/* Statistiques */}
@@ -570,7 +545,7 @@ export default function GestionBulletins() {
                             <div>
                                 <p className="text-sm text-text-secondary">Total participants</p>
                                 <p className="text-2xl font-bold text-text-main dark:text-white">
-                                    {notesExamens.length}
+                                    {notesAvecClasse.length}
                                 </p>
                             </div>
                         </div>
@@ -694,7 +669,7 @@ export default function GestionBulletins() {
                         <div className="text-center py-12">
                             <FileText className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
                             <p className="text-text-secondary">
-                                {participantsAvecNotes.length === 0
+                                {participantsAvecNotes.length === 0 
                                     ? 'Aucun participant n\'a encore toutes ses notes (cahiers, conduite, sortie)'
                                     : 'Aucun résultat pour ces filtres'}
                             </p>
@@ -719,9 +694,9 @@ export default function GestionBulletins() {
                                     {participantsFiltres.map((note) => {
                                         const moyenne = parseFloat(note.moyenne);
                                         const appreciation = getAppreciation(moyenne);
-
+                                        
                                         return (
-                                            <tr
+                                            <tr 
                                                 key={note.id}
                                                 className="border-b dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-800/50"
                                             >
@@ -746,9 +721,9 @@ export default function GestionBulletins() {
                                                 <td className="p-3">
                                                     <Badge variant={
                                                         note.classe?.niveau === 'niveau_superieur' ? 'success' :
-                                                            note.classe?.niveau === 'niveau_3' ? 'default' :
-                                                                note.classe?.niveau === 'niveau_2' ? 'warning' :
-                                                                    'destructive'
+                                                        note.classe?.niveau === 'niveau_3' ? 'default' :
+                                                        note.classe?.niveau === 'niveau_2' ? 'warning' :
+                                                        'destructive'
                                                     }>
                                                         {note.classe?.nom || '-'}
                                                     </Badge>
@@ -766,7 +741,7 @@ export default function GestionBulletins() {
                                                     {parseFloat(note.note_sortie)?.toFixed(1) || '-'}
                                                 </td>
                                                 <td className="p-3">
-                                                    <span
+                                                    <span 
                                                         className="font-bold"
                                                         style={{ color: appreciation.color }}
                                                     >

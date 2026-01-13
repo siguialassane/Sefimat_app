@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -19,6 +19,7 @@ import {
     User,
     GraduationCap,
     DollarSign,
+    RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useData } from "@/contexts";
@@ -51,16 +52,40 @@ const registrationSchema = z.object({
 
 export function InPersonRegistration() {
     const { user } = useAuth();
-    const { addInscriptionLocal } = useData();
+    // Utiliser le DataContext pour les dortoirs (évite le bug de chargement)
+    const { 
+        dortoirs: contextDortoirs, 
+        addInscriptionLocal, 
+        refresh,
+        loading: dataLoading,
+        lastUpdate 
+    } = useData();
+    
     const [isLoading, setIsLoading] = useState(false);
     const [registrations, setRegistrations] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
     const [photoFile, setPhotoFile] = useState(null);
-    const [dortoirs, setDortoirs] = useState([]);
     const [dortoirStats, setDortoirStats] = useState([]);
     const [photoError, setPhotoError] = useState(null);
     const [photoKey, setPhotoKey] = useState(0);
     const [currentStep, setCurrentStep] = useState(1);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // Utiliser les dortoirs du DataContext
+    const dortoirs = contextDortoirs || [];
+
+    // Fonction de rafraîchissement
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await refresh();
+        // Recharger aussi les stats dortoirs
+        const { data } = await supabase
+            .from('vue_statistiques_dortoirs')
+            .select('*')
+            .order('nom');
+        if (data) setDortoirStats(data);
+        setRefreshing(false);
+    }, [refresh]);
 
     const steps = [
         { id: 1, title: "Identité", fields: ["nom", "prenom", "sexe", "age", "niveauEtude", "telephone", "ecole"] },
@@ -135,24 +160,7 @@ export function InPersonRegistration() {
         loadRecentRegistrations();
     }, [user]);
 
-    // Charger la liste des dortoirs
-    useEffect(() => {
-        async function loadDortoirs() {
-            const { data, error } = await supabase
-                .from('dortoirs')
-                .select('*')
-                .order('nom');
-
-            if (error) {
-                console.error('Erreur chargement dortoirs:', error);
-            } else {
-                setDortoirs(data || []);
-            }
-        }
-        loadDortoirs();
-    }, []);
-
-    // Charger les statistiques des dortoirs
+    // Charger les statistiques des dortoirs (vue personnalisée)
     useEffect(() => {
         async function loadDortoirStats() {
             const { data, error } = await supabase
@@ -175,6 +183,9 @@ export function InPersonRegistration() {
     }, []);
 
     const onSubmit = async (data) => {
+        console.log('=== DÉBUT ENREGISTREMENT ===');
+        console.log('Données formulaire:', data);
+
         // Valider que la photo est fournie
         if (!photoFile) {
             setPhotoError("La photo est obligatoire");
@@ -185,10 +196,13 @@ export function InPersonRegistration() {
         setIsLoading(true);
         try {
             // 1. Upload la photo vers Supabase Storage
+            console.log('Étape 1: Upload photo...');
             const photoUrl = await uploadPhoto(photoFile, 'presentiel');
+            console.log('Photo uploadée:', photoUrl);
 
             // 2. Créer l'inscription avec l'URL de la photo
             // NOTE: niveau_formation est null car il sera complété par la section scientifique
+            console.log('Étape 2: Insertion inscription...');
             const { data: inscription, error } = await supabase
                 .from('inscriptions')
                 .insert({
@@ -225,11 +239,16 @@ export function InPersonRegistration() {
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error('Erreur insertion inscription:', error);
+                throw error;
+            }
+            console.log('Inscription créée:', inscription.id);
 
             // 3. Créer le paiement si montant > 0 (pour cohérence)
             // Les inscriptions présentielles sont automatiquement validées, donc le paiement aussi
             if (data.montantPaye > 0) {
+                console.log('Étape 3: Insertion paiement...');
                 const { error: paiementError } = await supabase
                     .from('paiements')
                     .insert({
@@ -245,6 +264,8 @@ export function InPersonRegistration() {
                 if (paiementError) {
                     console.error("Erreur enregistrement paiement:", paiementError);
                     // On continue car l'inscription est déjà créée
+                } else {
+                    console.log('Paiement enregistré');
                 }
             }
 
