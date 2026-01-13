@@ -1,10 +1,14 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts";
 
+/**
+ * ProtectedRoute simplifié - Protection des routes avec auth locale
+ */
 export function ProtectedRoute({ children }) {
-  const { user, loading, authError } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
+  // État de chargement initial
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
@@ -16,10 +20,12 @@ export function ProtectedRoute({ children }) {
     );
   }
 
+  // Pas d'utilisateur = redirection vers login
   if (!user) {
-    // Sauvegarder l'URL pour rediriger après connexion
+    console.log('ProtectedRoute: Pas connecté, redirection vers login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Utilisateur connecté = afficher le contenu
   return children;
 }

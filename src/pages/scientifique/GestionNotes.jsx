@@ -159,12 +159,12 @@ export function GestionNotes() {
                     inscription:inscriptions(id, nom, prenom, photo_url, sexe, age, dortoir_id),
                     classe:classes(id, nom, niveau, numero)
                 `)
-                .single();
+                .maybeSingle();
 
             if (error) throw error;
 
-            // Mettre à jour localement
-            updateNoteLocal(noteId, data);
+            // Mettre à jour localement (si le select ne renvoie rien, fallback sur les updates)
+            updateNoteLocal(noteId, data || updates);
 
             // Nettoyer les éditions
             setEditingNotes(prev => {

@@ -19,7 +19,7 @@ import {
     Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useData } from "@/contexts";
+import { useAuth, useData } from "@/contexts";
 
 // Configuration des statuts (mapping DB -> UI)
 const statusConfig = {
@@ -46,6 +46,7 @@ const niveauEtudeMap = {
 };
 
 export function RegistrationManagement() {
+    const { user } = useAuth();
     // Utiliser le DataContext global au lieu de charger localement
     const { 
         inscriptions, 
@@ -118,15 +119,13 @@ export function RegistrationManagement() {
 
     const handleValidateOne = async (id) => {
         try {
-            const { data: userData } = await supabase.auth.getUser();
-
             const { error } = await supabase
                 .from('inscriptions')
                 .update({
                     statut: 'valide',
                     // Workflow: validation par le secrétariat -> passe à 'valide' (visible en scientifique)
                     statut_workflow: 'valide',
-                    valide_par_secretariat: userData?.user?.id || null,
+                    valide_par_secretariat: user?.id || null,
                     date_validation_secretariat: new Date().toISOString(),
                 })
                 .eq('id', id);
@@ -137,7 +136,7 @@ export function RegistrationManagement() {
             updateInscriptionLocal(id, {
                 statut: 'valide',
                 statut_workflow: 'valide',
-                valide_par_secretariat: userData?.user?.id || null,
+                valide_par_secretariat: user?.id || null,
                 date_validation_secretariat: new Date().toISOString(),
             });
         } catch (error) {

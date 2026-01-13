@@ -20,11 +20,11 @@ const getRedirectPath = (role) => {
     switch (role) {
         case "financier":
             return "/finance/dashboard";
-        case "secretariat":
+        case "secretaire":
             return "/admin/dashboard";
         case "scientifique":
             return "/scientifique/dashboard";
-        case "president_section":
+        case "president":
             return "/president";
         default:
             return "/admin/dashboard";
@@ -33,10 +33,11 @@ const getRedirectPath = (role) => {
 
 export function Login() {
     const navigate = useNavigate();
-    const { signIn, user, userRole, loading: authLoading, authError } = useAuth();
+    const { signIn, user, profile, loading: authLoading } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [rememberMe, setRememberMe] = useState(false);
 
     const {
         register,
@@ -46,80 +47,40 @@ export function Login() {
         resolver: zodResolver(loginSchema),
     });
 
-    // Rediriger si déjà connecté (seulement quand auth n'est plus en chargement)
+    // IMPORTANT: ne pas auto-rediriger depuis /login.
+    // Sinon, si un cache existe, la page login “se ferme” instantanément.
     useEffect(() => {
-        if (!authLoading && user && userRole) {
-            console.log("Login: Utilisateur déjà connecté, redirection vers", userRole);
-            navigate(getRedirectPath(userRole), { replace: true });
+        if (!authLoading) {
+            console.log("Login: État actuel - loading:", authLoading, "user:", user);
         }
-    }, [user, userRole, authLoading, navigate]);
-
-    // Afficher les erreurs d'auth context
-    useEffect(() => {
-        if (authError) {
-            setError(authError);
-        }
-    }, [authError]);
-
-    // Fonction pour nettoyer le cache et réessayer
-    const handleClearCacheAndRetry = () => {
-        console.log("Login: Nettoyage cache manuel...");
-        // Nettoyer tout le cache Supabase
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.includes('supabase') || key.includes('sb-'))) {
-                keysToRemove.push(key);
-            }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-
-        // Nettoyer sessionStorage aussi
-        const sessionKeysToRemove = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-            const key = sessionStorage.key(i);
-            if (key && (key.includes('supabase') || key.includes('sb-'))) {
-                sessionKeysToRemove.push(key);
-            }
-        }
-        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-
-        setError(null);
-        // Recharger la page pour réinitialiser complètement
-        window.location.reload();
-    };
+    }, [user, authLoading]);
 
     const onSubmit = async (data) => {
-        console.log("Login: Tentative de connexion...");
+        console.log("Login: Tentative de connexion pour", data.email);
         setIsLoading(true);
         setError(null);
 
-        // Timeout de sécurité - 20 secondes (augmenté)
-        const timeoutId = setTimeout(() => {
-            console.warn("Login: Timeout de connexion");
-            setIsLoading(false);
-            setError("La connexion prend trop de temps. Cliquez sur 'Vider le cache' ci-dessous pour réessayer.");
-        }, 20000);
-
         try {
-            const result = await signIn(data.email, data.password);
-            clearTimeout(timeoutId);
+            const result = await signIn(data.email, data.password, {
+                remember: rememberMe,
+                // Si rememberMe=false, on persiste en session (ou selon VITE_AUTH_STORAGE)
+            });
 
-            const role = result?.profile?.role;
-            console.log("Login: Connexion réussie, rôle:", role);
-
-            if (!role) {
-                setError("Votre compte n'a pas de rôle assigné. Contactez l'administrateur.");
+            if (result.error) {
+                console.log("Login: Erreur:", result.error.message);
+                setError(result.error.message);
                 setIsLoading(false);
                 return;
             }
 
-            // Redirection immédiate
-            navigate(getRedirectPath(role), { replace: true });
+            const authenticatedUser = result.data?.user;
+            if (authenticatedUser) {
+                console.log("Login: ✅ Succès, rôle:", authenticatedUser.role);
+                navigate(getRedirectPath(authenticatedUser.role), { replace: true });
+            }
         } catch (err) {
-            clearTimeout(timeoutId);
-            console.error("Login: Erreur:", err.message);
-            setError(err.message || "Email ou mot de passe incorrect.");
+            console.error("Login: Erreur inattendue:", err);
+            setError("Une erreur inattendue s'est produite.");
         } finally {
             setIsLoading(false);
         }
@@ -131,14 +92,41 @@ export function Login() {
             <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-text-secondary">Vérification de la session...</p>
-                    <button
-                        type="button"
-                        onClick={handleClearCacheAndRetry}
-                        className="mt-4 py-2 px-4 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-text-main dark:text-white rounded-lg text-sm font-medium transition-colors"
-                    >
-                        Problème de chargement ? Cliquez ici
-                    </button>
+                    <p className="text-text-secondary">Vérification...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Si déjà connecté, on affiche un choix au lieu de rediriger automatiquement
+    if (user && user.role) {
+        return (
+            <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center p-6">
+                <div className="w-full max-w-md bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl shadow-xl p-6">
+                    <h1 className="text-xl font-bold text-text-main dark:text-white">Déjà connecté</h1>
+                    <p className="mt-2 text-sm text-text-secondary dark:text-gray-400">
+                        Vous êtes connecté en tant que <span className="font-semibold">{user.email}</span> ({user.role}).
+                    </p>
+                    <div className="mt-6 flex gap-3">
+                        <Button className="flex-1" onClick={() => navigate(getRedirectPath(user.role), { replace: true })}>
+                            Continuer
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                                // Déconnexion locale: on purge les storages via AuthContext
+                                window.dispatchEvent(new Event('sefimap-force-logout'));
+                                // fallback si un handler n'existe pas
+                                localStorage.removeItem('sefimap_auth_user');
+                                sessionStorage.removeItem('sefimap_auth_user');
+                                location.reload();
+                            }}
+                        >
+                            Changer de compte
+                        </Button>
+                    </div>
                 </div>
             </div>
         );
@@ -202,15 +190,6 @@ export function Login() {
                                         <p>{error}</p>
                                     </div>
                                 </div>
-                                {error.includes("trop de temps") && (
-                                    <button
-                                        type="button"
-                                        onClick={handleClearCacheAndRetry}
-                                        className="mt-3 w-full py-2 px-4 bg-red-100 dark:bg-red-800/30 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-800 dark:text-red-300 rounded-lg text-sm font-medium transition-colors"
-                                    >
-                                        Vider le cache et réessayer
-                                    </button>
-                                )}
                             </div>
                         )}
 
@@ -266,6 +245,19 @@ export function Login() {
                                         Mot de passe oublié ?
                                     </a>
                                 </div>
+                            </div>
+
+                            {/* Remember me */}
+                            <div className="flex items-center justify-between gap-3">
+                                <label className="flex items-center gap-2 text-sm text-text-secondary dark:text-gray-400 select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="h-4 w-4 accent-primary"
+                                    />
+                                    Se souvenir de moi (sur cet appareil)
+                                </label>
                             </div>
 
                             {/* Submit Button */}

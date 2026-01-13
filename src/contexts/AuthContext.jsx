@@ -1,352 +1,158 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { 
+  authenticateUser, 
+  getStoredUser, 
+  storeUser, 
+  clearStoredUser,
+  getDefaultRoute,
+  normalizeStorageType,
+  DEFAULT_AUTH_STORAGE,
+  isValidStoredUser
+} from '../config/users.config';
 
-const AuthContext = createContext({});
+const AuthContext = createContext(null);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
-
+/**
+ * AuthProvider simplifié - Authentification locale sans Supabase Auth
+ * 
+ * Avantages:
+ * - Pas de tokens à gérer
+ * - Pas de sessions qui expirent
+ * - Pas de problèmes de rafraîchissement
+ * - Simple et direct
+ */
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
-  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
-  const [isLoggingOut, setIsLoggingOut] = useState(false); // Flag pour signaler la déconnexion
 
-  // Refs pour la gestion des appels
-  const isLoadingProfile = useRef(false);
-  const profileLoadTimeout = useRef(null);
-  const isSigningIn = useRef(false); // Flag pour éviter le conflit signIn/onAuthStateChange
+  // Au démarrage, vérifier si un utilisateur est stocké
+  useEffect(() => {
+    console.log('AuthContext: Vérification utilisateur stocké...');
+    const storedUser = getStoredUser(DEFAULT_AUTH_STORAGE);
+    
+    if (storedUser) {
+      console.log('AuthContext: Utilisateur trouvé:', storedUser.email);
+      setUser(storedUser);
+    } else {
+      console.log('AuthContext: Aucun utilisateur stocké');
+    }
+    
+    setLoading(false);
+  }, []);
 
-  // Fonction pour nettoyer la session corrompue - AGRESSIVE
-  const clearCorruptedSession = useCallback(async () => {
-    console.log('AuthContext: Nettoyage session COMPLET...');
+  // Permet de forcer une déconnexion depuis n'importe où (ex: page login)
+  useEffect(() => {
+    const handler = () => {
+      console.log('AuthContext: Force logout event reçu');
+      clearStoredUser('local');
+      clearStoredUser('session');
+      setUser(null);
+    };
+    window.addEventListener('sefimap-force-logout', handler);
+    return () => window.removeEventListener('sefimap-force-logout', handler);
+  }, []);
+
+  // Connexion
+  const signIn = useCallback(async (email, password, options = {}) => {
+    console.log('AuthContext: Tentative de connexion pour:', email);
+    setLoading(true);
+    
     try {
-      // Nettoyer TOUS les caches Supabase du localStorage
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('supabase') || key.includes('sb-') || key.includes('auth-token'))) {
-          keysToRemove.push(key);
+      const authenticatedUser = authenticateUser(email, password);
+      
+      if (authenticatedUser) {
+        console.log('AuthContext: ✅ Connexion réussie:', authenticatedUser.role);
+        // Persistance configurable: none/session/local
+        // - remember=true  => local
+        // - remember=false => session (par défaut)
+        // - storage='none' => aucune persistance
+        const storage = options?.storage
+          ? normalizeStorageType(options.storage)
+          : (options?.remember ? 'local' : DEFAULT_AUTH_STORAGE);
+
+        if (storage !== 'none') {
+          storeUser(authenticatedUser, storage);
         }
+        setUser(authenticatedUser);
+        return { 
+          data: { user: authenticatedUser }, 
+          error: null 
+        };
+      } else {
+        console.log('AuthContext: ❌ Identifiants incorrects');
+        return { 
+          data: null, 
+          error: { message: 'Email ou mot de passe incorrect' } 
+        };
       }
-      console.log('AuthContext: Suppression de', keysToRemove.length, 'clés cache');
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-
-      // Nettoyer aussi sessionStorage
-      const sessionKeysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && (key.includes('supabase') || key.includes('sb-'))) {
-          sessionKeysToRemove.push(key);
-        }
-      }
-      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-
-      // Reset les flags
-      isLoadingProfile.current = false;
-      isSigningIn.current = false;
-
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (e) {
-      console.warn('AuthContext: Erreur nettoyage:', e);
+    } catch (err) {
+      console.error('AuthContext: Erreur:', err);
+      return { 
+        data: null, 
+        error: { message: err.message } 
+      };
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Fonction pour charger le profil utilisateur depuis admin_users
-  const loadUserProfile = async (userId, forceReload = false) => {
-    if (!userId) {
-      setUserProfile(null);
-      setUserRole(null);
-      return null;
-    }
-
-    // Si déjà en cours et pas de forceReload, attendre max 2 secondes
-    if (isLoadingProfile.current && !forceReload) {
-      console.log('AuthContext: Chargement profil déjà en cours, attente courte...');
-      let attempts = 0;
-      while (isLoadingProfile.current && attempts < 20) { // Max 2 secondes
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      // Si le profil est déjà chargé, le retourner
-      if (userProfile && userProfile.id === userId) {
-        return userProfile;
-      }
-      // Sinon, forcer le rechargement
-      if (isLoadingProfile.current) {
-        console.log('AuthContext: Timeout attente, forçage rechargement');
-        isLoadingProfile.current = false;
-      }
-    }
-
-    isLoadingProfile.current = true;
-
-    // Timeout de sécurité: reset après 5 secondes
-    if (profileLoadTimeout.current) {
-      clearTimeout(profileLoadTimeout.current);
-    }
-    profileLoadTimeout.current = setTimeout(() => {
-      console.warn('AuthContext: Timeout chargement profil, reset flag');
-      isLoadingProfile.current = false;
-    }, 5000);
-
-    try {
-      console.log('AuthContext: Chargement profil pour', userId);
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.log('AuthContext: Utilisateur non trouvé dans admin_users:', error.message);
-        setUserProfile(null);
-        setUserRole(null);
-        return null;
-      }
-
-      console.log('AuthContext: Profil chargé, rôle:', data?.role);
-      setUserProfile(data);
-      setUserRole(data?.role || null);
-      return data;
-    } catch (err) {
-      console.error('AuthContext: Erreur chargement profil:', err);
-      setUserProfile(null);
-      setUserRole(null);
-      return null;
-    } finally {
-      clearTimeout(profileLoadTimeout.current);
-      isLoadingProfile.current = false;
-    }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    // Timeout de sécurité - 8 secondes (optimisé)
-    const timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('AuthContext: Timeout de session - arrêt du chargement');
-        setLoading(false);
-      }
-    }, 8000);
-
-    // Vérifier la session au chargement
-    const checkSession = async () => {
-      try {
-        console.log('AuthContext: Vérification de la session...');
-
-        // Vérifier d'abord si le localStorage contient des données corrompues
-        const authKeys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.includes('sb-')) {
-            authKeys.push(key);
-          }
-        }
-
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          console.error('AuthContext: Erreur getSession:', error);
-          // Nettoyer si session invalide ou expirée
-          await clearCorruptedSession();
-          if (isMounted) {
-            setUser(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (!isMounted) return;
-
-        const currentUser = session?.user ?? null;
-        console.log('AuthContext: Session trouvée:', currentUser?.id || 'aucun utilisateur');
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadUserProfile(currentUser.id);
-        }
-      } catch (err) {
-        console.error('AuthContext: Exception lors de getSession:', err);
-        if (isMounted) {
-          await clearCorruptedSession();
-          setUser(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          clearTimeout(timeoutId);
-        }
-      }
-    };
-
-    checkSession();
-
-    // Écouter les changements d'auth
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('AuthContext: Event auth:', event);
-
-      if (!isMounted) return;
-
-      // Ignorer TOKEN_REFRESHED pour éviter rechargements inutiles
-      if (event === 'TOKEN_REFRESHED') return;
-
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (event === 'SIGNED_OUT') {
-        setUserProfile(null);
-        setUserRole(null);
-        setAuthError(null);
-        isSigningIn.current = false;
-      } else if (currentUser && event === 'SIGNED_IN') {
-        // IMPORTANT: Ne pas charger le profil ici si signIn est en cours
-        // pour éviter le double appel et la race condition
-        if (!isSigningIn.current) {
-          console.log('AuthContext: SIGNED_IN event - chargement profil');
-          await loadUserProfile(currentUser.id);
-        } else {
-          console.log('AuthContext: SIGNED_IN event ignoré (signIn en cours)');
-        }
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearCorruptedSession]);
-
-  const signIn = async (email, password) => {
-    console.log("AuthContext: signIn pour", email);
-    setAuthError(null);
-
-    // IMPORTANT: Marquer qu'on est en train de se connecter
-    isSigningIn.current = true;
-
-    // Réinitialiser les flags avant connexion
-    isLoadingProfile.current = false;
-
-    try {
-      const startTime = Date.now();
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      console.log(`AuthContext: Auth Supabase en ${Date.now() - startTime}ms`);
-
-      if (error) {
-        console.error("AuthContext: Erreur signIn", error);
-        isSigningIn.current = false;
-        // Messages d'erreur plus clairs en français
-        if (error.message?.includes('Invalid login')) {
-          throw new Error('Email ou mot de passe incorrect');
-        }
-        if (error.message?.includes('Email not confirmed')) {
-          throw new Error('Veuillez confirmer votre email');
-        }
-        throw error;
-      }
-
-      console.log("AuthContext: Connexion réussie", data.user?.id);
-
-      if (data.user) {
-        // Charger le profil directement (pas d'attente car on gère via isSigningIn)
-        const profile = await loadUserProfile(data.user.id, true); // forceReload=true
-
-        // Reset le flag après chargement du profil
-        isSigningIn.current = false;
-
-        if (!profile) {
-          throw new Error('Compte non autorisé. Contactez l\'administrateur.');
-        }
-        return { ...data, profile };
-      }
-
-      isSigningIn.current = false;
-      return data;
-    } catch (err) {
-      console.error("AuthContext: Exception signIn", err);
-      isSigningIn.current = false;
-      setAuthError(err.message);
-      throw err;
-    }
-  };
-
-  const signOut = async () => {
-    console.log("AuthContext: Déconnexion en cours...");
-
-    // Signaler immédiatement que la déconnexion est en cours
-    setIsLoggingOut(true);
-
-    // Réinitialiser les états AVANT l'appel async pour éviter les race conditions
+  // Déconnexion
+  const signOut = useCallback(async () => {
+    console.log('AuthContext: Déconnexion');
+    // On purge les deux types pour éviter les surprises
+    clearStoredUser('local');
+    clearStoredUser('session');
     setUser(null);
-    setUserProfile(null);
-    setUserRole(null);
-    setAuthError(null);
+  }, []);
 
-    // Reset les flags
-    isLoadingProfile.current = false;
-    isSigningIn.current = false;
+  // Profil = user (tout est dans le même objet)
+  const profile = user ? {
+    id: user.id,
+    nom: user.nom,
+    prenom: user.prenom,
+    email: user.email,
+    role: user.role,
+  } : null;
 
-    try {
-      await supabase.auth.signOut();
-      console.log("AuthContext: Déconnexion réussie");
-    } catch (e) {
-      console.error("AuthContext: Erreur signOut", e);
-      await clearCorruptedSession();
-    } finally {
-      setIsLoggingOut(false);
+  // Si un user “caché” est invalide (format ancien), on le purge
+  useEffect(() => {
+    if (user && !isValidStoredUser(user)) {
+      console.warn('AuthContext: user invalide détecté, purge');
+      clearStoredUser('local');
+      clearStoredUser('session');
+      setUser(null);
     }
-  };
-
-  // Fonction utilitaire pour rafraîchir la session
-  const refreshSession = async () => {
-    try {
-      const { data, error } = await supabase.auth.refreshSession();
-      if (error) {
-        await clearCorruptedSession();
-        setUser(null);
-        setUserProfile(null);
-        setUserRole(null);
-        return false;
-      }
-      if (data.user) {
-        setUser(data.user);
-        await loadUserProfile(data.user.id);
-      }
-      return true;
-    } catch (e) {
-      console.error("AuthContext: Erreur refresh", e);
-      return false;
-    }
-  };
+  }, [user]);
 
   const value = {
     user,
-    userProfile,
-    userRole,
+    profile,
+    // Aliases de compatibilité avec l'ancien code
+    userProfile: profile,
+    userRole: user?.role || null,
+    authError: null,
+    isLoggingOut: false,
     loading,
-    authError,
-    isLoggingOut,
     signIn,
     signOut,
-    refreshSession,
+    isAuthenticated: !!user,
+    // Helper pour obtenir la route par défaut
+    getDefaultRoute: () => user ? getDefaultRoute(user.role) : '/login',
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth doit être utilisé dans AuthProvider');
+  }
+  return context;
+}
+
+export default AuthContext;

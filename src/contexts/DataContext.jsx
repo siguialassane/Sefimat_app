@@ -1,429 +1,321 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
-const DataContext = createContext({});
+const DataContext = createContext(null);
 
-export const useData = () => {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within DataProvider');
-  }
-  return context;
-};
+function buildStats(inscriptions, paiements) {
+  const safeInscriptions = Array.isArray(inscriptions) ? inscriptions : [];
+  const safePaiements = Array.isArray(paiements) ? paiements : [];
 
-// === CONFIGURATION ===
-const POLLING_INTERVAL = 3 * 60 * 1000; // 3 minutes en millisecondes
-const LOADING_TIMEOUT = 15000; // 15 secondes timeout
+  const totalInscriptions = safeInscriptions.length;
+  const inscriptionsValidees = safeInscriptions.filter(i => i?.statut === 'valide').length;
+  const inscriptionsEnAttente = safeInscriptions.filter(i => i?.statut === 'en_attente').length;
+  const hommes = safeInscriptions.filter(i => i?.sexe === 'homme').length;
+  const femmes = safeInscriptions.filter(i => i?.sexe === 'femme').length;
+
+  const totalCollecte = safeInscriptions.reduce((acc, i) => acc + (i?.montant_total_paye || 0), 0);
+  const paiementsEnAttente = safePaiements.filter(p => p?.statut === 'attente' || p?.statut === 'en_attente').length;
+  const paiementsPartiels = safeInscriptions.filter(i => i?.statut_paiement === 'partiel').length;
+  const paiementsComplets = safeInscriptions.filter(i => i?.statut_paiement === 'soldé' || i?.statut_paiement === 'valide_financier').length;
+
+  return {
+    totalInscriptions,
+    inscriptionsValidees,
+    inscriptionsEnAttente,
+    hommes,
+    femmes,
+    totalCollecte,
+    paiementsEnAttente,
+    paiementsPartiels,
+    paiementsComplets,
+  };
+}
 
 /**
- * DataProvider - Contexte global SANS Realtime (Polling + Cache)
- * 
- * ARCHITECTURE SIMPLIFIÉE:
- * ✅ Pas de Realtime Supabase (source de bugs en mode gratuit)
- * ✅ Polling automatique toutes les 3 minutes
- * ✅ Bouton "Actualiser" pour rafraîchissement manuel
- * ✅ Cache mémoire entre les navigations
- * ✅ Optimistic updates pour UX fluide
- * ✅ 100% fiable et simple à maintenir
+ * DataProvider: API attendue par les pages (Dashboard/Finance/Scientifique/Secrétariat)
+ * - pas d'auth Supabase, mais CRUD Supabase reste actif
  */
 export function DataProvider({ children }) {
-  const { user } = useAuth();
-  
-  // === ÉTATS DES DONNÉES ===
+  const { isAuthenticated } = useAuth();
+
   const [inscriptions, setInscriptions] = useState([]);
-  const [chefsQuartier, setChefsQuartier] = useState([]);
-  const [dortoirs, setDortoirs] = useState([]);
   const [paiements, setPaiements] = useState([]);
-
-  // === ÉTATS CELLULE SCIENTIFIQUE ===
-  const [notesExamens, setNotesExamens] = useState([]);
+  const [dortoirs, setDortoirs] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [chefsQuartier, setChefsQuartier] = useState([]);
+  const [notesExamens, setNotesExamens] = useState([]);
   const [configCapaciteClasses, setConfigCapaciteClasses] = useState([]);
-  
-  // === ÉTATS DE CHARGEMENT ===
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false); // Pour le polling silencieux
-  const [initialLoaded, setInitialLoaded] = useState(false);
-  const [error, setError] = useState(null);
+  const [stats, setStats] = useState(() => buildStats([], []));
   const [lastUpdate, setLastUpdate] = useState(null);
-  
-  // === REFS ===
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const mountedRef = useRef(true);
+  const pollingRef = useRef(null);
   const isLoadingRef = useRef(false);
-  const isMountedRef = useRef(true);
-  const pollingIntervalRef = useRef(null);
 
-  // === FONCTION DE CHARGEMENT PRINCIPAL ===
-  const loadAllData = useCallback(async (options = {}) => {
-    const { forceReload = false, silent = false } = options;
-
-    // Ne pas recharger si déjà en cours
-    if (isLoadingRef.current) {
-      console.log('DataContext: Chargement déjà en cours, ignoré');
-      return false;
-    }
-
-    // Ne pas recharger si déjà chargé (sauf forceReload)
-    if (initialLoaded && !forceReload) {
-      console.log('DataContext: Données déjà en cache');
-      return true;
-    }
-
+  const loadAll = useCallback(async (silent = false) => {
+    if (isLoadingRef.current) return;
     isLoadingRef.current = true;
-    
-    // Mode silencieux = polling automatique (pas de spinner)
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
 
-    // Timeout de sécurité
-    const timeoutId = setTimeout(() => {
-      console.warn('DataContext: Timeout atteint');
-      isLoadingRef.current = false;
-      if (isMountedRef.current) {
-        setLoading(false);
-        setRefreshing(false);
-        setInitialLoaded(true);
-      }
-    }, LOADING_TIMEOUT);
+    if (!silent) setLoading(true);
 
-    console.log(`DataContext: Chargement des données... (silent: ${silent})`);
     const startTime = Date.now();
-
     try {
-      // Charger toutes les données en parallèle
       const [
-        inscriptionsRes, 
-        chefsRes, 
-        dortoirsRes, 
-        paiementsRes, 
-        notesRes, 
-        classesRes, 
-        configCapaciteRes
+        inscriptionsRes,
+        paiementsRes,
+        dortoirsRes,
+        classesRes,
+        chefsQuartierRes,
+        notesExamensRes,
+        configCapaciteRes,
       ] = await Promise.all([
         supabase
           .from('inscriptions')
-          .select(`
-            *,
-            chef_quartier:chefs_quartier(id, nom_complet, zone),
-            dortoir:dortoirs(id, nom)
-          `)
+          .select('*, chef_quartier:chefs_quartier(*)')
           .order('created_at', { ascending: false }),
-
-        supabase
-          .from('chefs_quartier')
-          .select('*')
-          .order('nom_complet'),
-
-        supabase
-          .from('dortoirs')
-          .select('*')
-          .order('nom'),
-
         supabase
           .from('paiements')
-          .select(`
-            *,
-            inscription:inscriptions(id, nom, prenom, type_inscription)
-          `)
-          .order('date_paiement', { ascending: false }),
-
+          .select('*, inscription:inscriptions(*)')
+          .order('created_at', { ascending: false }),
+        supabase.from('dortoirs').select('*').order('nom'),
+        supabase.from('classes').select('*').order('nom'),
+        supabase.from('chefs_quartier').select('*').order('nom_complet'),
         supabase
           .from('notes_examens')
-          .select(`
-            *,
-            inscription:inscriptions(id, nom, prenom, photo_url, sexe, age, dortoir_id),
-            classe:classes(id, nom, niveau, numero)
-          `)
-          .order('created_at', { ascending: false }),
-
-        supabase
-          .from('classes')
-          .select('*')
-          .order('niveau')
-          .order('numero'),
-
-        supabase
-          .from('config_capacite_classes')
-          .select('*')
-          .order('niveau')
+          .select('*, inscription:inscriptions(*), classe:classes(*)'),
+        supabase.from('config_capacite_classes').select('*').order('niveau'),
       ]);
 
-      // Vérifier les erreurs critiques
-      if (inscriptionsRes.error) throw inscriptionsRes.error;
-      if (chefsRes.error) throw chefsRes.error;
-      if (dortoirsRes.error) throw dortoirsRes.error;
-      if (paiementsRes.error) throw paiementsRes.error;
+      if (!mountedRef.current) return;
 
-      // Erreurs non-critiques (tables peuvent ne pas exister)
-      if (notesRes.error && !notesRes.error.message?.includes('does not exist')) {
-        console.warn('DataContext: Erreur notes_examens:', notesRes.error.message);
-      }
-      if (classesRes.error && !classesRes.error.message?.includes('does not exist')) {
-        console.warn('DataContext: Erreur classes:', classesRes.error.message);
-      }
+      const nextInscriptions = inscriptionsRes.error ? [] : (inscriptionsRes.data || []);
+      const nextPaiements = paiementsRes.error ? [] : (paiementsRes.data || []);
+      const nextDortoirs = dortoirsRes.error ? [] : (dortoirsRes.data || []);
+      const nextClasses = classesRes.error ? [] : (classesRes.data || []);
+      const nextChefs = chefsQuartierRes.error ? [] : (chefsQuartierRes.data || []);
+      const nextNotes = notesExamensRes.error ? [] : (notesExamensRes.data || []);
+      const nextConfig = configCapaciteRes.error ? [] : (configCapaciteRes.data || []);
 
-      if (isMountedRef.current) {
-        setInscriptions(inscriptionsRes.data || []);
-        setChefsQuartier(chefsRes.data || []);
-        setDortoirs(dortoirsRes.data || []);
-        setPaiements(paiementsRes.data || []);
-        setNotesExamens(notesRes.data || []);
-        setClasses(classesRes.data || []);
-        setConfigCapaciteClasses(configCapaciteRes.data || []);
-        setInitialLoaded(true);
-        setLastUpdate(new Date());
-
-        const elapsed = Date.now() - startTime;
-        console.log(`DataContext: ✅ Données chargées en ${elapsed}ms`, {
-          inscriptions: inscriptionsRes.data?.length || 0,
-          paiements: paiementsRes.data?.length || 0,
-          notes: notesRes.data?.length || 0,
-          classes: classesRes.data?.length || 0
-        });
-      }
-
-      return true;
-    } catch (err) {
-      console.error('DataContext: ❌ Erreur chargement:', err);
-      if (isMountedRef.current) {
-        setError(err.message || 'Erreur lors du chargement des données');
-        setInitialLoaded(true);
-      }
-      return false;
-    } finally {
-      clearTimeout(timeoutId);
-      isLoadingRef.current = false;
-      if (isMountedRef.current) {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }
-  }, [initialLoaded]);
-
-  // === FONCTION DE RAFRAÎCHISSEMENT MANUEL ===
-  const refresh = useCallback(async () => {
-    console.log('DataContext: 🔄 Rafraîchissement manuel demandé');
-    return loadAllData({ forceReload: true, silent: false });
-  }, [loadAllData]);
-
-  // === FONCTION DE POLLING SILENCIEUX ===
-  const silentRefresh = useCallback(async () => {
-    console.log('DataContext: 🔄 Polling automatique...');
-    return loadAllData({ forceReload: true, silent: true });
-  }, [loadAllData]);
-
-  // === EFFET PRINCIPAL: Charger les données + Polling ===
-  useEffect(() => {
-    isMountedRef.current = true;
-
-    // Nettoyer le polling précédent
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-
-    // Si pas d'utilisateur connecté, reset tout
-    if (!user) {
-      console.log('DataContext: Utilisateur déconnecté, nettoyage...');
-      setInscriptions([]);
-      setChefsQuartier([]);
-      setDortoirs([]);
-      setPaiements([]);
-      setNotesExamens([]);
-      setClasses([]);
-      setConfigCapaciteClasses([]);
-      setInitialLoaded(false);
-      setLoading(false);
-      setRefreshing(false);
+      setInscriptions(nextInscriptions);
+      setPaiements(nextPaiements);
+      setDortoirs(nextDortoirs);
+      setClasses(nextClasses);
+      setChefsQuartier(nextChefs);
+      setNotesExamens(nextNotes);
+      setConfigCapaciteClasses(nextConfig);
+      setStats(buildStats(nextInscriptions, nextPaiements));
+      setLastUpdate(new Date());
       setError(null);
-      setLastUpdate(null);
+
+      console.log(`DataContext: ✅ Chargé en ${Date.now() - startTime}ms`);
+    } catch (err) {
+      console.error('DataContext: Erreur:', err?.message || err);
+      if (mountedRef.current) setError(err?.message || 'Erreur chargement données');
+    } finally {
+      if (mountedRef.current) setLoading(false);
       isLoadingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    if (!isAuthenticated) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      setInscriptions([]);
+      setPaiements([]);
+      setDortoirs([]);
+      setClasses([]);
+      setChefsQuartier([]);
+      setNotesExamens([]);
+      setConfigCapaciteClasses([]);
+      setStats(buildStats([], []));
+      setLastUpdate(null);
+      setLoading(false);
+      setError(null);
       return;
     }
 
-    // Charger les données initiales
-    console.log('DataContext: 🚀 Initialisation pour user:', user.id);
-    loadAllData({ forceReload: true });
+    console.log('DataContext: 🚀 Utilisateur connecté, chargement...');
+    loadAll(false);
 
-    // Démarrer le polling automatique (toutes les 3 minutes)
-    console.log(`DataContext: ⏱️ Polling démarré (intervalle: ${POLLING_INTERVAL / 1000}s)`);
-    pollingIntervalRef.current = setInterval(() => {
-      if (isMountedRef.current && !isLoadingRef.current) {
-        silentRefresh();
+    pollingRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        loadAll(true);
       }
-    }, POLLING_INTERVAL);
+    }, 3 * 60 * 1000);
 
-    // Cleanup
     return () => {
-      isMountedRef.current = false;
-      if (pollingIntervalRef.current) {
-        console.log('DataContext: ⏹️ Polling arrêté');
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
     };
-  }, [user, loadAllData, silentRefresh]);
+  }, [isAuthenticated, loadAll]);
 
-  // === OPTIMISTIC UPDATES (mise à jour locale immédiate) ===
-  
-  // Inscriptions
-  const addInscriptionLocal = useCallback((inscription) => {
-    setInscriptions(prev => [inscription, ...prev]);
-    setLastUpdate(new Date());
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
   }, []);
 
+  const refresh = useCallback(async () => {
+    console.log('DataContext: Rafraîchissement manuel');
+    await loadAll(false);
+  }, [loadAll]);
+
+  const statsScientifique = useMemo(() => {
+    const safeInscriptions = Array.isArray(inscriptions) ? inscriptions : [];
+    const safeNotes = Array.isArray(notesExamens) ? notesExamens : [];
+    const safeClasses = Array.isArray(classes) ? classes : [];
+
+    const totalParticipantsValides = safeInscriptions.filter(i => i?.statut === 'valide').length;
+
+    const parNiveauSets = {
+      niveau_1: new Set(),
+      niveau_2: new Set(),
+      niveau_3: new Set(),
+      niveau_superieur: new Set(),
+    };
+
+    const inscriptionIdsAvecNoteEntree = new Set();
+    const inscriptionIdsAvecMoyenne = new Set();
+
+    for (const note of safeNotes) {
+      const inscriptionId = note?.inscription_id;
+      if (!inscriptionId) continue;
+
+      const niveau = note?.niveau_attribue;
+      if (niveau && Object.prototype.hasOwnProperty.call(parNiveauSets, niveau)) {
+        parNiveauSets[niveau].add(inscriptionId);
+      }
+
+      const noteEntree = note?.note_entree;
+      if (noteEntree !== null && noteEntree !== undefined && noteEntree !== '') {
+        inscriptionIdsAvecNoteEntree.add(inscriptionId);
+      }
+
+      const moyenne = note?.moyenne;
+      if (moyenne !== null && moyenne !== undefined && moyenne !== '') {
+        inscriptionIdsAvecMoyenne.add(inscriptionId);
+      }
+    }
+
+    return {
+      totalParticipantsValides,
+      participantsAvecNoteEntree: inscriptionIdsAvecNoteEntree.size,
+      participantsAvecMoyenne: inscriptionIdsAvecMoyenne.size,
+      totalClasses: safeClasses.length,
+      parNiveau: {
+        niveau_1: parNiveauSets.niveau_1.size,
+        niveau_2: parNiveauSets.niveau_2.size,
+        niveau_3: parNiveauSets.niveau_3.size,
+        niveau_superieur: parNiveauSets.niveau_superieur.size,
+      },
+    };
+  }, [inscriptions, notesExamens, classes]);
+
+  // Fonctions “locales” utilisées par certaines pages pour mise à jour instantanée UI
   const updateInscriptionLocal = useCallback((id, updates) => {
-    setInscriptions(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
-    setLastUpdate(new Date());
+    setInscriptions(prev => prev.map(i => (i?.id === id ? { ...i, ...updates } : i)));
   }, []);
 
   const deleteInscriptionLocal = useCallback((id) => {
-    setInscriptions(prev => prev.filter(i => i.id !== id));
-    setLastUpdate(new Date());
-  }, []);
-
-  // Paiements
-  const addPaiementLocal = useCallback((paiement) => {
-    setPaiements(prev => [paiement, ...prev]);
-    setLastUpdate(new Date());
+    setInscriptions(prev => prev.filter(i => i?.id !== id));
   }, []);
 
   const updatePaiementLocal = useCallback((id, updates) => {
-    setPaiements(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-    setLastUpdate(new Date());
-  }, []);
-
-  // Notes
-  const addNoteLocal = useCallback((note) => {
-    setNotesExamens(prev => [note, ...prev]);
-    setLastUpdate(new Date());
+    setPaiements(prev => prev.map(p => (p?.id === id ? { ...p, ...updates } : p)));
   }, []);
 
   const updateNoteLocal = useCallback((id, updates) => {
-    setNotesExamens(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
-    setLastUpdate(new Date());
+    setNotesExamens(prev => prev.map(n => (n?.id === id ? { ...n, ...updates } : n)));
   }, []);
 
-  const deleteNoteLocal = useCallback((id) => {
-    setNotesExamens(prev => prev.filter(n => n.id !== id));
-    setLastUpdate(new Date());
+  const addInscriptionLocal = useCallback((inscription) => {
+    if (!inscription) return;
+    setInscriptions(prev => {
+      const next = Array.isArray(prev) ? prev : [];
+      const exists = next.some(i => i?.id === inscription?.id);
+      return exists ? next.map(i => (i?.id === inscription?.id ? { ...i, ...inscription } : i)) : [inscription, ...next];
+    });
   }, []);
 
-  // Classes
+  const addPaiementLocal = useCallback((paiement) => {
+    if (!paiement) return;
+    setPaiements(prev => {
+      const next = Array.isArray(prev) ? prev : [];
+      const exists = next.some(p => p?.id === paiement?.id);
+      return exists ? next.map(p => (p?.id === paiement?.id ? { ...p, ...paiement } : p)) : [paiement, ...next];
+    });
+  }, []);
+
   const addClasseLocal = useCallback((classe) => {
-    setClasses(prev => [...prev, classe].sort((a, b) => {
-      if (a.niveau !== b.niveau) return a.niveau.localeCompare(b.niveau);
-      return a.numero - b.numero;
-    }));
-    setLastUpdate(new Date());
+    if (!classe) return;
+    setClasses(prev => {
+      const next = Array.isArray(prev) ? prev : [];
+      const exists = next.some(c => c?.id === classe?.id);
+      return exists ? next.map(c => (c?.id === classe?.id ? { ...c, ...classe } : c)) : [...next, classe];
+    });
   }, []);
 
-  const updateClasseLocal = useCallback((id, updates) => {
-    setClasses(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    setLastUpdate(new Date());
+  const addNoteLocal = useCallback((note) => {
+    if (!note) return;
+    setNotesExamens(prev => {
+      const next = Array.isArray(prev) ? prev : [];
+      const exists = next.some(n => n?.id === note?.id);
+      return exists ? next.map(n => (n?.id === note?.id ? { ...n, ...note } : n)) : [...next, note];
+    });
   }, []);
 
-  const deleteClasseLocal = useCallback((id) => {
-    setClasses(prev => prev.filter(c => c.id !== id));
-    setLastUpdate(new Date());
-  }, []);
-
-  // === STATISTIQUES CALCULÉES ===
-  const stats = {
-    // Inscriptions
-    totalInscriptions: inscriptions.length,
-    inscriptionsValidees: inscriptions.filter(i => i.statut === 'valide').length,
-    inscriptionsEnAttente: inscriptions.filter(i => i.statut === 'en_attente').length,
-    inscriptionsRejetees: inscriptions.filter(i => i.statut === 'rejete').length,
-    
-    // Paiements
-    totalCollecte: inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
-    paiementsEnAttente: inscriptions.filter(i => 
-      i.statut_paiement === 'partiel' && (i.montant_total_paye || 0) < (i.montant_requis || 4000)
-    ).length,
-    paiementsPartiels: inscriptions.filter(i => i.statut_paiement === 'partiel').length,
-    paiementsComplets: inscriptions.filter(i => 
-      i.statut_paiement === 'soldé' || i.statut_paiement === 'valide_financier'
-    ).length,
-    paiementsValides: paiements.filter(p => p.statut === 'validé').length,
-    paiementsNonValides: paiements.filter(p => 
-      p.statut === 'attente' || p.statut === 'en_attente'
-    ).length,
-    
-    // Démographiques
-    hommes: inscriptions.filter(i => i.sexe === 'homme').length,
-    femmes: inscriptions.filter(i => i.sexe === 'femme').length,
-    
-    // Par type
-    inscriptionsEnLigne: inscriptions.filter(i => i.type_inscription === 'en_ligne').length,
-    inscriptionsPresentielle: inscriptions.filter(i => i.type_inscription === 'presentielle').length,
-  };
-
-  // === STATISTIQUES CELLULE SCIENTIFIQUE ===
-  const statsScientifique = {
-    totalParticipantsValides: inscriptions.filter(i => i.statut === 'valide').length,
-    participantsAvecNoteEntree: notesExamens.filter(n => n.note_entree != null).length,
-    participantsSansNoteEntree: inscriptions.filter(i => i.statut === 'valide').length - 
-      notesExamens.filter(n => n.note_entree != null).length,
-    parNiveau: {
-      niveau_1: notesExamens.filter(n => n.niveau_attribue === 'niveau_1').length,
-      niveau_2: notesExamens.filter(n => n.niveau_attribue === 'niveau_2').length,
-      niveau_3: notesExamens.filter(n => n.niveau_attribue === 'niveau_3').length,
-      niveau_superieur: notesExamens.filter(n => n.niveau_attribue === 'niveau_superieur').length,
-    },
-    participantsAvecMoyenne: notesExamens.filter(n => n.moyenne != null).length,
-    totalClasses: classes.length,
-  };
-
-  // === VALEUR DU CONTEXTE ===
   const value = {
-    // Données
     inscriptions,
-    chefsQuartier,
-    dortoirs,
     paiements,
-    stats,
-
-    // Données Cellule Scientifique
-    notesExamens,
+    dortoirs,
     classes,
+    chefsQuartier,
+    notesExamens,
     configCapaciteClasses,
+    stats,
     statsScientifique,
-
-    // États
-    loading,
-    refreshing, // Nouveau: pour afficher un indicateur de polling
-    initialLoaded,
-    error,
     lastUpdate,
-
-    // Actions principales
+    loading,
+    error,
     refresh,
-    silentRefresh,
-
-    // Optimistic updates - Inscriptions
     addInscriptionLocal,
+    addPaiementLocal,
+    addClasseLocal,
+    addNoteLocal,
     updateInscriptionLocal,
     deleteInscriptionLocal,
-
-    // Optimistic updates - Paiements
-    addPaiementLocal,
     updatePaiementLocal,
-
-    // Optimistic updates - Notes
-    addNoteLocal,
     updateNoteLocal,
-    deleteNoteLocal,
-
-    // Optimistic updates - Classes
-    addClasseLocal,
-    updateClasseLocal,
-    deleteClasseLocal,
   };
 
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider value={value}>
+      {children}
+    </DataContext.Provider>
+  );
 }
+
+export function useData() {
+  const context = useContext(DataContext);
+  if (!context) {
+    throw new Error('useData doit être utilisé dans DataProvider');
+  }
+  return context;
+}
+
+export default DataContext;

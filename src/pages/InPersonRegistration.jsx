@@ -124,7 +124,7 @@ export function InPersonRegistration() {
 
     const selectedSexe = watch("sexe");
 
-    // Charger les inscriptions présentielles récentes de cet admin
+    // Charger les inscriptions présentielles récentes (mode auth locale: pas de mapping stable vers auth.users)
     useEffect(() => {
         async function loadRecentRegistrations() {
             if (!user) return;
@@ -134,7 +134,6 @@ export function InPersonRegistration() {
                     .from('inscriptions')
                     .select('*')
                     .eq('type_inscription', 'presentielle')
-                    .eq('admin_id', user.id)
                     .order('created_at', { ascending: false })
                     .limit(5);
 
