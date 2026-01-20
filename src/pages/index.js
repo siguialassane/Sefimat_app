@@ -5,6 +5,7 @@ export { RegistrationManagement } from "./RegistrationManagement";
 export { InPersonRegistration } from "./InPersonRegistration";
 export { BadgeManagement } from "./BadgeManagement";
 export { Exports } from "./Exports";
+export { ConfigDortoirs } from "./ConfigDortoirs";
 export { FinanceDashboard, PaymentValidation, PaymentList, PaymentSummary } from "./finance";
 export { PresidentRegistration, PresidentPayments } from "./president";
 export { ScientifiqueDashboard, TestEntree, GestionNotes, ListeClasses, ConfigClasses, GestionBulletins } from "./scientifique";

@@ -9,6 +9,7 @@ import {
   InPersonRegistration,
   BadgeManagement,
   Exports,
+  ConfigDortoirs,
   FinanceDashboard,
   PaymentValidation,
   PaymentList,
@@ -55,6 +56,7 @@ function App() {
                 <Route path="inscription-presentielle" element={<InPersonRegistration />} />
                 <Route path="badges" element={<BadgeManagement />} />
                 <Route path="exports" element={<Exports />} />
+                <Route path="config-dortoirs" element={<ConfigDortoirs />} />
               </Route>
 
               {/* Finance Routes (Cellule Financier) */}

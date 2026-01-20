@@ -7,6 +7,7 @@ import {
     Settings,
     LogOut,
     IdCard,
+    Bed,
 } from "lucide-react";
 import { Mosque } from "@/components/icons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -18,6 +19,7 @@ const navItems = [
     { to: "/admin/inscriptions", icon: Users, label: "Gestion des inscriptions" },
     { to: "/admin/inscription-presentielle", icon: UserPlus, label: "Inscription présentielle" },
     { to: "/admin/badges", icon: IdCard, label: "Gestion des badges" },
+    { to: "/admin/config-dortoirs", icon: Bed, label: "Configuration dortoirs" },
     { to: "/admin/exports", icon: Download, label: "Exports" },
 ];
 

@@ -83,13 +83,41 @@ export function RegistrationDetailsModal({
     };
 
     const handleChange = (field, value) => {
+        // Validation spéciale pour l'affectation de dortoir
+        if (field === 'dortoir_id' && value) {
+            const dortoirStats = getDortoirStats(value);
+            const currentDortoirId = registration.originalData?.dortoir_id;
+
+            // Si on change de dortoir (pas le même qu'avant)
+            if (value !== currentDortoirId && dortoirStats) {
+                if (dortoirStats.nombre_inscrits >= dortoirStats.capacite) {
+                    alert(`Le dortoir "${dortoirStats.nom}" est complet (${dortoirStats.nombre_inscrits}/${dortoirStats.capacite}).\nVeuillez choisir un autre dortoir ou augmenter la capacité dans la configuration.`);
+                    return; // Bloquer l'affectation
+                }
+            }
+        }
+
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Obtenir les stats d'un dortoir
+    const getDortoirStats = (dortoirId) => {
+        return dortoirStats.find(d => d.id === dortoirId);
     };
 
     // Trouver le nom du dortoir
     const getDortoirName = () => {
         const dortoir = dortoirs.find(d => d.id === registration.originalData?.dortoir_id);
         return dortoir?.nom || "Non assigné";
+    };
+
+    // Vérifier si un dortoir est complet (sauf s'il est déjà affecté à cet participant)
+    const isDortoirFull = (dortoirId) => {
+        const currentDortoirId = registration.originalData?.dortoir_id;
+        if (dortoirId === currentDortoirId) return false; // Permettre de garder le même dortoir
+
+        const stats = getDortoirStats(dortoirId);
+        return stats && stats.nombre_inscrits >= stats.capacite;
     };
 
     return (
@@ -306,11 +334,23 @@ export function RegistrationDetailsModal({
                                             className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.dortoir_id ? "border-amber-500" : ""}`}
                                         >
                                             <option value="">Sélectionner un dortoir</option>
-                                            {dortoirs?.map(dortoir => (
-                                                <option key={dortoir.id} value={dortoir.id}>
-                                                    {dortoir.nom}
-                                                </option>
-                                            ))}
+                                            {dortoirs?.map(dortoir => {
+                                                const stats = getDortoirStats(dortoir.id);
+                                                const isFull = isDortoirFull(dortoir.id);
+                                                const capacityText = stats
+                                                    ? ` (${stats.nombre_inscrits}/${stats.capacite})`
+                                                    : '';
+
+                                                return (
+                                                    <option
+                                                        key={dortoir.id}
+                                                        value={dortoir.id}
+                                                        disabled={isFull}
+                                                    >
+                                                        {dortoir.nom}{capacityText}{isFull ? ' - COMPLET' : ''}
+                                                    </option>
+                                                );
+                                            })}
                                         </Select>
                                     </div>
 
@@ -561,6 +601,17 @@ export function RegistrationDetailsModal({
                                             value={formData.dortoir_id || ""}
                                             onChange={async (e) => {
                                                 const newValue = e.target.value;
+                                                // Valider la capacité avant de permettre le changement
+                                                if (newValue) {
+                                                    const stats = getDortoirStats(newValue);
+                                                    const currentDortoirId = registration.originalData?.dortoir_id;
+
+                                                    if (newValue !== currentDortoirId && stats && stats.nombre_inscrits >= stats.capacite) {
+                                                        alert(`Le dortoir "${stats.nom}" est complet (${stats.nombre_inscrits}/${stats.capacite}).\nVeuillez choisir un autre dortoir ou augmenter la capacité dans la configuration.`);
+                                                        return;
+                                                    }
+                                                }
+
                                                 handleChange("dortoir_id", newValue);
                                                 // Sauvegarder immédiatement sans fermer le modal
                                                 await onUpdate(registration.id, {
@@ -571,11 +622,23 @@ export function RegistrationDetailsModal({
                                             className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.dortoir_id && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20" : ""}`}
                                         >
                                             <option value="">Non assigné</option>
-                                            {dortoirs?.map(dortoir => (
-                                                <option key={dortoir.id} value={dortoir.id}>
-                                                    {dortoir.nom}
-                                                </option>
-                                            ))}
+                                            {dortoirs?.map(dortoir => {
+                                                const stats = getDortoirStats(dortoir.id);
+                                                const isFull = isDortoirFull(dortoir.id);
+                                                const capacityText = stats
+                                                    ? ` (${stats.nombre_inscrits}/${stats.capacite})`
+                                                    : '';
+
+                                                return (
+                                                    <option
+                                                        key={dortoir.id}
+                                                        value={dortoir.id}
+                                                        disabled={isFull}
+                                                    >
+                                                        {dortoir.nom}{capacityText}{isFull ? ' - COMPLET' : ''}
+                                                    </option>
+                                                );
+                                            })}
                                         </Select>
                                     </div>
 
