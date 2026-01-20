@@ -36,48 +36,68 @@ export function Dashboard() {
     const [searchTerm, setSearchTerm] = useState("");
     const [localLoading, setLocalLoading] = useState(false);
 
+    const visibleInscriptions = useMemo(() => {
+        return inscriptions.filter((i) => {
+            if (i.created_by === "president") {
+                return i.workflow_status === "pending_secretariat" || i.workflow_status === "completed";
+            }
+            return true;
+        });
+    }, [inscriptions]);
+
+    const visibleStats = useMemo(() => {
+        const total = visibleInscriptions.length;
+        return {
+            totalInscriptions: total,
+            inscriptionsValidees: visibleInscriptions.filter((i) => i?.statut === "valide").length,
+            inscriptionsEnAttente: visibleInscriptions.filter((i) => i?.statut === "en_attente").length,
+            hommes: visibleInscriptions.filter((i) => i?.sexe === "homme").length,
+            femmes: visibleInscriptions.filter((i) => i?.sexe === "femme").length,
+        };
+    }, [visibleInscriptions]);
+
     // Calculer les statistiques dérivées depuis le DataContext
     const dashboardStats = useMemo(() => {
-        if (!inscriptions.length) return null;
+        if (!visibleInscriptions.length) return null;
         
         return [
             {
                 title: "Total Inscriptions",
-                value: stats.totalInscriptions.toString(),
+                value: visibleStats.totalInscriptions.toString(),
                 icon: Users,
                 iconBg: "bg-blue-50 dark:bg-blue-900/20",
                 iconColor: "text-blue-600 dark:text-blue-400",
             },
             {
                 title: "Validées",
-                value: stats.inscriptionsValidees.toString(),
+                value: visibleStats.inscriptionsValidees.toString(),
                 icon: CheckCircle,
                 iconBg: "bg-green-50 dark:bg-green-900/20",
                 iconColor: "text-green-600 dark:text-green-400",
             },
             {
                 title: "En attente",
-                value: stats.inscriptionsEnAttente.toString(),
+                value: visibleStats.inscriptionsEnAttente.toString(),
                 icon: Clock,
                 iconBg: "bg-amber-50 dark:bg-amber-900/20",
                 iconColor: "text-amber-600 dark:text-amber-400",
             },
         ];
-    }, [stats, inscriptions.length]);
+    }, [visibleStats, visibleInscriptions.length]);
 
     // Calculer les données démographiques depuis le DataContext
     const demographics = useMemo(() => {
-        if (!inscriptions.length) return null;
+        if (!visibleInscriptions.length) return null;
         
-        const total = inscriptions.length;
-        const niveauCounts = inscriptions.reduce((acc, i) => {
+        const total = visibleInscriptions.length;
+        const niveauCounts = visibleInscriptions.reduce((acc, i) => {
             acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
             return acc;
         }, {});
 
         return {
-            hommesPercent: total > 0 ? Math.round((stats.hommes / total) * 100) : 0,
-            femmesPercent: total > 0 ? Math.round((stats.femmes / total) * 100) : 0,
+            hommesPercent: total > 0 ? Math.round((visibleStats.hommes / total) * 100) : 0,
+            femmesPercent: total > 0 ? Math.round((visibleStats.femmes / total) * 100) : 0,
             total,
             niveauPercent: {
                 primaire: total > 0 ? Math.round(((niveauCounts.primaire || 0) / total) * 100) : 0,
@@ -85,14 +105,14 @@ export function Dashboard() {
                 superieur: total > 0 ? Math.round(((niveauCounts.superieur || 0) / total) * 100) : 0,
             }
         };
-    }, [inscriptions, stats]);
+    }, [visibleInscriptions, visibleStats]);
 
     // Calculer les données des leaders depuis le DataContext
     const leadersData = useMemo(() => {
-        if (!chefsQuartier.length || !inscriptions.length) return [];
+        if (!chefsQuartier.length || !visibleInscriptions.length) return [];
         
         return chefsQuartier.map(chef => {
-            const chefInscriptions = inscriptions.filter(i => i.chef_quartier_id === chef.id);
+            const chefInscriptions = visibleInscriptions.filter(i => i.chef_quartier_id === chef.id);
             const totalChef = chefInscriptions.length;
             const validated = chefInscriptions.filter(i => i.statut === 'valide').length;
             const pending = chefInscriptions.filter(i => i.statut === 'en_attente').length;
@@ -109,7 +129,7 @@ export function Dashboard() {
                 avatar: chef.nom_complet.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
             };
         }).sort((a, b) => b.total - a.total);
-    }, [chefsQuartier, inscriptions]);
+    }, [chefsQuartier, visibleInscriptions]);
 
     // Charger les données supplémentaires (vues) une seule fois
     useEffect(() => {

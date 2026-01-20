@@ -111,7 +111,16 @@ export function RegistrationManagement() {
             const matchesChef = !filters.chefQuartier || r.chefQuartier.includes(filters.chefQuartier);
             const matchesNiveau = !filters.niveau || r.niveau === filters.niveau;
             const matchesSexe = !filters.sexe || r.sexe === filters.sexe;
-            // Filtre workflow: si un filtre workflow est sélectionné, l'appliquer
+            
+            // Filtre workflow: afficher uniquement les inscriptions en attente de secrétariat pour les inscriptions président
+            // Pour les inscriptions président avec workflow
+            if (r.originalData.created_by === 'president') {
+                // Afficher uniquement si workflow_status = 'pending_secretariat' ou 'completed'
+                return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe && 
+                       (r.originalData.workflow_status === 'pending_secretariat' || r.originalData.workflow_status === 'completed');
+            }
+            
+            // Pour les autres inscriptions, utiliser le filtre workflow standard
             const matchesWorkflow = !filters.workflow || r.statut_workflow === filters.workflow;
             return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe && matchesWorkflow;
         });
@@ -119,26 +128,33 @@ export function RegistrationManagement() {
 
     const handleValidateOne = async (id) => {
         try {
+            // Récupérer l'inscription pour déterminer le type de workflow
+            const registration = registrations.find(r => r.id === id);
+            
+            // Préparer l'update selon le type d'inscription
+            const updateData = {
+                statut: 'valide',
+                valide_par_secretariat: user?.id || null,
+                date_validation_secretariat: new Date().toISOString(),
+            };
+
+            // Si inscription créée par président, mettre à jour le workflow vers 'completed'
+            if (registration?.originalData.created_by === 'president') {
+                updateData.workflow_status = 'completed';
+            } else {
+                // Pour les autres inscriptions, utiliser l'ancien système
+                updateData.statut_workflow = 'valide';
+            }
+
             const { error } = await supabase
                 .from('inscriptions')
-                .update({
-                    statut: 'valide',
-                    // Workflow: validation par le secrétariat -> passe à 'valide' (visible en scientifique)
-                    statut_workflow: 'valide',
-                    valide_par_secretariat: user?.id || null,
-                    date_validation_secretariat: new Date().toISOString(),
-                })
+                .update(updateData)
                 .eq('id', id);
 
             if (error) throw error;
 
             // Mise à jour optimiste locale
-            updateInscriptionLocal(id, {
-                statut: 'valide',
-                statut_workflow: 'valide',
-                valide_par_secretariat: user?.id || null,
-                date_validation_secretariat: new Date().toISOString(),
-            });
+            updateInscriptionLocal(id, updateData);
         } catch (error) {
             console.error('Erreur validation:', error);
             alert('Erreur lors de la validation de l\'inscription');

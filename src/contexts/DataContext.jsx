@@ -8,11 +8,24 @@ function buildStats(inscriptions, paiements) {
   const safeInscriptions = Array.isArray(inscriptions) ? inscriptions : [];
   const safePaiements = Array.isArray(paiements) ? paiements : [];
 
-  const totalInscriptions = safeInscriptions.length;
-  const inscriptionsValidees = safeInscriptions.filter(i => i?.statut === 'valide').length;
-  const inscriptionsEnAttente = safeInscriptions.filter(i => i?.statut === 'en_attente').length;
-  const hommes = safeInscriptions.filter(i => i?.sexe === 'homme').length;
-  const femmes = safeInscriptions.filter(i => i?.sexe === 'femme').length;
+  // Pour les stats générales du secrétariat, ne compter que les inscriptions qui sont visibles
+  // c'est-à-dire : 
+  // - Les inscriptions NON président (ancien système)
+  // - Les inscriptions président qui ont passé la validation financière (pending_secretariat ou completed)
+  const inscriptionsVisiblesSecretariat = safeInscriptions.filter(i => {
+    // Si inscription président, elle doit avoir passé la finance
+    if (i?.created_by === 'president') {
+      return i?.workflow_status === 'pending_secretariat' || i?.workflow_status === 'completed';
+    }
+    // Sinon, toutes les autres inscriptions sont comptées (ancien système)
+    return true;
+  });
+
+  const totalInscriptions = inscriptionsVisiblesSecretariat.length;
+  const inscriptionsValidees = inscriptionsVisiblesSecretariat.filter(i => i?.statut === 'valide').length;
+  const inscriptionsEnAttente = inscriptionsVisiblesSecretariat.filter(i => i?.statut === 'en_attente').length;
+  const hommes = inscriptionsVisiblesSecretariat.filter(i => i?.sexe === 'homme').length;
+  const femmes = inscriptionsVisiblesSecretariat.filter(i => i?.sexe === 'femme').length;
 
   const totalCollecte = safeInscriptions.reduce((acc, i) => acc + (i?.montant_total_paye || 0), 0);
   const paiementsEnAttente = safePaiements.filter(p => p?.statut === 'attente' || p?.statut === 'en_attente').length;
@@ -180,7 +193,20 @@ export function DataProvider({ children }) {
     const safeNotes = Array.isArray(notesExamens) ? notesExamens : [];
     const safeClasses = Array.isArray(classes) ? classes : [];
 
-    const totalParticipantsValides = safeInscriptions.filter(i => i?.statut === 'valide').length;
+    // Pour la cellule scientifique, ne compter que les inscriptions qui sont visibles
+    // c'est-à-dire : 
+    // - Les inscriptions NON président validées (ancien système)
+    // - Les inscriptions président avec workflow_status = 'completed'
+    const inscriptionsVisiblesScientifique = safeInscriptions.filter(i => {
+      // Si inscription président, elle doit être completed
+      if (i?.created_by === 'president') {
+        return i?.workflow_status === 'completed' && i?.statut === 'valide';
+      }
+      // Sinon, seules les inscriptions validées sont comptées
+      return i?.statut === 'valide';
+    });
+
+    const totalParticipantsValides = inscriptionsVisiblesScientifique.length;
 
     const parNiveauSets = {
       niveau_1: new Set(),

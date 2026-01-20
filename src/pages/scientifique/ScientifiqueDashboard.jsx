@@ -28,9 +28,21 @@ export function ScientifiqueDashboard() {
     // Participants validés sans note d'entrée
     const participantsSansNote = useMemo(() => {
         const inscriptionIdsAvecNote = new Set(notesExamens.map(n => n.inscription_id));
-        return inscriptions.filter(
-            i => i.statut === 'valide' && !inscriptionIdsAvecNote.has(i.id)
-        );
+        return inscriptions.filter(i => {
+            // Vérifier que l'inscription est validée
+            if (i.statut !== 'valide') return false;
+            
+            // Vérifier qu'elle n'a pas encore de note
+            if (inscriptionIdsAvecNote.has(i.id)) return false;
+            
+            // Pour les inscriptions président, vérifier que le workflow est terminé
+            if (i.created_by === 'president') {
+                return i.workflow_status === 'completed';
+            }
+            
+            // Pour les autres inscriptions, afficher si validées
+            return true;
+        });
     }, [inscriptions, notesExamens]);
 
     // Calcul du taux de remplissage des classes

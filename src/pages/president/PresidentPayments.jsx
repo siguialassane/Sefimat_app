@@ -26,7 +26,7 @@ export function PresidentPayments() {
     const [loading, setLoading] = useState(true);
     const [inscriptions, setInscriptions] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterStatus, setFilterStatus] = useState("non_solde");
+    const [filterStatus, setFilterStatus] = useState("all");
     const [selectedInscription, setSelectedInscription] = useState(null);
     const [paymentHistory, setPaymentHistory] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
@@ -56,11 +56,13 @@ export function PresidentPayments() {
                 .eq("chef_quartier_id", president.id)
                 .order("created_at", { ascending: false });
 
+            // Appliquer les filtres selon le statut sélectionné
             if (filterStatus === "non_solde") {
                 query = query.neq("statut_paiement", "soldé").neq("statut_paiement", "valide_financier");
             } else if (filterStatus === "solde") {
                 query = query.or("statut_paiement.eq.soldé,statut_paiement.eq.valide_financier");
             }
+            // Si filterStatus === "all", ne pas appliquer de filtre (afficher tous les participants)
 
             const { data, error } = await query;
 

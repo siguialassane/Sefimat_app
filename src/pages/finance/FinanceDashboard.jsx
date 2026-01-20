@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,10 +51,20 @@ export function FinanceDashboard() {
         };
     }, [inscriptions, paiements, globalStats]);
 
-    // Validations en attente (depuis DataContext)
+    // Validations en attente (depuis DataContext) - filtrer uniquement les inscriptions président en attente finance
     const pendingValidations = useMemo(() => {
         return inscriptions
-            .filter(i => i.statut_paiement === "partiel" && (i.montant_total_paye || 0) < (i.montant_requis || 4000))
+            .filter(i => {
+                // Afficher uniquement les inscriptions créées par président en attente de validation financière
+                if (i.created_by === 'president' && i.workflow_status === 'pending_finance') {
+                    return true;
+                }
+                // Afficher aussi les inscriptions partielles pour autres cas (rétrocompatibilité)
+                if (i.created_by !== 'president' && i.statut_paiement === "partiel" && (i.montant_total_paye || 0) < (i.montant_requis || 4000)) {
+                    return true;
+                }
+                return false;
+            })
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
             .slice(0, 5);
     }, [inscriptions]);

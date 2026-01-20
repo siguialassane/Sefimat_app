@@ -24,7 +24,7 @@ export function PaymentValidation() {
     const [actionLoading, setActionLoading] = useState(false);
 
     // Filtrer les paiements en attente de validation
-    // Inclut: inscriptions en ligne en attente finance OU inscriptions présentielles avec paiement partiel non validé
+    // Inclut: inscriptions président avec workflow_status='pending_finance' OU inscriptions présentielles avec paiement partiel non validé
     const paiementsEnAttente = useMemo(() => {
         return allInscriptions.filter(i => {
             // Exclure les paiements déjà validés par le financier ou soldés
@@ -32,12 +32,17 @@ export function PaymentValidation() {
                 return false;
             }
 
-            // Cas 1: Inscriptions en ligne en attente de validation finance
-            if (i.type_inscription === "en_ligne" && i.statut_workflow === "en_attente_finance") {
+            // Cas 1: Inscriptions président en attente de validation finance (WORKFLOW)
+            if (i.created_by === 'president' && i.workflow_status === 'pending_finance') {
+                return true;
+            }
+
+            // Cas 2: Inscriptions en ligne en attente de validation finance (ancien système)
+            if (i.type_inscription === "en_ligne" && i.statut_workflow === "en_attente_finance" && i.created_by !== 'president') {
                 return i.statut_paiement === "partiel" || i.statut_paiement === "non_payé";
             }
 
-            // Cas 2: Inscriptions présentielles avec paiement partiel (à suivre par la finance)
+            // Cas 3: Inscriptions présentielles avec paiement partiel (à suivre par la finance)
             if (i.type_inscription === "presentielle" && i.statut_paiement === "partiel") {
                 return true;
             }
@@ -83,25 +88,32 @@ export function PaymentValidation() {
 
         setActionLoading(true);
         try {
+            // Récupérer l'inscription pour déterminer le type de workflow
+            const inscription = allInscriptions.find(i => i.id === inscriptionId);
+            
+            // Préparer l'update selon le type d'inscription
+            const updateData = {
+                statut_paiement: "valide_financier",
+                valide_par_financier: user.id,
+                date_validation_financier: new Date().toISOString(),
+            };
+
+            // Si inscription créée par président, mettre à jour le workflow
+            if (inscription?.created_by === 'president') {
+                updateData.workflow_status = 'pending_secretariat';
+            } else {
+                // Pour les autres inscriptions, utiliser l'ancien système
+                updateData.statut_workflow = "en_attente_secretariat";
+            }
+
             const { error } = await supabase
                 .from("inscriptions")
-                .update({
-                    statut_paiement: "valide_financier",
-                    valide_par_financier: user.id,
-                    date_validation_financier: new Date().toISOString(),
-                    // Workflow: passer à l'étape secrétariat
-                    statut_workflow: "en_attente_secretariat",
-                })
+                .update(updateData)
                 .eq("id", inscriptionId);
 
             if (error) throw error;
 
-            updateInscriptionLocal(inscriptionId, {
-                statut_paiement: "valide_financier",
-                valide_par_financier: user.id,
-                date_validation_financier: new Date().toISOString(),
-                statut_workflow: "en_attente_secretariat",
-            });
+            updateInscriptionLocal(inscriptionId, updateData);
 
             setModalOpen(false);
             setSelectedInscription(null);
@@ -123,25 +135,32 @@ export function PaymentValidation() {
 
         setActionLoading(true);
         try {
+            // Récupérer l'inscription pour déterminer le type de workflow
+            const inscription = allInscriptions.find(i => i.id === inscriptionId);
+            
+            // Préparer l'update selon le type d'inscription
+            const updateData = {
+                statut_paiement: "refuse",
+                valide_par_financier: user.id,
+                date_validation_financier: new Date().toISOString(),
+            };
+
+            // Si inscription créée par président, mettre à jour le workflow
+            if (inscription?.created_by === 'president') {
+                updateData.workflow_status = 'rejected';
+            } else {
+                // Pour les autres inscriptions, utiliser l'ancien système
+                updateData.statut_workflow = "rejete";
+            }
+
             const { error } = await supabase
                 .from("inscriptions")
-                .update({
-                    statut_paiement: "refuse",
-                    valide_par_financier: user.id,
-                    date_validation_financier: new Date().toISOString(),
-                    // Workflow: marquer comme rejeté
-                    statut_workflow: "rejete",
-                })
+                .update(updateData)
                 .eq("id", inscriptionId);
 
             if (error) throw error;
 
-            updateInscriptionLocal(inscriptionId, {
-                statut_paiement: "refuse",
-                valide_par_financier: user.id,
-                date_validation_financier: new Date().toISOString(),
-                statut_workflow: "rejete",
-            });
+            updateInscriptionLocal(inscriptionId, updateData);
 
             setModalOpen(false);
             setSelectedInscription(null);
