@@ -1,0 +1,97 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Supabase Keep-Alive
+# Ping tous les projets Supabase (free tier) pour éviter la mise en pause.
+# Supabase pause un projet après 7 jours sans activité.
+# Ce workflow tourne lundi + jeudi = max 4 jours d'écart, largement suffisant.
+#
+# CONFIGURATION (à faire une seule fois) :
+#   GitHub → Settings → Secrets and variables → Actions → New repository secret
+#   Nom    : SUPABASE_PROJECTS
+#   Valeur : tableau JSON, un objet par projet :
+#   [
+#     { "name": "appli_pointage", "url": "https://xxxxxxxxxxxx.supabase.co", "key": "eyJ..." },
+#     { "name": "mon_autre_projet", "url": "https://yyyyyyyyyyyy.supabase.co", "key": "eyJ..." }
+#   ]
+#   La "key" est l'anon/public key du projet (visible dans Supabase → Project Settings → API).
+#
+# TEST MANUEL : onglet "Actions" → "Supabase Keep-Alive" → "Run workflow".
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: 🔄 Supabase Keep-Alive
+
+on:
+  schedule:
+    # Lundi à 07:00 UTC
+    - cron: '0 7 * * 1'
+    # Jeudi à 07:00 UTC
+    - cron: '0 7 * * 4'
+  # Déclenchement manuel depuis l'onglet Actions
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping all Supabase projects
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check secret is set
+        run: |
+          if [ -z "${{ secrets.SUPABASE_PROJECTS }}" ]; then
+            echo ""
+            echo "❌  Le secret SUPABASE_PROJECTS n'est pas configuré."
+            echo ""
+            echo "  1. Ouvre : https://github.com/<toi>/<repo>/settings/secrets/actions"
+            echo "  2. Clique «New repository secret»"
+            echo "  3. Nom    : SUPABASE_PROJECTS"
+            echo "  4. Valeur (exemple) :"
+            echo '     [{"name":"appli_pointage","url":"https://xxx.supabase.co","key":"eyJ..."}]'
+            echo ""
+            exit 1
+          fi
+
+      - name: Ping each project
+        env:
+          SUPABASE_PROJECTS: ${{ secrets.SUPABASE_PROJECTS }}
+        run: |
+          set -euo pipefail
+
+          SUCCESS=0
+          FAIL=0
+          TOTAL=$(echo "$SUPABASE_PROJECTS" | jq 'length')
+
+          echo "📋  $TOTAL projet(s) à pinger"
+          echo "─────────────────────────────────────────"
+
+          while IFS= read -r project; do
+            NAME=$(echo "$project" | jq -r '.name')
+            URL=$(echo "$project"  | jq -r '.url' | sed 's:/*$::')
+            KEY=$(echo "$project"  | jq -r '.key')
+
+            printf "🔁  %-30s  " "[$NAME]"
+
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 20 \
+              -H "apikey: $KEY" \
+              -H "Authorization: Bearer $KEY" \
+              "$URL/rest/v1/")
+
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "✅  HTTP $HTTP_STATUS"
+              SUCCESS=$((SUCCESS + 1))
+            else
+              echo "⚠️   HTTP $HTTP_STATUS  ← vérifier l'URL et la clé"
+              FAIL=$((FAIL + 1))
+            fi
+
+          done < <(echo "$SUPABASE_PROJECTS" | jq -c '.[]')
+
+          echo "─────────────────────────────────────────"
+          echo "Résultat : ✅ $SUCCESS succès  /  ❌ $FAIL échec(s)"
+          echo ""
+
+          # Faire échouer le job si au moins un projet est inaccessible
+          # → Notification email GitHub envoyée automatiquement
+          if [ "$FAIL" -gt 0 ]; then
+            exit 1
+          fi
