@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { uploadPhoto } from "@/lib/storage";
+import { notify } from "@/components/ui/toast";
 
 const registrationSchema = z.object({
     nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
@@ -55,7 +56,6 @@ const steps = [
 export function PresidentRegistration() {
     const { president } = useOutletContext();
     const [currentStep, setCurrentStep] = useState(1);
-    const [isSubmitted, setIsSubmitted] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [photoFile, setPhotoFile] = useState(null);
     const [photoError, setPhotoError] = useState(null);
@@ -156,7 +156,9 @@ export function PresidentRegistration() {
         // Validation stricte du montant - BLOQUER si > 4000
         const montant = Math.floor(data.montantPaye || 0);
         if (montant > 4000) {
-            alert("❌ Le montant ne peut pas dépasser 4000 FCFA !\nVeuillez corriger le montant.");
+            notify.warning("Le montant ne peut pas dépasser 4000 FCFA.", {
+                title: "Montant invalide",
+            });
             setCurrentStep(4);
             return;
         }
@@ -221,15 +223,18 @@ export function PresidentRegistration() {
                 }
             }
 
-            setIsSubmitted(true);
+            notify.success("Inscription enregistrée avec succès.", {
+                title: "Inscription envoyée",
+            });
             setPhotoFile(null);
             setPhotoKey(prev => prev + 1);
             reset();
             setCurrentStep(1);
-            setTimeout(() => setIsSubmitted(false), 5000);
         } catch (error) {
             console.error("Erreur lors de l'inscription:", error);
-            alert(`Erreur: ${error.message || 'Impossible de soumettre l\'inscription'}`);
+            notify.error(error.message || "Impossible de soumettre l'inscription", {
+                title: "Erreur d'inscription",
+            });
         } finally {
             setIsLoading(false);
         }
@@ -784,21 +789,6 @@ export function PresidentRegistration() {
                     </div>
                 </div>
             </main>
-
-            {/* Success Toast */}
-            {isSubmitted && (
-                <div className="fixed bottom-6 right-6 left-6 sm:left-auto max-w-sm w-full bg-surface-light dark:bg-surface-dark border-l-4 border-primary shadow-xl rounded-lg p-4 flex items-start gap-3 animate-fade-in z-50">
-                    <CheckCircle className="h-6 w-6 text-primary flex-shrink-0" />
-                    <div>
-                        <h4 className="font-bold text-text-main dark:text-white">
-                            Inscription envoyée !
-                        </h4>
-                        <p className="text-text-secondary dark:text-gray-400 text-sm mt-1">
-                            L'inscription est en attente de validation.
-                        </p>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

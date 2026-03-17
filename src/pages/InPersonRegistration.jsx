@@ -93,14 +93,18 @@ export function InPersonRegistration() {
         { id: 3, title: "Finalisation", fields: ["nombreParticipations", "dortoirId", "montantPaye"] }
     ];
 
-    const nextStep = async () => {
+    const nextStep = useCallback(async () => {
         const fields = steps[currentStep - 1].fields;
         const isValid = await trigger(fields);
 
         if (isValid) {
-            setCurrentStep(prev => Math.min(prev + 1, steps.length));
+            // Utiliser requestAnimationFrame pour s'assurer que le re-render 
+            // de validation est terminé avant de lancer la transition
+            requestAnimationFrame(() => {
+                setCurrentStep(prev => Math.min(prev + 1, steps.length));
+            });
         }
-    };
+    }, [currentStep, trigger]);
 
     const prevStep = () => {
         setCurrentStep(prev => Math.max(prev - 1, 1));
@@ -413,8 +417,11 @@ export function InPersonRegistration() {
                             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                                 <div className="overflow-hidden mx-[-4px]">
                                     <div
-                                        className="flex transition-transform duration-500 ease-in-out"
-                                        style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}
+                                        className="flex items-start transition-transform duration-500 ease-in-out will-change-transform"
+                                        style={{
+                                            transform: `translate3d(-${(currentStep - 1) * 100}%, 0, 0)`,
+                                            backfaceVisibility: 'hidden',
+                                        }}
                                     >
                                         {/* ÉTAGE 1 : Identité */}
                                         <div className="w-full flex-shrink-0 px-1">
@@ -674,9 +681,9 @@ export function InPersonRegistration() {
                                                             step="100"
                                                             placeholder="0"
                                                             {...register("montantPaye", { valueAsNumber: true })}
-                                                            className={`pl-10 font-bold text-lg ${errors.montantPaye ? "border-red-500" : "border-emerald-200 focus:border-emerald-500"}`}
+                                                            className={`pl-18 font-bold text-lg ${errors.montantPaye ? "border-red-500" : "border-emerald-200 focus:border-emerald-500"}`}
                                                         />
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-sm pointer-events-none">
                                                             FCFA
                                                         </span>
                                                     </div>

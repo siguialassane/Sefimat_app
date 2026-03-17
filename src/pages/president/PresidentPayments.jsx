@@ -20,6 +20,7 @@ import {
     RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { notify } from "@/components/ui/toast";
 
 export function PresidentPayments() {
     const { president } = useOutletContext();
@@ -124,7 +125,7 @@ export function PresidentPayments() {
 
     const handleAddPayment = async () => {
         if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-            alert("Veuillez entrer un montant valide");
+            notify.warning("Veuillez entrer un montant valide", { title: "Montant invalide" });
             return;
         }
 
@@ -133,7 +134,7 @@ export function PresidentPayments() {
         const remaining = 4000 - (selectedInscription.montant_total_paye || 0);
 
         if (amount > remaining) {
-            alert(`Le montant ne peut pas dépasser ${remaining} FCFA (reste à payer)`);
+            notify.warning(`Le montant ne peut pas dépasser ${remaining} FCFA (reste à payer)`, { title: "Montant invalide" });
             return;
         }
 
@@ -169,10 +170,14 @@ export function PresidentPayments() {
             loadInscriptions();
 
             // Afficher un message de succès
-            alert(`Paiement de ${amount.toLocaleString()} FCFA enregistré !\nNouveau total: ${data.new_total.toLocaleString()} FCFA`);
+            notify.success(`Paiement de ${amount.toLocaleString()} FCFA enregistré. Nouveau total: ${data.new_total.toLocaleString()} FCFA`, {
+                title: "Paiement enregistré",
+            });
         } catch (error) {
             console.error("PresidentPayments: Erreur ajout paiement:", error);
-            alert("Erreur lors de l'ajout du paiement: " + (error.message || "Erreur inconnue"));
+            notify.error("Erreur lors de l'ajout du paiement: " + (error.message || "Erreur inconnue"), {
+                title: "Échec paiement",
+            });
         } finally {
             setIsSubmitting(false);
         }

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useData } from "@/contexts";
 import { supabase } from "@/lib/supabase";
+import { notify } from "@/components/ui/toast";
 
 export function ConfigClasses() {
     const { configCapaciteClasses, classes, notesExamens, refresh } = useData();
@@ -70,11 +71,12 @@ export function ConfigClasses() {
             // Nettoyer les éditions
             setEditedCapacites({});
             setSuccess(true);
+            notify.success("Capacités des classes mises à jour.", { title: "Configuration enregistrée" });
 
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             console.error('Erreur sauvegarde config:', err);
-            alert(`Erreur: ${err.message}`);
+            notify.error(err.message || "Erreur de sauvegarde", { title: "Enregistrement impossible" });
         } finally {
             setSaving(false);
         }

@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LazyImage } from '@/components/ui/lazy-image';
+import { notify } from '@/components/ui/toast';
 import { useData } from '@/contexts/DataContext';
-import jsPDF from 'jspdf';
 import {
     Download,
     FileText,
@@ -40,8 +40,15 @@ export default function GestionBulletins() {
     // Fonction de rafraîchissement
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
-        await refresh();
-        setRefreshing(false);
+        try {
+            await refresh();
+            notify.success("Données des bulletins actualisées.", { title: "Actualisation réussie" });
+        } catch (error) {
+            console.error("Erreur actualisation bulletins:", error);
+            notify.error("Impossible d'actualiser les bulletins", { title: "Actualisation impossible" });
+        } finally {
+            setRefreshing(false);
+        }
     }, [refresh]);
 
     const loading = dataLoading || refreshing;
@@ -148,6 +155,7 @@ export default function GestionBulletins() {
     const genererBulletin = useCallback(async (note, allParticipants) => {
         setExporting(true);
         try {
+            const { default: jsPDF } = await import('jspdf');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pageWidth = pdf.internal.pageSize.getWidth();
             const pageHeight = pdf.internal.pageSize.getHeight();
@@ -446,7 +454,7 @@ export default function GestionBulletins() {
             pdf.save(fileName.replace(/\s+/g, '_'));
         } catch (err) {
             console.error('Erreur génération bulletin:', err);
-            alert('Erreur lors de la génération du bulletin');
+            notify.error('Erreur lors de la génération du bulletin', { title: 'Export bulletin impossible' });
         } finally {
             setExporting(false);
         }
@@ -455,7 +463,7 @@ export default function GestionBulletins() {
     // Générer tous les bulletins
     const genererTousBulletins = useCallback(async () => {
         if (participantsFiltres.length === 0) {
-            alert('Aucun participant avec des notes à exporter');
+            notify.warning('Aucun participant avec des notes à exporter', { title: 'Export vide' });
             return;
         }
 
@@ -466,6 +474,7 @@ export default function GestionBulletins() {
                 // Petite pause entre chaque génération
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
+            notify.success('Tous les bulletins ont été générés.', { title: 'Export terminé' });
         } finally {
             setExporting(false);
         }

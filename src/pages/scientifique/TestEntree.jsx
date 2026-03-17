@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useData, useAuth } from "@/contexts";
 import { supabase } from "@/lib/supabase";
+import { notify } from "@/components/ui/toast";
 
 export function TestEntree() {
     const { user } = useAuth();
@@ -224,7 +225,7 @@ export function TestEntree() {
         });
 
         if (participantsAvecNote.length === 0) {
-            alert("Aucune note valide à enregistrer");
+            notify.warning("Aucune note valide à enregistrer", { title: "Aucune saisie" });
             return;
         }
 
@@ -244,7 +245,13 @@ export function TestEntree() {
         setSavingAll(false);
 
         if (errorCount > 0) {
-            alert(`${successCount} note(s) enregistrée(s), ${errorCount} erreur(s)`);
+            notify.warning(`${successCount} note(s) enregistrée(s), ${errorCount} erreur(s)`, {
+                title: "Enregistrement partiel",
+            });
+        } else if (successCount > 0) {
+            notify.success(`${successCount} note(s) enregistrée(s) avec succès`, {
+                title: "Enregistrement terminé",
+            });
         }
     }, [participantsSansNote, noteInputs, handleSaveNote]);
 

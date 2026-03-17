@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { LazyImage } from "@/components/ui/lazy-image";
 import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap, Building, BookOpen, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { notify } from "@/components/ui/toast";
 
 // Mapping niveau formation
 const niveauFormationMap = {
@@ -91,7 +92,9 @@ export function RegistrationDetailsModal({
             // Si on change de dortoir (pas le même qu'avant)
             if (value !== currentDortoirId && dortoirStats) {
                 if (dortoirStats.nombre_inscrits >= dortoirStats.capacite) {
-                    alert(`Le dortoir "${dortoirStats.nom}" est complet (${dortoirStats.nombre_inscrits}/${dortoirStats.capacite}).\nVeuillez choisir un autre dortoir ou augmenter la capacité dans la configuration.`);
+                    notify.warning(`Le dortoir "${dortoirStats.nom}" est complet (${dortoirStats.nombre_inscrits}/${dortoirStats.capacite}).`, {
+                        title: "Dortoir complet",
+                    });
                     return; // Bloquer l'affectation
                 }
             }
@@ -607,7 +610,9 @@ export function RegistrationDetailsModal({
                                                     const currentDortoirId = registration.originalData?.dortoir_id;
 
                                                     if (newValue !== currentDortoirId && stats && stats.nombre_inscrits >= stats.capacite) {
-                                                        alert(`Le dortoir "${stats.nom}" est complet (${stats.nombre_inscrits}/${stats.capacite}).\nVeuillez choisir un autre dortoir ou augmenter la capacité dans la configuration.`);
+                                                        notify.warning(`Le dortoir "${stats.nom}" est complet (${stats.nombre_inscrits}/${stats.capacite}).`, {
+                                                            title: "Dortoir complet",
+                                                        });
                                                         return;
                                                     }
                                                 }

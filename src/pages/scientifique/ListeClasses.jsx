@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { useData } from "@/contexts";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { notify } from "@/components/ui/toast";
 
 export function ListeClasses() {
     const { notesExamens, classes, dortoirs, inscriptions } = useData();
@@ -88,6 +87,7 @@ export function ListeClasses() {
     const exportClassePDF = useCallback(async (classe) => {
         setExporting(true);
         try {
+            const { default: jsPDF } = await import("jspdf");
             const participants = participantsParClasse[classe.id] || [];
 
             const pdf = new jsPDF('p', 'mm', 'a4');
@@ -218,9 +218,10 @@ export function ListeClasses() {
             }
 
             pdf.save(`liste_${classe.nom.replace(/\s+/g, '_')}.pdf`);
+            notify.success(`Export de la classe ${classe.nom} terminé.`, { title: 'Export réussi' });
         } catch (err) {
             console.error('Erreur export PDF:', err);
-            alert('Erreur lors de l\'export PDF');
+            notify.error("Erreur lors de l'export PDF", { title: "Export impossible" });
         } finally {
             setExporting(false);
         }
@@ -230,6 +231,7 @@ export function ListeClasses() {
     const exportToutPDF = useCallback(async () => {
         setExporting(true);
         try {
+            const { default: jsPDF } = await import("jspdf");
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pageWidth = pdf.internal.pageSize.getWidth();
             const photoSize = 10; // Taille de la photo en mm
@@ -342,9 +344,10 @@ export function ListeClasses() {
             pdf.text(`SEFIMAP - Généré le ${date}`, pageWidth / 2, 10, { align: 'center' });
 
             pdf.save('liste_toutes_classes.pdf');
+            notify.success('Export de toutes les classes terminé.', { title: 'Export réussi' });
         } catch (err) {
             console.error('Erreur export PDF:', err);
-            alert('Erreur lors de l\'export PDF');
+            notify.error("Erreur lors de l'export PDF", { title: "Export impossible" });
         } finally {
             setExporting(false);
         }

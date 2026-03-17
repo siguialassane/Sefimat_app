@@ -7,46 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { notify } from "@/components/ui/toast";
+import { useData } from "@/contexts";
 
 export function ConfigDortoirs() {
-    const [dortoirs, setDortoirs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const { dortoirs, inscriptions, loading, refresh } = useData();
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [editedDortoirs, setEditedDortoirs] = useState({});
-    const [inscriptions, setInscriptions] = useState([]);
-
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            // Charger les dortoirs
-            const { data: dortoirsData, error: dortoirsError } = await supabase
-                .from('dortoirs')
-                .select('*')
-                .order('nom');
-
-            if (dortoirsError) throw dortoirsError;
-            setDortoirs(dortoirsData || []);
-
-            // Charger les inscriptions avec dortoirs affectés
-            const { data: inscriptionsData, error: inscriptionsError } = await supabase
-                .from('inscriptions')
-                .select('id, nom, prenom, dortoir_id')
-                .not('dortoir_id', 'is', null);
-
-            if (inscriptionsError) throw inscriptionsError;
-            setInscriptions(inscriptionsData || []);
-        } catch (err) {
-            console.error('Erreur chargement dortoirs:', err);
-            alert(`Erreur: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // Obtenir les stats d'un dortoir
     const getDortoirStats = useCallback((dortoirId) => {
@@ -94,21 +62,22 @@ export function ConfigDortoirs() {
                 if (error) throw error;
             }
 
-            // Recharger les données
-            await loadData();
+            // Recharger les données globales
+            await refresh();
 
             // Nettoyer les éditions
             setEditedDortoirs({});
             setSuccess(true);
+            notify.success("Configuration des dortoirs enregistrée.", { title: "Enregistrement réussi" });
 
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             console.error('Erreur sauvegarde dortoirs:', err);
-            alert(`Erreur: ${err.message}`);
+            notify.error(err.message || "Erreur de sauvegarde", { title: "Enregistrement impossible" });
         } finally {
             setSaving(false);
         }
-    }, [editedDortoirs]);
+    }, [editedDortoirs, refresh]);
 
     // Ajouter un nouveau dortoir
     const handleAddDortoir = useCallback(async () => {
@@ -119,7 +88,7 @@ export function ConfigDortoirs() {
         const capacite = parseInt(capaciteStr, 10);
 
         if (isNaN(capacite) || capacite < 1) {
-            alert("Veuillez entrer une capacité valide (nombre entier >= 1)");
+            notify.warning("Veuillez entrer une capacité valide (nombre entier >= 1)", { title: "Capacité invalide" });
             return;
         }
 
@@ -134,20 +103,22 @@ export function ConfigDortoirs() {
 
             if (error) throw error;
 
-            await loadData();
-            alert(`Dortoir "${nom}" créé avec succès !`);
+            await refresh();
+            notify.success(`Dortoir "${nom}" créé avec succès !`, { title: "Création réussie" });
         } catch (err) {
             console.error('Erreur création dortoir:', err);
-            alert(`Erreur: ${err.message}`);
+            notify.error(err.message || "Erreur de création du dortoir", { title: "Création impossible" });
         }
-    }, []);
+    }, [refresh]);
 
     // Supprimer un dortoir
     const handleDeleteDortoir = useCallback(async (dortoir) => {
         const stats = getDortoirStats(dortoir.id);
 
         if (stats.assigned > 0) {
-            alert(`Impossible de supprimer "${dortoir.nom}" : ${stats.assigned} participant(s) sont affectés à ce dortoir.\nVeuillez d'abord réaffecter ces participants à un autre dortoir.`);
+            notify.warning(`Impossible de supprimer "${dortoir.nom}" : ${stats.assigned} participant(s) sont affectés à ce dortoir.`, {
+                title: "Suppression bloquée",
+            });
             return;
         }
 
@@ -163,13 +134,13 @@ export function ConfigDortoirs() {
 
             if (error) throw error;
 
-            await loadData();
-            alert(`Dortoir "${dortoir.nom}" supprimé avec succès !`);
+            await refresh();
+            notify.success(`Dortoir "${dortoir.nom}" supprimé avec succès !`, { title: "Suppression réussie" });
         } catch (err) {
             console.error('Erreur suppression dortoir:', err);
-            alert(`Erreur: ${err.message}`);
+            notify.error(err.message || "Erreur de suppression", { title: "Suppression impossible" });
         }
-    }, [getDortoirStats]);
+    }, [getDortoirStats, refresh]);
 
     const hasChanges = Object.keys(editedDortoirs).length > 0;
 

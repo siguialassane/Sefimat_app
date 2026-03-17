@@ -4,6 +4,7 @@ import { RefreshCw, Download, CheckCheck, DollarSign } from "lucide-react";
 import { useData } from "@/contexts";
 import { PaymentFilters, PaymentTable, PaymentModal } from "./components";
 import { Card } from "@/components/ui/card";
+import { notify } from "@/components/ui/toast";
 
 export function PaymentList() {
     const { 
@@ -81,6 +82,7 @@ export function PaymentList() {
 
     const handleRefresh = useCallback(() => {
         refresh();
+        notify.success("Liste des paiements actualisée.", { title: "Actualisation réussie" });
     }, [refresh]);
 
     const formatMontant = (montant) => {
@@ -110,6 +112,7 @@ export function PaymentList() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        notify.success("Export CSV généré avec succès.", { title: "Export réussi" });
     };
 
     return (

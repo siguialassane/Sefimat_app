@@ -16,6 +16,7 @@ import {
     RefreshCw,
 } from "lucide-react";
 import { useData } from "@/contexts";
+import { notify } from "@/components/ui/toast";
 
 export function PaymentSummary() {
     // Utiliser le DataContext global
@@ -109,6 +110,7 @@ export function PaymentSummary() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        notify.success("Récapitulatif exporté en CSV.", { title: "Export réussi" });
     };
 
     return (
@@ -125,7 +127,15 @@ export function PaymentSummary() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button variant="outline" className="gap-2" onClick={refresh} disabled={loading}>
+                    <Button
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => {
+                            refresh();
+                            notify.success("Récapitulatif actualisé.", { title: "Actualisation réussie" });
+                        }}
+                        disabled={loading}
+                    >
                         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         Actualiser
                     </Button>

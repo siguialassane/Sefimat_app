@@ -16,6 +16,7 @@ import {
     Building2,
 } from "lucide-react";
 import { useAuth, useData } from "@/contexts";
+import { notify } from "@/components/ui/toast";
 
 export function FinanceDashboard() {
     const navigate = useNavigate();
@@ -76,6 +77,7 @@ export function FinanceDashboard() {
 
     const handleRefresh = useCallback(() => {
         refresh();
+        notify.success("Données financières actualisées.", { title: "Actualisation réussie" });
     }, [refresh]);
 
     const formatMontant = (montant) => {
@@ -161,7 +163,10 @@ export function FinanceDashboard() {
                         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         Actualiser
                     </Button>
-                    <Button className="gap-2">
+                    <Button
+                        className="gap-2"
+                        onClick={() => notify.info("Export financier bientôt disponible.", { title: "Fonction en préparation" })}
+                    >
                         <Download className="h-4 w-4" />
                         Exporter
                     </Button>

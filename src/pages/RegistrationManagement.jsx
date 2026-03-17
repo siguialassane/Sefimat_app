@@ -64,7 +64,6 @@ export function RegistrationManagement() {
         chefQuartier: "",
         niveau: "",
         sexe: "",
-        workflow: "", // Par défaut, afficher toutes les inscriptions (inclut les présentielles validées)
     });
     const [editModal, setEditModal] = useState({ open: false, registration: null });
     const [deleteModal, setDeleteModal] = useState({ open: false, registration: null });
@@ -120,9 +119,8 @@ export function RegistrationManagement() {
                        (r.originalData.workflow_status === 'pending_secretariat' || r.originalData.workflow_status === 'completed');
             }
             
-            // Pour les autres inscriptions, utiliser le filtre workflow standard
-            const matchesWorkflow = !filters.workflow || r.statut_workflow === filters.workflow;
-            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe && matchesWorkflow;
+            // Pour les autres inscriptions, afficher toutes
+            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
         });
     }, [registrations, searchTerm, filters]);
 
@@ -326,21 +324,6 @@ export function RegistrationManagement() {
                                     <option value="">Tous</option>
                                     <option value="H">Homme</option>
                                     <option value="F">Femme</option>
-                                </Select>
-                            </div>
-
-                            {/* Workflow Filter */}
-                            <div>
-                                <Label className="mb-1.5 block text-xs">Étape du workflow</Label>
-                                <Select
-                                    value={filters.workflow}
-                                    onChange={(e) => setFilters({ ...filters, workflow: e.target.value })}
-                                >
-                                    <option value="">Toutes les étapes</option>
-                                    <option value="en_attente_secretariat">À valider (Secrétariat)</option>
-                                    <option value="valide">Validées</option>
-                                    <option value="en_attente_finance">En attente Finance</option>
-                                    <option value="rejete">Rejetées</option>
                                 </Select>
                             </div>
                         </div>

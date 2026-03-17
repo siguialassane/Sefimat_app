@@ -17,24 +17,22 @@ import {
     BookOpen,
     RefreshCw,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useData } from "@/contexts";
+import { notify } from "@/components/ui/toast";
 
 export function Dashboard() {
     // Utiliser le DataContext global au lieu de charger localement
     const { 
         inscriptions, 
+        dortoirs,
         chefsQuartier, 
-        stats, 
         loading, 
         lastUpdate, 
         refresh 
     } = useData();
     
-    const [dortoirStats, setDortoirStats] = useState([]);
-    const [niveauFormationStats, setNiveauFormationStats] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [localLoading, setLocalLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const visibleInscriptions = useMemo(() => {
         return inscriptions.filter((i) => {
@@ -131,57 +129,68 @@ export function Dashboard() {
         }).sort((a, b) => b.total - a.total);
     }, [chefsQuartier, visibleInscriptions]);
 
-    // Charger les données supplémentaires (vues) une seule fois
-    useEffect(() => {
-        let isMounted = true;
+    const dortoirStats = useMemo(() => {
+        if (!dortoirs.length) return [];
 
-        const loadAdditionalStats = async () => {
-            if (localLoading) return;
-            setLocalLoading(true);
-            
-            try {
-                // Charger les vues en parallèle
-                const [dortoirsRes, niveauxRes] = await Promise.all([
-                    supabase.from('vue_statistiques_dortoirs').select('*').order('nom'),
-                    supabase.from('vue_statistiques_niveaux_formation').select('*')
-                ]);
+        return dortoirs.map((dortoir) => {
+            const nombreInscrits = visibleInscriptions.filter((i) => i.dortoir_id === dortoir.id).length;
+            const capacite = Number(dortoir.capacite) || 0;
+            const placesDisponibles = Math.max(capacite - nombreInscrits, 0);
+            const tauxRemplissage = capacite > 0 ? Math.round((nombreInscrits / capacite) * 100) : 0;
 
-                if (isMounted) {
-                    if (!dortoirsRes.error) setDortoirStats(dortoirsRes.data || []);
-                    if (!niveauxRes.error) setNiveauFormationStats(niveauxRes.data || []);
-                }
-            } catch (err) {
-                console.error('Dashboard: Erreur chargement stats additionnelles:', err);
-            } finally {
-                if (isMounted) setLocalLoading(false);
-            }
+            return {
+                id: dortoir.id,
+                nom: dortoir.nom,
+                capacite,
+                nombre_inscrits: nombreInscrits,
+                places_disponibles: placesDisponibles,
+                taux_remplissage: tauxRemplissage,
+            };
+        });
+    }, [dortoirs, visibleInscriptions]);
+
+    const niveauFormationStats = useMemo(() => {
+        if (!visibleInscriptions.length) return [];
+
+        const counts = {
+            debutant: 0,
+            normal: 0,
+            superieur: 0,
         };
 
-        loadAdditionalStats();
+        visibleInscriptions.forEach((inscription) => {
+            const niveau = inscription?.niveau_formation;
+            if (niveau && Object.prototype.hasOwnProperty.call(counts, niveau)) {
+                counts[niveau] += 1;
+            }
+        });
 
-        return () => { isMounted = false; };
-    }, []);
+        const total = visibleInscriptions.length;
+
+        return Object.entries(counts)
+            .map(([niveau_formation, nombre_inscrits]) => ({
+                niveau_formation,
+                nombre_inscrits,
+                pourcentage: total > 0 ? Math.round((nombre_inscrits / total) * 100) : 0,
+            }))
+            .filter((item) => item.nombre_inscrits > 0);
+    }, [visibleInscriptions]);
 
     // Fonction de rafraîchissement
     const handleRefresh = useCallback(async () => {
-        setLocalLoading(true);
-        
-        // Rafraîchir le DataContext global
-        await refresh();
-        
-        // Recharger les vues locales
-        const [dortoirsRes, niveauxRes] = await Promise.all([
-            supabase.from('vue_statistiques_dortoirs').select('*').order('nom'),
-            supabase.from('vue_statistiques_niveaux_formation').select('*')
-        ]);
-        
-        if (!dortoirsRes.error) setDortoirStats(dortoirsRes.data || []);
-        if (!niveauxRes.error) setNiveauFormationStats(niveauxRes.data || []);
-        
-        setLocalLoading(false);
+        setRefreshing(true);
+        try {
+            await refresh();
+            notify.success("Tableau de bord actualisé.", { title: "Actualisation réussie" });
+        } catch (error) {
+            console.error("Erreur actualisation dashboard:", error);
+            notify.error("Impossible d'actualiser le tableau de bord", { title: "Actualisation impossible" });
+        } finally {
+            setRefreshing(false);
+        }
     }, [refresh]);
 
-    const isLoading = loading || localLoading;
+    const isLoading = loading || refreshing;
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex flex-col gap-8">
@@ -211,7 +220,10 @@ export function Dashboard() {
                         <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                         Actualiser
                     </Button>
-                    <Button className="gap-2">
+                    <Button
+                        className="gap-2"
+                        onClick={() => notify.info("Export du dashboard bientôt disponible.", { title: "Fonction en préparation" })}
+                    >
                         <Download className="h-4 w-4" />
                         Exporter
                     </Button>

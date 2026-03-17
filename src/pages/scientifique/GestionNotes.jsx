@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { useData } from "@/contexts";
 import { supabase } from "@/lib/supabase";
+import { notify } from "@/components/ui/toast";
 
 export function GestionNotes() {
     const { notesExamens, classes, dortoirs, updateNoteLocal } = useData();
@@ -185,7 +186,7 @@ export function GestionNotes() {
 
         } catch (err) {
             console.error('Erreur sauvegarde notes:', err);
-            alert(`Erreur: ${err.message}`);
+            notify.error(err.message || "Erreur de sauvegarde des notes", { title: "Enregistrement impossible" });
         } finally {
             setSavingIds(prev => {
                 const newSet = new Set(prev);

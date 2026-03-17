@@ -17,8 +17,7 @@ import {
     AlertCircle,
 } from "lucide-react";
 import { useData } from "@/contexts";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { notify } from "@/components/ui/toast";
 
 // Mapping niveau formation
 const niveauFormationMap = {
@@ -288,13 +287,18 @@ export function BadgeManagement() {
     // Générer et télécharger le badge en PDF
     const generateBadgePDF = async () => {
         if (!selectedParticipant) {
-            alert("Veuillez sélectionner un participant");
+            notify.warning("Veuillez sélectionner un participant", { title: "Aucune sélection" });
             return;
         }
 
         setGenerating(true);
 
         try {
+            const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+                import("html2canvas"),
+                import("jspdf"),
+            ]);
+
             const element = badgeRef.current;
             if (!element) {
                 throw new Error("Élément badge non trouvé");
@@ -357,7 +361,7 @@ export function BadgeManagement() {
 
         } catch (error) {
             console.error("Erreur génération PDF:", error);
-            alert("Erreur lors de la génération du badge: " + error.message);
+            notify.error("Erreur lors de la génération du badge: " + error.message, { title: "Export impossible" });
         } finally {
             setGenerating(false);
         }
@@ -366,13 +370,18 @@ export function BadgeManagement() {
     // Générer tous les badges en PDF
     const generateAllBadges = async () => {
         if (filteredParticipants.length === 0) {
-            alert("Aucun participant à exporter");
+            notify.warning("Aucun participant à exporter", { title: "Export vide" });
             return;
         }
 
         setGenerating(true);
 
         try {
+            const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+                import("html2canvas"),
+                import("jspdf"),
+            ]);
+
             // Précharger l'image de fond du badge une seule fois
             await preloadImage("/images/badge.jpeg");
 
@@ -432,10 +441,11 @@ export function BadgeManagement() {
             }
 
             pdf.save(`badges_sefimap_${new Date().toISOString().split("T")[0]}.pdf`);
+            notify.success("Export de tous les badges terminé.", { title: "Export réussi" });
 
         } catch (error) {
             console.error("Erreur génération tous badges:", error);
-            alert("Erreur lors de la génération des badges");
+            notify.error("Erreur lors de la génération des badges", { title: "Export impossible" });
         } finally {
             setGenerating(false);
         }

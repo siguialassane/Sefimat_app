@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth, useData } from "@/contexts";
 import { PaymentFilters, PaymentTable, PaymentModal } from "./components";
 import { Card } from "@/components/ui/card";
+import { notify } from "@/components/ui/toast";
 
 export function PaymentValidation() {
     const { user } = useAuth();
@@ -78,11 +79,12 @@ export function PaymentValidation() {
 
     const handleRefresh = useCallback(() => {
         refresh();
+        notify.success("Liste des validations actualisée.", { title: "Actualisation réussie" });
     }, [refresh]);
 
     const handleValidate = async (inscriptionId) => {
         if (!user?.id) {
-            alert("Erreur: Utilisateur non connecté. Veuillez vous reconnecter.");
+            notify.error("Utilisateur non connecté. Veuillez vous reconnecter.", { title: "Accès refusé" });
             return;
         }
 
@@ -117,9 +119,10 @@ export function PaymentValidation() {
 
             setModalOpen(false);
             setSelectedInscription(null);
+            notify.success("Paiement validé et transmis au secrétariat.", { title: "Validation finance" });
         } catch (error) {
             console.error("Erreur validation:", error);
-            alert("Erreur lors de la validation");
+            notify.error("Erreur lors de la validation", { title: "Validation impossible" });
         } finally {
             setActionLoading(false);
         }
@@ -127,7 +130,7 @@ export function PaymentValidation() {
 
     const handleReject = async (inscriptionId) => {
         if (!user?.id) {
-            alert("Erreur: Utilisateur non connecté. Veuillez vous reconnecter.");
+            notify.error("Utilisateur non connecté. Veuillez vous reconnecter.", { title: "Accès refusé" });
             return;
         }
 
@@ -164,9 +167,10 @@ export function PaymentValidation() {
 
             setModalOpen(false);
             setSelectedInscription(null);
+            notify.warning("Paiement refusé.", { title: "Refus enregistré" });
         } catch (error) {
             console.error("Erreur refus:", error);
-            alert("Erreur lors du refus");
+            notify.error("Erreur lors du refus", { title: "Refus impossible" });
         } finally {
             setActionLoading(false);
         }
