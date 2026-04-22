@@ -93,6 +93,22 @@ export function InPersonRegistration() {
         { id: 3, title: "Finalisation", fields: ["nombreParticipations", "dortoirId", "montantPaye"] }
     ];
 
+    const {
+        register,
+        handleSubmit,
+        reset,
+        watch,
+        trigger,
+        formState: { errors },
+    } = useForm({
+        resolver: zodResolver(registrationSchema),
+        defaultValues: {
+            sexe: "homme",
+            nombreParticipations: 0,
+            montantPaye: 0,
+        },
+    });
+
     const nextStep = useCallback(async () => {
         const fields = steps[currentStep - 1].fields;
         const isValid = await trigger(fields);
@@ -109,22 +125,6 @@ export function InPersonRegistration() {
     const prevStep = () => {
         setCurrentStep(prev => Math.max(prev - 1, 1));
     };
-
-    const {
-        register,
-        handleSubmit,
-        reset,
-        watch,
-        trigger,
-        formState: { errors },
-    } = useForm({
-        resolver: zodResolver(registrationSchema),
-        defaultValues: {
-            sexe: "homme",
-            nombreParticipations: 0,
-            montantPaye: 0,
-        },
-    });
 
     const selectedSexe = watch("sexe");
 
