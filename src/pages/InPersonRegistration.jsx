@@ -127,6 +127,7 @@ export function InPersonRegistration() {
     };
 
     const selectedSexe = watch("sexe");
+    const montantPayeValue = watch("montantPaye") || 0;
 
     // Charger les inscriptions présentielles récentes (mode auth locale: pas de mapping stable vers auth.users)
     useEffect(() => {
@@ -340,7 +341,7 @@ export function InPersonRegistration() {
                 <Card className="overflow-hidden">
                     <div className="grid grid-cols-1 lg:grid-cols-2">
                         {/* Left Side: Photo Capture */}
-                        <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 dark:from-gray-800 dark:via-gray-800/80 dark:to-gray-900 p-8 lg:p-12 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-border-light dark:border-border-dark">
+                        <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 dark:from-gray-800 dark:via-gray-800/80 dark:to-gray-900 p-8 lg:p-12 flex flex-col items-center justify-start border-b lg:border-b-0 lg:border-r border-border-light dark:border-border-dark">
                             <div className="w-full max-w-xs">
                                 <div className="text-center mb-6">
                                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/20 text-primary mb-3">
@@ -690,6 +691,16 @@ export function InPersonRegistration() {
                                                     <p className="text-xs text-text-secondary">
                                                         Montant maximum : 4.000 FCFA. Ce montant sera enregistré comme payé.
                                                     </p>
+                                                    {montantPayeValue > 0 && montantPayeValue < 4000 && (
+                                                        <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                                            Reste à payer : {(4000 - montantPayeValue).toLocaleString('fr-FR')} FCFA
+                                                        </p>
+                                                    )}
+                                                    {montantPayeValue >= 4000 && (
+                                                        <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                                            Paiement complet ✓
+                                                        </p>
+                                                    )}
                                                     {errors.montantPaye && (
                                                         <p className="text-red-500 text-xs">{errors.montantPaye.message}</p>
                                                     )}
