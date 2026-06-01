@@ -29,3 +29,5 @@ query-db.js
 run-migration.js
 run-sql.js
 verify-stats.js
+
+.vercel

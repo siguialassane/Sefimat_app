@@ -232,8 +232,9 @@ export function PresidentRegistration() {
             setCurrentStep(1);
         } catch (error) {
             console.error("Erreur lors de l'inscription:", error);
+            const isUploadError = /upload|photo|serveur/i.test(error.message || "");
             notify.error(error.message || "Impossible de soumettre l'inscription", {
-                title: "Erreur d'inscription",
+                title: isUploadError ? "Erreur d'envoi de la photo" : "Erreur d'inscription",
             });
         } finally {
             setIsLoading(false);

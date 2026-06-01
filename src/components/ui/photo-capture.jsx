@@ -79,9 +79,15 @@ export function PhotoCapture({ onPhotoCapture, existingPhoto, className, require
 
         setIsCompressing(true);
         try {
-            const compressedFile = await imageCompression(file, compressionOptions);
+            const compressedFile = await imageCompression(file, {
+                ...compressionOptions,
+                useWebWorker: !isMobile,
+            });
             console.log(`Image compressée: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
-            return compressedFile;
+            return new File([compressedFile], `photo_${Date.now()}.jpg`, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+            });
         } catch (err) {
             console.error("Erreur compression:", err);
             throw new Error("Impossible de compresser l'image");

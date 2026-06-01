@@ -309,7 +309,9 @@ export function InPersonRegistration() {
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (error) {
             console.error("Erreur inscription:", error);
-            alert(`Erreur: ${error.message || 'Impossible d\'enregistrer l\'inscription'}`);
+            const isUploadError = /upload|photo|serveur/i.test(error.message || "");
+            const fallbackMessage = "Impossible d'enregistrer l'inscription";
+            alert(`${isUploadError ? "Erreur d'envoi de la photo" : "Erreur"}: ${error.message || fallbackMessage}`);
         } finally {
             setIsLoading(false);
         }
