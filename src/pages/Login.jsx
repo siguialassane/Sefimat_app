@@ -25,7 +25,7 @@ const getRedirectPath = (role) => {
         case "scientifique":
             return "/scientifique/dashboard";
         case "president":
-            return "/president";
+            return "/admin/President";
         default:
             return "/admin/dashboard";
     }

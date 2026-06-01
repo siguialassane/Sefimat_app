@@ -13,10 +13,12 @@
   /* Background Colors */
   --color-background-light: #f6f8f6;
   --color-background-dark: #102216;
+  --color-background-black: #000000;
 
   /* Surface Colors */
   --color-surface-light: #ffffff;
   --color-surface-dark: #1a2e22;
+  --color-surface-black: #0a0a0a;
 
   /* Text Colors */
   --color-text-main: #111813;
@@ -26,6 +28,7 @@
   /* Border Colors */
   --color-border-light: #dbe6df;
   --color-border-dark: #2a4a35;
+  --color-border-black: #1a1a1a;
 
   /* Font Families */
   --font-display: 'Inter', sans-serif;
@@ -40,9 +43,46 @@ body {
   @apply bg-background-light text-text-main antialiased transition-colors duration-200;
 }
 
-/* Dark mode support */
+/* Dark mode support (green) */
 html.dark body {
   @apply bg-background-dark text-white;
+}
+
+/* Black mode support - overrides dark mode */
+html.black body {
+  background-color: #000000 !important;
+  color: #ffffff;
+}
+
+html.black .dark\:bg-background-dark,
+html.black .dark\:bg-surface-dark,
+html.black .dark\:bg-gray-800\/50,
+html.black .dark\:from-gray-800,
+html.black .dark\:via-gray-800\/80,
+html.black .dark\:to-gray-900 {
+  background-color: #000000 !important;
+}
+
+html.black .dark\:text-white,
+html.black .dark\:text-gray-400,
+html.black .dark\:text-gray-500 {
+  color: #ffffff !important;
+}
+
+html.black .dark\:border-border-dark,
+html.black .dark\:border-gray-800\/50 {
+  border-color: #1a1a1a !important;
+}
+
+html.black select option {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+html.black select option:hover,
+html.black select option:checked {
+  background-color: #1a1a1a !important;
+  color: #13ec5b !important;
 }
 
 /* Ensure smooth transitions */
@@ -70,6 +110,10 @@ html {
 
 .dark ::-webkit-scrollbar-thumb {
   @apply bg-border-dark;
+}
+
+.black ::-webkit-scrollbar-thumb {
+  background-color: #1a1a1a !important;
 }
 
 /* Form focus states */

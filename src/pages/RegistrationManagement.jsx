@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,7 @@ const niveauEtudeMap = {
 };
 
 export function RegistrationManagement() {
+    const navigate = useNavigate();
     const { user } = useAuth();
     // Utiliser le DataContext global au lieu de charger localement
     const { 
@@ -241,7 +243,7 @@ export function RegistrationManagement() {
                         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         Actualiser
                     </Button>
-                    <Button className="gap-2">
+                    <Button className="gap-2" onClick={() => navigate("/admin/inscription-presentielle")}>
                         <Plus className="h-4 w-4" />
                         Ajouter une inscription
                     </Button>

@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { UserPlus, CreditCard, LogOut, Menu, X, Users } from "lucide-react";
+import { UserPlus, CreditCard, LogOut, Menu, X, Users, LayoutDashboard } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -46,6 +46,11 @@ export function PresidentLayout() {
     };
 
     const menuItems = [
+        {
+            icon: LayoutDashboard,
+            label: "Tableau de Bord",
+            path: `/president/${lienUnique}/dashboard`,
+        },
         {
             icon: UserPlus,
             label: "Nouvelle Inscription",

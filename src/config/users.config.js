@@ -35,6 +35,15 @@ export const USERS = [
     prenom: 'Alassane',
     role: 'scientifique',
   },
+  {
+    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    email: 'amadyaya99@gmail.com',
+    password: 'alasco22',
+    nom: 'Amady',
+    prenom: 'Amady',
+    role: 'president',
+    zone: 'Zone Test',
+  },
 ];
 
 // Clé de stockage

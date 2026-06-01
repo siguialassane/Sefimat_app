@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local helper scripts / outputs
+vite.err
+query-db.js
+run-migration.js
+run-sql.js
+verify-stats.js

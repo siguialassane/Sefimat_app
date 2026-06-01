@@ -19,6 +19,9 @@ const PaymentList = lazy(() => import("@/pages/finance/PaymentList").then((modul
 const PaymentSummary = lazy(() => import("@/pages/finance/PaymentSummary").then((module) => ({ default: module.PaymentSummary })));
 const PresidentRegistration = lazy(() => import("@/pages/president/PresidentRegistration").then((module) => ({ default: module.PresidentRegistration })));
 const PresidentPayments = lazy(() => import("@/pages/president/PresidentPayments").then((module) => ({ default: module.PresidentPayments })));
+const PresidentDashboard = lazy(() => import("@/pages/president/PresidentDashboard").then((module) => ({ default: module.PresidentDashboard })));
+const RegistrationDetail = lazy(() => import("@/pages/president/RegistrationDetail").then((module) => ({ default: module.RegistrationDetail })));
+const AllRegistrations = lazy(() => import("@/pages/president/AllRegistrations").then((module) => ({ default: module.AllRegistrations })));
 const ScientifiqueDashboard = lazy(() => import("@/pages/scientifique/ScientifiqueDashboard").then((module) => ({ default: module.ScientifiqueDashboard })));
 const TestEntree = lazy(() => import("@/pages/scientifique/TestEntree").then((module) => ({ default: module.TestEntree })));
 const GestionNotes = lazy(() => import("@/pages/scientifique/GestionNotes").then((module) => ({ default: module.GestionNotes })));
@@ -57,7 +60,7 @@ function App() {
             >
               <Routes>
                 {/* Public Routes */}
-                <Route path="/" element={<Navigate to="/inscription" replace />} />
+                <Route path="/" element={<PublicRegistration />} />
                 <Route path="/inscription" element={<PublicRegistration />} />
                 <Route path="/login" element={<Login />} />
 
@@ -66,7 +69,13 @@ function App() {
                   <Route index element={<Navigate to="inscription" replace />} />
                   <Route path="inscription" element={<PresidentRegistration />} />
                   <Route path="paiements" element={<PresidentPayments />} />
+                  <Route path="dashboard" element={<PresidentDashboard />} />
                 </Route>
+
+                {/* Admin President Dashboard */}
+                <Route path="/admin/President" element={<PresidentDashboard />} />
+                <Route path="/admin/President/inscription/:id" element={<RegistrationDetail />} />
+                <Route path="/admin/President/inscriptions" element={<AllRegistrations />} />
 
                 {/* Admin Routes (Cellule Secrétariat) */}
                 <Route path="/admin" element={
@@ -112,7 +121,7 @@ function App() {
                 </Route>
 
                 {/* Fallback */}
-                <Route path="*" element={<Navigate to="/inscription" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
           </BrowserRouter>

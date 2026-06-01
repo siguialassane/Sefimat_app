@@ -3,32 +3,37 @@ import { createContext, useContext, useState, useEffect } from "react";
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        // Check localStorage for saved preference, default to light mode (false)
+    const [theme, setTheme] = useState(() => {
+        // Check localStorage for saved preference, default to light mode
         if (typeof window !== "undefined") {
             const saved = localStorage.getItem("sefimap-theme");
-            return saved === "dark";
+            return saved || "light"; // light, dark, black
         }
-        return false;
+        return "light";
     });
 
     useEffect(() => {
         // Apply theme class to document
-        if (isDarkMode) {
+        document.documentElement.classList.remove("dark", "black");
+        if (theme === "dark") {
             document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
+        } else if (theme === "black") {
+            document.documentElement.classList.add("dark", "black");
         }
         // Save preference
-        localStorage.setItem("sefimap-theme", isDarkMode ? "dark" : "light");
-    }, [isDarkMode]);
+        localStorage.setItem("sefimap-theme", theme);
+    }, [theme]);
 
     const toggleTheme = () => {
-        setIsDarkMode((prev) => !prev);
+        setTheme((prev) => {
+            if (prev === "light") return "dark";
+            if (prev === "dark") return "black";
+            return "light";
+        });
     };
 
     return (
-        <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
+        <ThemeContext.Provider value={{ theme, toggleTheme }}>
             {children}
         </ThemeContext.Provider>
     );

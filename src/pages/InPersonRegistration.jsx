@@ -70,6 +70,7 @@ export function InPersonRegistration() {
     const [photoKey, setPhotoKey] = useState(0);
     const [currentStep, setCurrentStep] = useState(1);
     const [refreshing, setRefreshing] = useState(false);
+    const [showAllRecent, setShowAllRecent] = useState(false);
 
     // Utiliser les dortoirs du DataContext
     const dortoirs = contextDortoirs || [];
@@ -140,7 +141,7 @@ export function InPersonRegistration() {
                     .select('*')
                     .eq('type_inscription', 'presentielle')
                     .order('created_at', { ascending: false })
-                    .limit(5);
+                    .limit(20);
 
                 if (error) throw error;
 
@@ -151,6 +152,10 @@ export function InPersonRegistration() {
                     time: new Date(r.created_at).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit'
+                    }),
+                    date: new Date(r.created_at).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
                     }),
                     recent: new Date(r.created_at) > new Date(Date.now() - 10 * 60 * 1000),
                 }));
@@ -290,10 +295,11 @@ export function InPersonRegistration() {
                 name: `${data.nom} ${data.prenom}`,
                 phone: data.telephone || 'N/A',
                 time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+                date: new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
                 recent: true,
                 photo_url: photoUrl,
             };
-            setRegistrations([newRegistration, ...registrations.slice(0, 4)]);
+            setRegistrations([newRegistration, ...registrations.filter(reg => reg.id !== inscription.id).slice(0, 19)]);
 
             reset();
             setPhotoFile(null);
@@ -308,6 +314,8 @@ export function InPersonRegistration() {
             setIsLoading(false);
         }
     };
+
+    const visibleRegistrations = showAllRecent ? registrations : registrations.slice(0, 3);
 
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -330,9 +338,13 @@ export function InPersonRegistration() {
                     </div>
                     {/* Mini Stats */}
                     <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 bg-primary/10 rounded-lg">
-                            <span className="text-xs text-text-secondary">Aujourd'hui</span>
-                            <p className="text-xl font-bold text-primary">{registrations.length}</p>
+                        <div className="min-w-[108px] rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-center">
+                            <span className="block text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+                                Aujourd&apos;hui
+                            </span>
+                            <p className="mt-1 text-2xl font-bold leading-none text-primary">
+                                {registrations.length}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -367,16 +379,32 @@ export function InPersonRegistration() {
                                 {/* Recent Registrations Mini List */}
                                 {registrations.length > 0 && (
                                     <div className="mt-8 pt-6 border-t border-border-light/50 dark:border-border-dark/50">
-                                        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary mb-3">
-                                            Derniers ajouts
-                                        </h3>
+                                        <div className="mb-3 flex items-center justify-between gap-3">
+                                            <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
+                                                Derniers ajouts
+                                            </h3>
+                                            {registrations.length > 3 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAllRecent(prev => !prev)}
+                                                    className="text-xs font-medium text-primary hover:underline"
+                                                >
+                                                    {showAllRecent ? "Réduire" : `Afficher les ${registrations.length - 3} autres`}
+                                                </button>
+                                            )}
+                                        </div>
                                         <div className="space-y-2">
-                                            {registrations.slice(0, 3).map((reg) => (
-                                                <div key={reg.id} className="flex items-center justify-between text-sm">
-                                                    <span className="text-text-main dark:text-white font-medium truncate">
-                                                        {reg.name}
-                                                    </span>
-                                                    <Badge variant={reg.recent ? "success" : "secondary"} className="text-xs">
+                                            {visibleRegistrations.map((reg) => (
+                                                <div key={reg.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm">
+                                                    <div className="min-w-0">
+                                                        <span className="block truncate font-medium text-text-main dark:text-white">
+                                                            {reg.name}
+                                                        </span>
+                                                        <span className="text-xs text-text-secondary dark:text-gray-400">
+                                                            {reg.date}
+                                                        </span>
+                                                    </div>
+                                                    <Badge variant={reg.recent ? "success" : "secondary"} className="shrink-0 text-xs">
                                                         {reg.time}
                                                     </Badge>
                                                 </div>
