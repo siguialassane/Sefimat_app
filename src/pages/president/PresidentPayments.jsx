@@ -21,6 +21,12 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { notify } from "@/components/ui/toast";
+import {
+    getFinanceBadgeClasses,
+    getFinanceStatusMeta,
+    isFinanceRejected,
+    isFullyPaid,
+} from "@/lib/finance";
 
 export function PresidentPayments() {
     const { president } = useOutletContext();
@@ -51,47 +57,37 @@ export function PresidentPayments() {
     const loadInscriptions = async () => {
         setLoading(true);
         try {
-            let query = supabase
+            const { data, error } = await supabase
                 .from("inscriptions")
                 .select("*")
                 .eq("chef_quartier_id", president.id)
                 .order("created_at", { ascending: false });
 
-            // Appliquer les filtres selon le statut sélectionné
-            if (filterStatus === "non_solde") {
-                query = query.neq("statut_paiement", "soldé").neq("statut_paiement", "valide_financier");
-            } else if (filterStatus === "solde") {
-                query = query.or("statut_paiement.eq.soldé,statut_paiement.eq.valide_financier");
-            }
-            // Si filterStatus === "all", ne pas appliquer de filtre (afficher tous les participants)
-
-            const { data, error } = await query;
-
             if (error) throw error;
-            setInscriptions(data || []);
+            const allInscriptions = data || [];
 
-            // Calculate stats
-            const allData = await supabase
-                .from("inscriptions")
-                .select("montant_total_paye, statut_paiement")
-                .eq("chef_quartier_id", president.id);
+            const visibleInscriptions = allInscriptions.filter((inscription) => {
+                if (filterStatus === "non_solde") return !isFullyPaid(inscription);
+                if (filterStatus === "solde") return isFullyPaid(inscription);
+                return true;
+            });
 
-            if (allData.data) {
-                const totalCollected = allData.data.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-                const totalRequired = allData.data.length * 4000;
-                const fullyPaid = allData.data.filter(
-                    (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
-                ).length;
-                const partiallyPaid = allData.data.filter((i) => i.statut_paiement === "partiel").length;
+            setInscriptions(visibleInscriptions);
 
-                setStats({
-                    totalMembers: allData.data.length,
-                    totalCollected,
-                    totalPending: totalRequired - totalCollected,
-                    fullyPaid,
-                    partiallyPaid,
-                });
-            }
+            const totalCollected = allInscriptions.reduce((acc, inscription) => acc + (inscription.montant_total_paye || 0), 0);
+            const totalRequired = allInscriptions.length * 4000;
+            const fullyPaid = allInscriptions.filter(isFullyPaid).length;
+            const partiallyPaid = allInscriptions.filter(
+                (inscription) => (inscription.montant_total_paye || 0) > 0 && !isFullyPaid(inscription)
+            ).length;
+
+            setStats({
+                totalMembers: allInscriptions.length,
+                totalCollected,
+                totalPending: Math.max(0, totalRequired - totalCollected),
+                fullyPaid,
+                partiallyPaid,
+            });
         } catch (error) {
             console.error("Erreur chargement:", error);
         } finally {
@@ -163,6 +159,24 @@ export function PresidentPayments() {
 
             console.log("PresidentPayments: Paiement ajouté avec succès:", data);
 
+            let statutPaiement = "non_payé";
+            if (data.new_total >= 4000) statutPaiement = "soldé";
+            else if (data.new_total > 0) statutPaiement = "partiel";
+
+            const syncStatus = {
+                statut_paiement: statutPaiement,
+                workflow_status: "pending_finance",
+            };
+
+            const { error: inscriptionUpdateError } = await supabase
+                .from("inscriptions")
+                .update(syncStatus)
+                .eq("id", selectedInscription.id);
+
+            if (inscriptionUpdateError) {
+                throw inscriptionUpdateError;
+            }
+
             // Refresh data
             setModalOpen(false);
             setSelectedInscription(null);
@@ -187,16 +201,9 @@ export function PresidentPayments() {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case "soldé":
-            case "valide_financier":
-                return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Soldé</Badge>;
-            case "partiel":
-                return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Partiel</Badge>;
-            default:
-                return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Non payé</Badge>;
-        }
+    const getStatusBadge = (inscription) => {
+        const meta = getFinanceStatusMeta(inscription);
+        return <Badge className={getFinanceBadgeClasses(meta.variant)}>{meta.label}</Badge>;
     };
 
     const filteredInscriptions = inscriptions.filter((i) =>
@@ -362,9 +369,8 @@ export function PresidentPayments() {
                                                     / {formatMontant(4000)}
                                                 </p>
                                             </div>
-                                            {getStatusBadge(inscription.statut_paiement)}
-                                            {inscription.statut_paiement !== "soldé" &&
-                                                inscription.statut_paiement !== "valide_financier" && (
+                                            {getStatusBadge(inscription)}
+                                            {!isFullyPaid(inscription) && !isFinanceRejected(inscription) && (
                                                     <Button
                                                         size="sm"
                                                         className="bg-amber-600 hover:bg-amber-700"

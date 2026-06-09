@@ -2,6 +2,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, CheckCircle, XCircle } from "lucide-react";
+import {
+    getFinanceBadgeClasses,
+    getFinanceCollectedAmount,
+    getFinanceStatusMeta,
+    isFinanceApproved,
+    isFinanceRejected,
+    isFinanceValidationPending,
+    isFullyPaid,
+} from "@/lib/finance";
 
 export function PaymentTable({
     inscriptions,
@@ -15,23 +24,12 @@ export function PaymentTable({
     emptyDescription = "Aucune inscription ne correspond à vos critères.",
 }) {
     const formatMontant = (montant) => {
-        return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
+        return `${new Intl.NumberFormat("fr-FR").format(montant || 0)} FCFA`;
     };
 
-    const getStatutBadge = (inscription) => {
-        if (inscription.statut_paiement === "valide_financier") {
-            return <Badge className="bg-emerald-500 text-white">Validé</Badge>;
-        }
-        if (inscription.statut_paiement === "soldé" || (inscription.montant_total_paye || 0) >= (inscription.montant_requis || 4000)) {
-            return <Badge className="bg-blue-500 text-white">Soldé</Badge>;
-        }
-        if (inscription.statut_paiement === "refuse") {
-            return <Badge variant="destructive">Refusé</Badge>;
-        }
-        if (inscription.statut_paiement === "partiel") {
-            return <Badge className="bg-orange-500 text-white">Partiel</Badge>;
-        }
-        return <Badge variant="secondary">Non payé</Badge>;
+    const renderStatusBadge = (inscription) => {
+        const meta = getFinanceStatusMeta(inscription);
+        return <Badge className={getFinanceBadgeClasses(meta.variant)}>{meta.label}</Badge>;
     };
 
     if (loading && !inscriptions.length) {
@@ -65,44 +63,40 @@ export function PaymentTable({
                 <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
                         <tr>
-                            <th className="p-4 font-semibold text-text-main dark:text-white">
-                                Participant
-                            </th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white">
-                                Référence
-                            </th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white">
-                                Président de section
-                            </th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                Montant payé
-                            </th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                Reste
-                            </th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                Statut
-                            </th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white text-right">
-                                Actions
-                            </th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white">Participant</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white">Référence</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white">Président de section</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant déclaré</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant compté</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">Reste</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">Statut</th>
+                            <th className="p-4 font-semibold text-text-main dark:text-white text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border-light dark:divide-border-dark">
                         {inscriptions.map((inscription) => {
                             const isPresentiel = !inscription.chef_quartier_id;
-                            const isComplete = (inscription.montant_total_paye || 0) >= (inscription.montant_requis || 4000);
-                            const isValidated = inscription.statut_paiement === "valide_financier" || inscription.statut_paiement === "soldé";
-                            const canValidate = showActions && !isComplete && !isValidated;
+                            const isPending = isFinanceValidationPending(inscription);
+                            const isApproved = isFinanceApproved(inscription);
+                            const isRejected = isFinanceRejected(inscription);
+                            const isComplete = isFullyPaid(inscription);
+                            const countedAmount = getFinanceCollectedAmount(inscription);
+                            const canValidate =
+                                showActions &&
+                                !isRejected &&
+                                !isApproved &&
+                                (inscription.montant_total_paye || 0) > 0;
 
                             return (
                                 <tr
                                     key={inscription.id}
-                                    className={`transition-colors ${
-                                        isComplete || isValidated
+                                    className={
+                                        isApproved
                                             ? "bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20"
-                                            : "hover:bg-gray-50 dark:hover:bg-white/5"
-                                    }`}
+                                            : isPending
+                                                ? "bg-amber-50/20 dark:bg-amber-900/10 hover:bg-amber-50/40 dark:hover:bg-amber-900/20"
+                                                : "hover:bg-gray-50 dark:hover:bg-white/5"
+                                    }
                                 >
                                     <td className="p-4">
                                         <div className="flex items-center gap-3">
@@ -135,7 +129,7 @@ export function PaymentTable({
                                     <td className="p-4">
                                         {isPresentiel ? (
                                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                                                🏢 Présentiel
+                                                Présentiel
                                             </span>
                                         ) : (
                                             <span className="text-text-secondary">
@@ -146,6 +140,11 @@ export function PaymentTable({
                                     <td className="p-4 text-center">
                                         <span className={`font-bold ${isComplete ? "text-emerald-600" : "text-blue-600"}`}>
                                             {formatMontant(inscription.montant_total_paye)}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <span className={`font-bold ${countedAmount > 0 ? "text-emerald-600" : "text-text-secondary"}`}>
+                                            {formatMontant(countedAmount)}
                                         </span>
                                     </td>
                                     <td className="p-4 text-center">
@@ -161,7 +160,7 @@ export function PaymentTable({
                                         )}
                                     </td>
                                     <td className="p-4 text-center">
-                                        {getStatutBadge(inscription)}
+                                        {renderStatusBadge(inscription)}
                                     </td>
                                     <td className="p-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
@@ -203,7 +202,6 @@ export function PaymentTable({
                 </table>
             </div>
 
-            {/* Footer */}
             <div className="bg-surface-light dark:bg-surface-dark px-4 py-3 flex items-center justify-between border-t border-border-light dark:border-border-dark">
                 <p className="text-sm text-text-secondary">
                     <span className="font-medium text-text-main dark:text-white">

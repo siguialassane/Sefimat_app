@@ -4,6 +4,7 @@ import {
     LayoutDashboard,
     CheckCircle,
     FileSpreadsheet,
+    BarChart3,
     LogOut,
     Menu,
     X,
@@ -30,6 +31,11 @@ const menuItems = [
         icon: List,
         label: "Liste Paiement",
         path: "/finance/liste",
+    },
+    {
+        icon: BarChart3,
+        label: "Stats",
+        path: "/finance/stats",
     },
 ];
 

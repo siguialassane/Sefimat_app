@@ -5,78 +5,66 @@ import { useData } from "@/contexts";
 import { PaymentFilters, PaymentTable, PaymentModal } from "./components";
 import { Card } from "@/components/ui/card";
 import { notify } from "@/components/ui/toast";
+import {
+    getFinanceCollectedAmount,
+    isFinanceApproved,
+    isFullyPaid,
+    shouldCountInFinanceTotals,
+} from "@/lib/finance";
 
 export function PaymentList() {
-    const { 
+    const {
         inscriptions: allInscriptions,
         chefsQuartier,
-        loading, 
+        loading,
         refresh,
     } = useData();
-    
+
     const [searchTerm, setSearchTerm] = useState("");
     const [filterChef, setFilterChef] = useState("");
-    const [filterStatus, setFilterStatus] = useState("tous"); // "tous", "solde", "valide_financier"
+    const [filterStatus, setFilterStatus] = useState("tous");
     const [selectedInscription, setSelectedInscription] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
 
-    // Filtrer uniquement les paiements validés (4000 FCFA ou validé par admin)
     const paiementsValides = useMemo(() => {
-        return allInscriptions.filter(i => 
-            i.statut_paiement === "valide_financier" || 
-            i.statut_paiement === "soldé" ||
-            (i.montant_total_paye || 0) >= (i.montant_requis || 4000)
+        return allInscriptions.filter(
+            (i) => shouldCountInFinanceTotals(i) && (i.montant_total_paye || 0) > 0
         );
     }, [allInscriptions]);
 
-    // Statistiques des paiements validés
     const stats = useMemo(() => {
-        const soldes = paiementsValides.filter(i => 
-            (i.montant_total_paye || 0) >= (i.montant_requis || 4000)
-        ).length;
-        
-        const validesAdmin = paiementsValides.filter(i => 
-            i.statut_paiement === "valide_financier"
-        ).length;
-        
-        const totalCollecte = paiementsValides.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-        
+        const soldes = paiementsValides.filter(isFullyPaid).length;
+        const validesAdmin = paiementsValides.filter((i) => i.statut_paiement === "valide_financier").length;
+        const totalCollecte = paiementsValides.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
+
         return { soldes, validesAdmin, totalCollecte, total: paiementsValides.length };
     }, [paiementsValides]);
 
-    // Filtrer les inscriptions selon les critères
     const filteredInscriptions = useMemo(() => {
         let filtered = [...paiementsValides];
-        
-        // Filtre par type de validation
+
         if (filterStatus === "solde") {
-            filtered = filtered.filter(i => 
-                (i.montant_total_paye || 0) >= (i.montant_requis || 4000)
-            );
+            filtered = filtered.filter(isFullyPaid);
         } else if (filterStatus === "valide_financier") {
-            filtered = filtered.filter(i => 
-                i.statut_paiement === "valide_financier"
-            );
+            filtered = filtered.filter(isFinanceApproved);
         }
-        
-        // Filtre par président de section
+
         if (filterChef) {
             if (filterChef === "presentiel") {
-                filtered = filtered.filter(i => !i.chef_quartier_id);
+                filtered = filtered.filter((i) => !i.chef_quartier_id);
             } else {
-                filtered = filtered.filter(i => i.chef_quartier_id === filterChef);
+                filtered = filtered.filter((i) => i.chef_quartier_id === filterChef);
             }
         }
-        
-        // Filtre par recherche
+
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(i =>
+            filtered = filtered.filter((i) =>
                 `${i.nom} ${i.prenom}`.toLowerCase().includes(term) ||
                 i.reference_id?.toLowerCase().includes(term)
             );
         }
-        
+
         return filtered;
     }, [paiementsValides, filterStatus, filterChef, searchTerm]);
 
@@ -89,22 +77,21 @@ export function PaymentList() {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
-    // Export CSV
     const exportToCSV = () => {
         const headers = ["Référence", "Nom", "Prénom", "Téléphone", "Président", "Montant payé", "Statut", "Date"];
-        const rows = filteredInscriptions.map(i => [
+        const rows = filteredInscriptions.map((i) => [
             i.reference_id || "",
             i.nom,
             i.prenom,
             i.telephone || "",
             i.chef_quartier?.nom_complet || "Présentiel",
-            i.montant_total_paye || 0,
+            getFinanceCollectedAmount(i),
             i.statut_paiement,
             new Date(i.created_at).toLocaleDateString("fr-FR"),
         ]);
 
         const csvContent = "data:text/csv;charset=utf-8," +
-            [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+            [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 
         const link = document.createElement("a");
         link.setAttribute("href", encodeURI(csvContent));
@@ -117,14 +104,13 @@ export function PaymentList() {
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
-            {/* Header */}
             <header className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark py-4 px-8 flex justify-between items-center z-10 shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold text-text-main dark:text-white tracking-tight">
                         Liste des Paiements
                     </h1>
                     <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                        Participants ayant payé 4000 FCFA ou validés par l'administration
+                        Montants déjà pris en compte par la finance
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -144,10 +130,8 @@ export function PaymentList() {
                 </div>
             </header>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-[1400px] mx-auto space-y-6">
-                    {/* Statistics Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <Card className="p-5">
                             <div className="flex items-center gap-3">
@@ -195,7 +179,6 @@ export function PaymentList() {
                         </Card>
                     </div>
 
-                    {/* Filters */}
                     <PaymentFilters
                         searchTerm={searchTerm}
                         onSearchChange={setSearchTerm}
@@ -207,7 +190,6 @@ export function PaymentList() {
                         onStatusChange={setFilterStatus}
                     />
 
-                    {/* Table */}
                     <PaymentTable
                         inscriptions={filteredInscriptions}
                         loading={loading}
@@ -217,12 +199,11 @@ export function PaymentList() {
                         }}
                         showActions={false}
                         emptyMessage="Aucun paiement validé"
-                        emptyDescription="Aucun participant n'a encore payé 4000 FCFA ou n'a été validé."
+                        emptyDescription="Aucun montant n'est encore pris en compte par la finance."
                     />
                 </div>
             </div>
 
-            {/* Detail Modal */}
             {modalOpen && selectedInscription && (
                 <PaymentModal
                     inscription={selectedInscription}

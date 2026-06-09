@@ -199,7 +199,7 @@ export function PresidentRegistration() {
                     mode_paiement: data.modePaiement || "especes",
                     created_by: 'president', // Marquer comme créé par président pour le workflow
                     // Si paiement soldé dès le départ → direct au secrétariat, sinon validation finance
-                    workflow_status: montant >= 4000 ? 'pending_secretariat' : 'pending_finance',
+                    workflow_status: 'pending_finance',
                 })
                 .select()
                 .single();
@@ -213,7 +213,7 @@ export function PresidentRegistration() {
                     inscription_id: inscription.id,
                     montant: montant,
                     mode_paiement: data.modePaiement || "especes",
-                    statut: "validé",  // Toujours validé pour paiement président
+                    statut: "validé",
                     type_paiement: "inscription",
                 });
                 

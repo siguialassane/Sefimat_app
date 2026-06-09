@@ -8,38 +8,37 @@ import { Label } from "@/components/ui/label";
 import {
     Search,
     Download,
-    Filter,
     DollarSign,
-    ChevronLeft,
-    ChevronRight,
     FileSpreadsheet,
     RefreshCw,
 } from "lucide-react";
 import { useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
+import {
+    getFinanceCollectedAmount,
+    getFinanceStatusKey,
+    getFinanceStatusMeta,
+    isFullyPaid,
+} from "@/lib/finance";
 
 export function PaymentSummary() {
-    // Utiliser le DataContext global
     const { inscriptions, chefsQuartier, loading, refresh } = useData();
-    
+
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
         statut_paiement: "",
         chef_quartier: "",
     });
 
-    // Calculer les totaux depuis le DataContext
     const totals = useMemo(() => {
-        const totalCollecte = inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-        const totalRestant = inscriptions.reduce(
-            (acc, i) => acc + Math.max(0, (i.montant_requis || 4000) - (i.montant_total_paye || 0)),
-            0
-        );
-        const nombreComplet = inscriptions.filter(
-            (i) => i.statut_paiement === "soldé" || i.statut_paiement === "valide_financier"
-        ).length;
-        const nombrePartiel = inscriptions.filter((i) => i.statut_paiement === "partiel").length;
-        
+        const totalCollecte = inscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
+        const totalRestant = inscriptions.reduce((acc, i) => {
+            const montantRequis = i.montant_requis || 4000;
+            return acc + Math.max(0, montantRequis - getFinanceCollectedAmount(i));
+        }, 0);
+        const nombreComplet = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && isFullyPaid(i)).length;
+        const nombrePartiel = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && !isFullyPaid(i)).length;
+
         return { totalCollecte, totalRestant, nombreComplet, nombrePartiel };
     }, [inscriptions]);
 
@@ -47,31 +46,12 @@ export function PaymentSummary() {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
-    const getStatutBadge = (statut) => {
-        switch (statut) {
-            case "soldé":
-                return <Badge variant="success">Soldé</Badge>;
-            case "valide_financier":
-                return <Badge variant="success">Validé</Badge>;
-            case "partiel":
-                return <Badge variant="warning">Partiel</Badge>;
-            case "refuse":
-                return <Badge variant="destructive">Refusé</Badge>;
-            default:
-                return <Badge variant="secondary">Non payé</Badge>;
-        }
-    };
-
-    // Filtrer les inscriptions
     const filteredInscriptions = useMemo(() => {
         return inscriptions.filter((i) => {
-            const matchesSearch = `${i.nom} ${i.prenom}`
-                .toLowerCase()
-                .includes(searchTerm.toLowerCase());
-            const matchesStatut =
-                !filters.statut_paiement || i.statut_paiement === filters.statut_paiement;
-            const matchesChef =
-                !filters.chef_quartier || i.chef_quartier?.id === filters.chef_quartier;
+            const matchesSearch = `${i.nom} ${i.prenom}`.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesStatut = !filters.statut_paiement || getFinanceStatusKey(i) === filters.statut_paiement;
+            const matchesChef = !filters.chef_quartier || i.chef_quartier?.id === filters.chef_quartier;
             return matchesSearch && matchesStatut && matchesChef;
         });
     }, [inscriptions, searchTerm, filters]);
@@ -83,22 +63,27 @@ export function PaymentSummary() {
             "Prénom",
             "Téléphone",
             "Président de section",
-            "Montant payé",
+            "Montant comptabilisé",
+            "Montant déclaré",
             "Montant requis",
-            "Statut",
+            "Statut finance",
             "Date inscription",
         ];
-        const rows = filteredInscriptions.map((i) => [
-            i.reference_id || "",
-            i.nom,
-            i.prenom,
-            i.telephone || "",
-            i.chef_quartier?.nom_complet || "Présentiel",
-            i.montant_total_paye || 0,
-            i.montant_requis || 4000,
-            i.statut_paiement,
-            new Date(i.created_at).toLocaleDateString("fr-FR"),
-        ]);
+        const rows = filteredInscriptions.map((i) => {
+            const status = getFinanceStatusMeta(i).label;
+            return [
+                i.reference_id || "",
+                i.nom,
+                i.prenom,
+                i.telephone || "",
+                i.chef_quartier?.nom_complet || "Présentiel",
+                getFinanceCollectedAmount(i),
+                i.montant_total_paye || 0,
+                i.montant_requis || 4000,
+                status,
+                new Date(i.created_at).toLocaleDateString("fr-FR"),
+            ];
+        });
 
         const csvContent =
             "data:text/csv;charset=utf-8," +
@@ -115,7 +100,6 @@ export function PaymentSummary() {
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
-            {/* Header */}
             <header className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark py-4 px-8 flex justify-between items-center z-10 flex-shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold text-text-main dark:text-white tracking-tight flex items-center gap-2">
@@ -123,7 +107,7 @@ export function PaymentSummary() {
                         Récapitulatif des Paiements
                     </h1>
                     <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                        Vue d'ensemble de tous les paiements
+                        Vue d'ensemble des montants, validés ou encore en attente
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -146,10 +130,8 @@ export function PaymentSummary() {
                 </div>
             </header>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-[1400px] mx-auto space-y-6">
-                    {/* Summary Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <Card className="p-5">
                             <div className="flex items-center gap-3">
@@ -190,18 +172,17 @@ export function PaymentSummary() {
                         </Card>
                         <Card className="p-5">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                                    <DollarSign className="h-5 w-5 text-blue-600" />
+                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                                    <DollarSign className="h-5 w-5 text-amber-600" />
                                 </div>
                                 <div>
                                     <p className="text-sm text-text-secondary">Paiements partiels</p>
-                                    <p className="text-xl font-bold text-blue-600">{totals.nombrePartiel}</p>
+                                    <p className="text-xl font-bold text-amber-600">{totals.nombrePartiel}</p>
                                 </div>
                             </div>
                         </Card>
                     </div>
 
-                    {/* Filters */}
                     <Card className="p-5">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
@@ -217,7 +198,7 @@ export function PaymentSummary() {
                                 </div>
                             </div>
                             <div>
-                                <Label className="mb-1.5 block text-xs">Statut paiement</Label>
+                                <Label className="mb-1.5 block text-xs">Statut finance</Label>
                                 <Select
                                     value={filters.statut_paiement}
                                     onChange={(e) =>
@@ -225,8 +206,8 @@ export function PaymentSummary() {
                                     }
                                 >
                                     <option value="">Tous les statuts</option>
-                                    <option value="soldé">Soldé</option>
                                     <option value="valide_financier">Validé par financier</option>
+                                    <option value="en_attente_validation">En attente validation</option>
                                     <option value="partiel">Partiel</option>
                                     <option value="non_payé">Non payé</option>
                                     <option value="refuse">Refusé</option>
@@ -251,7 +232,6 @@ export function PaymentSummary() {
                         </div>
                     </Card>
 
-                    {/* Table */}
                     <Card className="overflow-hidden">
                         {loading && !inscriptions.length ? (
                             <div className="flex flex-col items-center justify-center py-16">
@@ -264,88 +244,70 @@ export function PaymentSummary() {
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
                                             <tr>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                    Référence
-                                                </th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                    Participant
-                                                </th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                    Président de section
-                                                </th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                                    Montant payé
-                                                </th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                                    Reste
-                                                </th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">
-                                                    Statut
-                                                </th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white">
-                                                    Date
-                                                </th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">Référence</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">Participant</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">Président de section</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant compté</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant déclaré</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Statut</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white">Date</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border-light dark:divide-border-dark">
-                                            {filteredInscriptions.map((inscription) => (
-                                                <tr
-                                                    key={inscription.id}
-                                                    className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                                                >
-                                                    <td className="p-4 font-mono text-sm text-primary">
-                                                        {inscription.reference_id || "N/A"}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
-                                                                {inscription.photo_url ? (
-                                                                    <img
-                                                                        src={inscription.photo_url}
-                                                                        alt={inscription.nom}
-                                                                        className="h-full w-full object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <span className="text-sm text-gray-400">
-                                                                        {inscription.nom?.charAt(0)}
-                                                                    </span>
-                                                                )}
+                                            {filteredInscriptions.map((inscription) => {
+                                                const statusMeta = getFinanceStatusMeta(inscription);
+                                                return (
+                                                    <tr
+                                                        key={inscription.id}
+                                                        className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                                                    >
+                                                        <td className="p-4 font-mono text-sm text-primary">
+                                                            {inscription.reference_id || "N/A"}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
+                                                                    {inscription.photo_url ? (
+                                                                        <img
+                                                                            src={inscription.photo_url}
+                                                                            alt={inscription.nom}
+                                                                            className="h-full w-full object-cover"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="text-sm text-gray-400">
+                                                                            {inscription.nom?.charAt(0)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-medium text-text-main dark:text-white">
+                                                                        {inscription.nom} {inscription.prenom}
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <p className="font-medium text-text-main dark:text-white">
-                                                                    {inscription.nom} {inscription.prenom}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4 text-text-secondary">
-                                                        {inscription.chef_quartier?.nom_complet || "Présentiel"}
-                                                    </td>
-                                                    <td className="p-4 text-center font-bold text-emerald-600">
-                                                        {formatMontant(inscription.montant_total_paye)}
-                                                    </td>
-                                                    <td className="p-4 text-center font-medium text-red-500">
-                                                        {formatMontant(
-                                                            Math.max(
-                                                                0,
-                                                                (inscription.montant_requis || 4000) -
-                                                                (inscription.montant_total_paye || 0)
-                                                            )
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        {getStatutBadge(inscription.statut_paiement)}
-                                                    </td>
-                                                    <td className="p-4 text-text-secondary text-sm">
-                                                        {new Date(inscription.created_at).toLocaleDateString("fr-FR")}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                        </td>
+                                                        <td className="p-4 text-text-secondary">
+                                                            {inscription.chef_quartier?.nom_complet || "Présentiel"}
+                                                        </td>
+                                                        <td className="p-4 text-center font-bold text-emerald-600">
+                                                            {formatMontant(getFinanceCollectedAmount(inscription))}
+                                                        </td>
+                                                        <td className="p-4 text-center font-medium text-blue-600">
+                                                            {formatMontant(inscription.montant_total_paye)}
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                                                        </td>
+                                                        <td className="p-4 text-text-secondary text-sm">
+                                                            {new Date(inscription.created_at).toLocaleDateString("fr-FR")}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
 
-                                {/* Pagination placeholder */}
                                 <div className="bg-surface-light dark:bg-surface-dark px-4 py-3 flex items-center justify-between border-t border-border-light dark:border-border-dark">
                                     <p className="text-sm text-text-secondary">
                                         <span className="font-medium text-text-main dark:text-white">

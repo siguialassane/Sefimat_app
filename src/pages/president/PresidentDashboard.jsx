@@ -22,6 +22,10 @@ import {
 import { supabase } from "@/lib/supabase";
 import { notify } from "@/components/ui/toast";
 import { useAuth } from "@/contexts";
+import {
+    getFinanceBadgeClasses,
+    getFinanceStatusMeta,
+} from "@/lib/finance";
 
 export function PresidentDashboard() {
     const context = useOutletContext();
@@ -179,16 +183,9 @@ export function PresidentDashboard() {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case "soldé":
-            case "valide_financier":
-                return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Soldé</Badge>;
-            case "partiel":
-                return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Partiel</Badge>;
-            default:
-                return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Non payé</Badge>;
-        }
+    const getStatusBadge = (inscription) => {
+        const meta = getFinanceStatusMeta(inscription);
+        return <Badge className={getFinanceBadgeClasses(meta.variant)}>{meta.label}</Badge>;
     };
 
     if (loading) {
@@ -532,7 +529,7 @@ export function PresidentDashboard() {
                                                 </p>
                                             </div>
                                             <div className="flex-shrink-0">
-                                                {getStatusBadge(inscription.statut_paiement)}
+                                                {getStatusBadge(inscription)}
                                             </div>
                                             <Button
                                                 size="sm"

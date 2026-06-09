@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,6 @@ import {
     TrendingUp,
     Clock,
     CheckCircle,
-    AlertCircle,
     Users,
     Download,
     RefreshCw,
@@ -17,28 +16,39 @@ import {
 } from "lucide-react";
 import { useAuth, useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
+import {
+    getFinanceCollectedAmount,
+    getFinanceStatusMeta,
+    isFinanceApproved,
+    isFinanceValidationPending,
+    shouldCountInFinanceTotals,
+} from "@/lib/finance";
 
 export function FinanceDashboard() {
     const navigate = useNavigate();
     const { userProfile } = useAuth();
-    
-    // Utiliser le DataContext global au lieu de charger localement
-    const { 
-        inscriptions, 
-        paiements, 
+
+    const {
+        inscriptions,
         stats: globalStats,
-        loading, 
+        loading,
         lastUpdate,
-        refresh 
+        refresh,
     } = useData();
 
-    // Calculer les stats depuis le DataContext
     const stats = useMemo(() => {
-        const paiementsValides = paiements.filter(p => p.statut === "validé").length;
-        const paiementsNonValides = paiements.filter(p => p.statut === "attente" || p.statut === "en_attente").length;
-        const paiementsPresident = paiements.filter(p => p.inscription?.type_inscription === "en_ligne").length;
-        const paiementsSecretariat = paiements.filter(p => p.inscription?.type_inscription === "presentielle").length;
-        
+        const financeCountedInscriptions = inscriptions.filter(shouldCountInFinanceTotals);
+        const paiementsValides = inscriptions.filter(
+            (i) => isFinanceApproved(i) && (i.montant_total_paye || 0) > 0
+        ).length;
+        const paiementsNonValides = inscriptions.filter(isFinanceValidationPending).length;
+        const paiementsPresident = financeCountedInscriptions.filter(
+            (i) => i.type_inscription === "en_ligne" && (i.montant_total_paye || 0) > 0
+        ).length;
+        const paiementsSecretariat = financeCountedInscriptions.filter(
+            (i) => i.type_inscription === "presentielle" && (i.montant_total_paye || 0) > 0
+        ).length;
+
         return {
             totalCollecte: globalStats.totalCollecte,
             paiementsEnAttente: globalStats.paiementsEnAttente,
@@ -50,18 +60,15 @@ export function FinanceDashboard() {
             paiementsPresident,
             paiementsSecretariat,
         };
-    }, [inscriptions, paiements, globalStats]);
+    }, [inscriptions, globalStats]);
 
-    // Validations en attente (depuis DataContext) - filtrer uniquement les inscriptions président en attente finance
     const pendingValidations = useMemo(() => {
         return inscriptions
-            .filter(i => {
-                // Afficher uniquement les inscriptions créées par président en attente de validation financière
-                if (i.created_by === 'president' && i.workflow_status === 'pending_finance') {
+            .filter((i) => {
+                if (isFinanceValidationPending(i)) {
                     return true;
                 }
-                // Afficher aussi les inscriptions partielles pour autres cas (rétrocompatibilité)
-                if (i.created_by !== 'president' && i.statut_paiement === "partiel" && (i.montant_total_paye || 0) < (i.montant_requis || 4000)) {
+                if (i.created_by !== "president" && i.statut_paiement === "partiel") {
                     return true;
                 }
                 return false;
@@ -70,10 +77,13 @@ export function FinanceDashboard() {
             .slice(0, 5);
     }, [inscriptions]);
 
-    // Derniers paiements (depuis DataContext)
     const recentPayments = useMemo(() => {
-        return paiements.slice(0, 10);
-    }, [paiements]);
+        return inscriptions
+            .filter((i) => (i.montant_total_paye || 0) > 0)
+            .filter((i) => shouldCountInFinanceTotals(i) || isFinanceValidationPending(i))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 10);
+    }, [inscriptions]);
 
     const handleRefresh = useCallback(() => {
         refresh();
@@ -81,7 +91,7 @@ export function FinanceDashboard() {
     }, [refresh]);
 
     const formatMontant = (montant) => {
-        return new Intl.NumberFormat("fr-FR").format(montant) + " FCFA";
+        return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
     const statCards = [
@@ -115,7 +125,6 @@ export function FinanceDashboard() {
         },
     ];
 
-    // Cartes secondaires pour la source des paiements
     const sourceCards = [
         {
             title: "Par Président Section",
@@ -123,7 +132,7 @@ export function FinanceDashboard() {
             icon: UserCheck,
             iconBg: "bg-purple-50 dark:bg-purple-900/20",
             iconColor: "text-purple-600 dark:text-purple-400",
-            description: "Inscriptions en ligne",
+            description: "Montants déjà validés par la finance",
         },
         {
             title: "Par Secrétariat",
@@ -137,7 +146,6 @@ export function FinanceDashboard() {
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex flex-col gap-8">
-            {/* Page Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-2xl md:text-3xl font-black tracking-tight text-text-main dark:text-white">
@@ -149,10 +157,9 @@ export function FinanceDashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="hidden md:block text-sm text-text-secondary dark:text-gray-400 bg-white dark:bg-white/5 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark">
-                        {lastUpdate 
-                            ? `Mise à jour : ${lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
-                            : 'Chargement...'
-                        }
+                        {lastUpdate
+                            ? `Mise à jour : ${lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+                            : "Chargement..."}
                     </span>
                     <Button
                         variant="outline"
@@ -173,7 +180,6 @@ export function FinanceDashboard() {
                 </div>
             </div>
 
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {loading && !inscriptions.length
                     ? Array.from({ length: 4 }).map((_, index) => (
@@ -209,7 +215,6 @@ export function FinanceDashboard() {
                     ))}
             </div>
 
-            {/* Source des paiements */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {sourceCards.map((stat, index) => (
                     <Card
@@ -232,9 +237,7 @@ export function FinanceDashboard() {
                 ))}
             </div>
 
-            {/* Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Validations en attente */}
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-border-light dark:border-border-dark">
                         <div className="flex items-center justify-between">
@@ -244,7 +247,7 @@ export function FinanceDashboard() {
                                     Validations en attente
                                 </CardTitle>
                                 <CardDescription>
-                                    Paiements inférieurs à 4.000 FCFA
+                                    Montants saisis par les présidents avant validation finance
                                 </CardDescription>
                             </div>
                             <Button variant="outline" size="sm" onClick={() => navigate("/finance/validation")}>
@@ -307,7 +310,6 @@ export function FinanceDashboard() {
                     </CardContent>
                 </Card>
 
-                {/* Derniers paiements */}
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-border-light dark:border-border-dark">
                         <div className="flex items-center justify-between">
@@ -317,7 +319,7 @@ export function FinanceDashboard() {
                                     Derniers paiements
                                 </CardTitle>
                                 <CardDescription>
-                                    Transactions récentes
+                                    Validés et en attente, selon le workflow finance
                                 </CardDescription>
                             </div>
                             <Button variant="outline" size="sm" onClick={() => navigate("/finance/synthese")}>
@@ -326,7 +328,7 @@ export function FinanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        {loading && !paiements.length ? (
+                        {loading && !inscriptions.length ? (
                             <div className="p-8 text-center">
                                 <div className="h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
                             </div>
@@ -337,51 +339,55 @@ export function FinanceDashboard() {
                             </div>
                         ) : (
                             <div className="divide-y divide-border-light dark:divide-border-dark">
-                                {recentPayments.slice(0, 5).map((payment) => (
-                                    <div
-                                        key={payment.id}
-                                        className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                                                payment.inscription?.type_inscription === "en_ligne"
-                                                    ? "bg-purple-100 dark:bg-purple-900/30"
-                                                    : "bg-indigo-100 dark:bg-indigo-900/30"
-                                            }`}>
-                                                {payment.inscription?.type_inscription === "en_ligne" ? (
-                                                    <UserCheck className="h-5 w-5 text-purple-600" />
-                                                ) : (
-                                                    <Building2 className="h-5 w-5 text-indigo-600" />
-                                                )}
+                                {recentPayments.slice(0, 5).map((payment) => {
+                                    const statusMeta = getFinanceStatusMeta(payment);
+                                    const amountShown = shouldCountInFinanceTotals(payment)
+                                        ? getFinanceCollectedAmount(payment)
+                                        : payment.montant_total_paye || 0;
+
+                                    return (
+                                        <div
+                                            key={payment.id}
+                                            className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                                                    payment.type_inscription === "en_ligne"
+                                                        ? "bg-purple-100 dark:bg-purple-900/30"
+                                                        : "bg-indigo-100 dark:bg-indigo-900/30"
+                                                }`}>
+                                                    {payment.type_inscription === "en_ligne" ? (
+                                                        <UserCheck className="h-5 w-5 text-purple-600" />
+                                                    ) : (
+                                                        <Building2 className="h-5 w-5 text-indigo-600" />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-text-main dark:text-white">
+                                                        {payment.nom} {payment.prenom}
+                                                    </p>
+                                                    <p className="text-xs text-text-secondary">
+                                                        {new Date(payment.created_at).toLocaleDateString("fr-FR")} • {
+                                                            payment.type_inscription === "en_ligne"
+                                                                ? "Président Section"
+                                                                : "Secrétariat"
+                                                        }
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-medium text-text-main dark:text-white">
-                                                    {payment.inscription?.nom} {payment.inscription?.prenom}
+                                            <div className="text-right">
+                                                <p className="font-bold text-emerald-600">
+                                                    +{formatMontant(amountShown)}
                                                 </p>
-                                                <p className="text-xs text-text-secondary">
-                                                    {new Date(payment.date_paiement).toLocaleDateString("fr-FR")} • {
-                                                        payment.inscription?.type_inscription === "en_ligne" 
-                                                            ? "Président Section" 
-                                                            : "Secrétariat"
-                                                    }
-                                                </p>
+                                                <div className="flex items-center gap-1 justify-end">
+                                                    <Badge variant={statusMeta.variant} className="text-xs">
+                                                        {statusMeta.label}
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-emerald-600">
-                                                +{formatMontant(payment.montant)}
-                                            </p>
-                                            <div className="flex items-center gap-1 justify-end">
-                                                <Badge 
-                                                    variant={payment.statut === "validé" ? "success" : "warning"} 
-                                                    className="text-xs"
-                                                >
-                                                    {payment.statut === "validé" ? "Validé" : "En attente"}
-                                                </Badge>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </CardContent>

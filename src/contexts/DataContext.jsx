@@ -1,5 +1,11 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  getFinanceCollectedAmount,
+  isFinanceValidationPending,
+  isFullyPaid,
+  shouldCountInFinanceTotals,
+} from '../lib/finance';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -27,10 +33,19 @@ function buildStats(inscriptions, paiements) {
   const hommes = inscriptionsVisiblesSecretariat.filter(i => i?.sexe === 'homme').length;
   const femmes = inscriptionsVisiblesSecretariat.filter(i => i?.sexe === 'femme').length;
 
-  const totalCollecte = safeInscriptions.reduce((acc, i) => acc + (i?.montant_total_paye || 0), 0);
-  const paiementsEnAttente = safePaiements.filter(p => p?.statut === 'attente' || p?.statut === 'en_attente').length;
-  const paiementsPartiels = safeInscriptions.filter(i => i?.statut_paiement === 'partiel').length;
-  const paiementsComplets = safeInscriptions.filter(i => i?.statut_paiement === 'soldé' || i?.statut_paiement === 'valide_financier').length;
+  const totalCollecte = safeInscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
+  const paiementsEnAttente = safeInscriptions.filter(i => {
+    if (isFinanceValidationPending(i)) return true;
+    return i?.created_by !== 'president' && i?.statut_paiement === 'partiel';
+  }).length;
+  const paiementsPartiels = safeInscriptions.filter(i =>
+    shouldCountInFinanceTotals(i) &&
+    !isFullyPaid(i) &&
+    (i?.montant_total_paye || 0) > 0
+  ).length;
+  const paiementsComplets = safeInscriptions.filter(i =>
+    shouldCountInFinanceTotals(i) && isFullyPaid(i)
+  ).length;
 
   return {
     totalInscriptions,

@@ -14,6 +14,7 @@ const BadgeManagement = lazy(() => import("@/pages/BadgeManagement").then((modul
 const Exports = lazy(() => import("@/pages/Exports").then((module) => ({ default: module.Exports })));
 const ConfigDortoirs = lazy(() => import("@/pages/ConfigDortoirs").then((module) => ({ default: module.ConfigDortoirs })));
 const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard").then((module) => ({ default: module.FinanceDashboard })));
+const FinanceStats = lazy(() => import("@/pages/finance/FinanceStats").then((module) => ({ default: module.FinanceStats })));
 const PaymentValidation = lazy(() => import("@/pages/finance/PaymentValidation").then((module) => ({ default: module.PaymentValidation })));
 const PaymentList = lazy(() => import("@/pages/finance/PaymentList").then((module) => ({ default: module.PaymentList })));
 const PaymentSummary = lazy(() => import("@/pages/finance/PaymentSummary").then((module) => ({ default: module.PaymentSummary })));
@@ -22,6 +23,8 @@ const PresidentPayments = lazy(() => import("@/pages/president/PresidentPayments
 const PresidentDashboard = lazy(() => import("@/pages/president/PresidentDashboard").then((module) => ({ default: module.PresidentDashboard })));
 const RegistrationDetail = lazy(() => import("@/pages/president/RegistrationDetail").then((module) => ({ default: module.RegistrationDetail })));
 const AllRegistrations = lazy(() => import("@/pages/president/AllRegistrations").then((module) => ({ default: module.AllRegistrations })));
+const SectionDashboard = lazy(() => import("@/pages/president/SectionDashboard.jsx").then((module) => ({ default: module.SectionDashboard })));
+const SectionRegistrations = lazy(() => import("@/pages/president/SectionRegistrations.jsx").then((module) => ({ default: module.SectionRegistrations })));
 const ScientifiqueDashboard = lazy(() => import("@/pages/scientifique/ScientifiqueDashboard").then((module) => ({ default: module.ScientifiqueDashboard })));
 const TestEntree = lazy(() => import("@/pages/scientifique/TestEntree").then((module) => ({ default: module.TestEntree })));
 const GestionNotes = lazy(() => import("@/pages/scientifique/GestionNotes").then((module) => ({ default: module.GestionNotes })));
@@ -66,10 +69,11 @@ function App() {
 
                 {/* President de Section Routes (Public - Lien unique) */}
                 <Route path="/president/:lienUnique" element={<PresidentLayout />}>
-                  <Route index element={<Navigate to="inscription" replace />} />
+                  <Route index element={<Navigate to="dashboard" replace />} />
+                  <Route path="dashboard" element={<SectionDashboard />} />
                   <Route path="inscription" element={<PresidentRegistration />} />
+                  <Route path="inscriptions" element={<SectionRegistrations />} />
                   <Route path="paiements" element={<PresidentPayments />} />
-                  <Route path="dashboard" element={<PresidentDashboard />} />
                 </Route>
 
                 {/* Admin President Dashboard */}
@@ -100,6 +104,7 @@ function App() {
                 }>
                   <Route index element={<Navigate to="/finance/dashboard" replace />} />
                   <Route path="dashboard" element={<FinanceDashboard />} />
+                  <Route path="stats" element={<FinanceStats />} />
                   <Route path="validation" element={<PaymentValidation />} />
                   <Route path="liste" element={<PaymentList />} />
                   <Route path="synthese" element={<PaymentSummary />} />

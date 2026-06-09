@@ -6,74 +6,69 @@ import { useAuth, useData } from "@/contexts";
 import { PaymentFilters, PaymentTable, PaymentModal } from "./components";
 import { Card } from "@/components/ui/card";
 import { notify } from "@/components/ui/toast";
+import {
+    isFinanceApproved,
+    isFinanceRejected,
+    isFinanceValidationPending,
+} from "@/lib/finance";
 
 export function PaymentValidation() {
     const { user } = useAuth();
-    
-    const { 
+    const {
         inscriptions: allInscriptions,
         chefsQuartier,
-        loading, 
+        loading,
         refresh,
-        updateInscriptionLocal
+        updateInscriptionLocal,
     } = useData();
-    
+
     const [searchTerm, setSearchTerm] = useState("");
     const [filterChef, setFilterChef] = useState("");
     const [selectedInscription, setSelectedInscription] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Filtrer les paiements en attente de validation
-    // Inclut: inscriptions président avec workflow_status='pending_finance' OU inscriptions présentielles avec paiement partiel non validé
     const paiementsEnAttente = useMemo(() => {
-        return allInscriptions.filter(i => {
-            // Exclure les paiements déjà validés par le financier ou soldés
-            if (i.statut_paiement === "valide_financier" || i.statut_paiement === "soldé") {
+        return allInscriptions.filter((inscription) => {
+            if (isFinanceApproved(inscription) || isFinanceRejected(inscription)) {
                 return false;
             }
 
-            // Cas 1: Inscriptions président en attente de validation finance (WORKFLOW)
-            if (i.created_by === 'president' && i.workflow_status === 'pending_finance') {
-                return true;
+            if (isFinanceValidationPending(inscription)) {
+                return (inscription.montant_total_paye || 0) > 0;
             }
 
-            // Cas 2: Inscriptions en ligne en attente de validation finance (ancien système)
-            if (i.type_inscription === "en_ligne" && i.statut_workflow === "en_attente_finance" && i.created_by !== 'president') {
-                return i.statut_paiement === "partiel" || i.statut_paiement === "non_payé";
+            if (
+                inscription.type_inscription === "en_ligne" &&
+                inscription.statut_workflow === "en_attente_finance" &&
+                inscription.created_by !== "president"
+            ) {
+                return inscription.statut_paiement === "partiel" || inscription.statut_paiement === "non_payé";
             }
 
-            // Cas 3: Inscriptions présentielles avec paiement partiel (à suivre par la finance)
-            if (i.type_inscription === "presentielle" && i.statut_paiement === "partiel") {
-                return true;
-            }
-
-            return false;
+            return inscription.type_inscription === "presentielle" && inscription.statut_paiement === "partiel";
         });
     }, [allInscriptions]);
 
-    // Filtrer selon les critères de recherche
     const filteredInscriptions = useMemo(() => {
         let filtered = [...paiementsEnAttente];
-        
-        // Filtre par président de section
+
         if (filterChef) {
             if (filterChef === "presentiel") {
-                filtered = filtered.filter(i => !i.chef_quartier_id);
+                filtered = filtered.filter((inscription) => !inscription.chef_quartier_id);
             } else {
-                filtered = filtered.filter(i => i.chef_quartier_id === filterChef);
+                filtered = filtered.filter((inscription) => inscription.chef_quartier_id === filterChef);
             }
         }
-        
-        // Filtre par recherche
+
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(i =>
-                `${i.nom} ${i.prenom}`.toLowerCase().includes(term) ||
-                i.reference_id?.toLowerCase().includes(term)
+            filtered = filtered.filter((inscription) =>
+                `${inscription.nom} ${inscription.prenom}`.toLowerCase().includes(term) ||
+                inscription.reference_id?.toLowerCase().includes(term)
             );
         }
-        
+
         return filtered;
     }, [paiementsEnAttente, filterChef, searchTerm]);
 
@@ -90,21 +85,16 @@ export function PaymentValidation() {
 
         setActionLoading(true);
         try {
-            // Récupérer l'inscription pour déterminer le type de workflow
-            const inscription = allInscriptions.find(i => i.id === inscriptionId);
-            
-            // Préparer l'update selon le type d'inscription
+            const inscription = allInscriptions.find((item) => item.id === inscriptionId);
             const updateData = {
                 statut_paiement: "valide_financier",
                 valide_par_financier: user.id,
                 date_validation_financier: new Date().toISOString(),
             };
 
-            // Si inscription créée par président, mettre à jour le workflow
-            if (inscription?.created_by === 'president') {
-                updateData.workflow_status = 'pending_secretariat';
+            if (inscription?.created_by === "president") {
+                updateData.workflow_status = "pending_secretariat";
             } else {
-                // Pour les autres inscriptions, utiliser l'ancien système
                 updateData.statut_workflow = "en_attente_secretariat";
             }
 
@@ -119,7 +109,9 @@ export function PaymentValidation() {
 
             setModalOpen(false);
             setSelectedInscription(null);
-            notify.success("Paiement validé et transmis au secrétariat.", { title: "Validation finance" });
+            notify.success("Paiement validé et pris en compte par la finance.", {
+                title: "Validation finance",
+            });
         } catch (error) {
             console.error("Erreur validation:", error);
             notify.error("Erreur lors de la validation", { title: "Validation impossible" });
@@ -138,21 +130,16 @@ export function PaymentValidation() {
 
         setActionLoading(true);
         try {
-            // Récupérer l'inscription pour déterminer le type de workflow
-            const inscription = allInscriptions.find(i => i.id === inscriptionId);
-            
-            // Préparer l'update selon le type d'inscription
+            const inscription = allInscriptions.find((item) => item.id === inscriptionId);
             const updateData = {
                 statut_paiement: "refuse",
                 valide_par_financier: user.id,
                 date_validation_financier: new Date().toISOString(),
             };
 
-            // Si inscription créée par président, mettre à jour le workflow
-            if (inscription?.created_by === 'president') {
-                updateData.workflow_status = 'rejected';
+            if (inscription?.created_by === "president") {
+                updateData.workflow_status = "rejected";
             } else {
-                // Pour les autres inscriptions, utiliser l'ancien système
                 updateData.statut_workflow = "rejete";
             }
 
@@ -178,14 +165,13 @@ export function PaymentValidation() {
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
-            {/* Header */}
             <header className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark py-4 px-8 flex justify-between items-center z-10 shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold text-text-main dark:text-white tracking-tight">
                         Validation des Paiements
                     </h1>
                     <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                        Paiements en attente de validation par l'administration
+                        Montants en attente de validation par la finance
                     </p>
                 </div>
                 <Button
@@ -199,10 +185,8 @@ export function PaymentValidation() {
                 </Button>
             </header>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-[1400px] mx-auto space-y-6">
-                    {/* Stats Card */}
                     <Card className="p-5">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20">
@@ -215,7 +199,6 @@ export function PaymentValidation() {
                         </div>
                     </Card>
 
-                    {/* Filters */}
                     <PaymentFilters
                         searchTerm={searchTerm}
                         onSearchChange={setSearchTerm}
@@ -224,7 +207,6 @@ export function PaymentValidation() {
                         chefsQuartier={chefsQuartier}
                     />
 
-                    {/* Table */}
                     <PaymentTable
                         inscriptions={filteredInscriptions}
                         loading={loading}
@@ -237,12 +219,11 @@ export function PaymentValidation() {
                         actionLoading={actionLoading}
                         showActions={true}
                         emptyMessage="Aucun paiement en attente"
-                        emptyDescription="Tous les paiements ont été traités."
+                        emptyDescription="Tous les paiements ont déjà été traités."
                     />
                 </div>
             </div>
 
-            {/* Detail Modal */}
             {modalOpen && selectedInscription && (
                 <PaymentModal
                     inscription={selectedInscription}

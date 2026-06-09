@@ -17,6 +17,10 @@ import {
     AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+    getFinanceBadgeClasses,
+    getFinanceStatusMeta,
+} from "@/lib/finance";
 
 export function RegistrationDetail() {
     const { id } = useParams();
@@ -58,16 +62,9 @@ export function RegistrationDetail() {
         }
     };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case "soldé":
-            case "valide_financier":
-                return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Soldé</Badge>;
-            case "partiel":
-                return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Partiel</Badge>;
-            default:
-                return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Non payé</Badge>;
-        }
+    const getStatusBadge = (currentInscription) => {
+        const meta = getFinanceStatusMeta(currentInscription);
+        return <Badge className={getFinanceBadgeClasses(meta.variant)}>{meta.label}</Badge>;
     };
 
     const formatMontant = (montant) => {
@@ -172,7 +169,7 @@ export function RegistrationDetail() {
                                     <h2 className="text-xl sm:text-2xl font-bold text-text-main dark:text-white">
                                         {inscription.nom} {inscription.prenom}
                                     </h2>
-                                    {getStatusBadge(inscription.statut_paiement)}
+                                    {getStatusBadge(inscription)}
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                                     <div className="flex items-center gap-2 text-text-secondary">
@@ -334,6 +331,8 @@ export function RegistrationDetail() {
                                         // Sinon, déduire le statut à partir du paiement
                                         if (inscription.statut_paiement === 'soldé' || inscription.statut_paiement === 'valide_financier') {
                                             return 'En attente secrétariat';
+                                        } else if (inscription.statut_paiement === 'en_attente_validation') {
+                                            return 'En attente finance';
                                         } else if (inscription.statut_paiement === 'partiel' || inscription.statut_paiement === 'non_payé') {
                                             return 'En attente finance';
                                         }

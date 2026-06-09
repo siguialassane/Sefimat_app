@@ -14,6 +14,11 @@ import {
     Filter,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+    getFinanceBadgeClasses,
+    getFinanceStatusKey,
+    getFinanceStatusMeta,
+} from "@/lib/finance";
 
 export function AllRegistrations() {
     const navigate = useNavigate();
@@ -66,22 +71,15 @@ export function AllRegistrations() {
 
         // Filtre par statut
         if (filterStatus !== "all") {
-            filtered = filtered.filter(ins => ins.statut_paiement === filterStatus);
+            filtered = filtered.filter((ins) => getFinanceStatusKey(ins) === filterStatus);
         }
 
         setFilteredInscriptions(filtered);
     };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case "soldé":
-            case "valide_financier":
-                return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Soldé</Badge>;
-            case "partiel":
-                return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Partiel</Badge>;
-            default:
-                return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Non payé</Badge>;
-        }
+    const getStatusBadge = (inscription) => {
+        const meta = getFinanceStatusMeta(inscription);
+        return <Badge className={getFinanceBadgeClasses(meta.variant)}>{meta.label}</Badge>;
     };
 
     const formatMontant = (montant) => {
@@ -159,8 +157,10 @@ export function AllRegistrations() {
                                     <option value="all">Tous les statuts</option>
                                     <option value="soldé">Soldé</option>
                                     <option value="valide_financier">Validé financier</option>
+                                    <option value="en_attente_validation">En attente validation</option>
                                     <option value="partiel">Partiel</option>
                                     <option value="non_payé">Non payé</option>
+                                    <option value="refuse">Refusé</option>
                                 </select>
                             </div>
                         </div>
@@ -237,7 +237,7 @@ export function AllRegistrations() {
                                                 </p>
                                             </div>
                                             <div className="flex-shrink-0">
-                                                {getStatusBadge(inscription.statut_paiement)}
+                                                {getStatusBadge(inscription)}
                                             </div>
                                         </div>
 

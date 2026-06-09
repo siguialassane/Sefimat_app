@@ -2,6 +2,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, DollarSign, CheckCircle, XCircle } from "lucide-react";
+import {
+    getFinanceBadgeClasses,
+    getFinanceCollectedAmount,
+    getFinanceStatusMeta,
+    isFinanceApproved,
+    isFinanceRejected,
+} from "@/lib/finance";
 
 export function PaymentModal({
     inscription,
@@ -14,28 +21,16 @@ export function PaymentModal({
     if (!inscription) return null;
 
     const formatMontant = (montant) => {
-        return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
+        return `${new Intl.NumberFormat("fr-FR").format(montant || 0)} FCFA`;
     };
 
-    const getStatutBadge = () => {
-        if (inscription.statut_paiement === "valide_financier") {
-            return <Badge className="bg-emerald-500 text-white">Validé</Badge>;
-        }
-        if (inscription.statut_paiement === "soldé" || (inscription.montant_total_paye || 0) >= (inscription.montant_requis || 4000)) {
-            return <Badge className="bg-blue-500 text-white">Soldé</Badge>;
-        }
-        if (inscription.statut_paiement === "refuse") {
-            return <Badge variant="destructive">Refusé</Badge>;
-        }
-        if (inscription.statut_paiement === "partiel") {
-            return <Badge className="bg-orange-500 text-white">Partiel</Badge>;
-        }
-        return <Badge variant="secondary">Non payé</Badge>;
-    };
-
-    const isComplete = (inscription.montant_total_paye || 0) >= (inscription.montant_requis || 4000);
-    const isValidated = inscription.statut_paiement === "valide_financier" || inscription.statut_paiement === "soldé";
-    const canValidate = showActions && !isComplete && !isValidated;
+    const statusMeta = getFinanceStatusMeta(inscription);
+    const countedAmount = getFinanceCollectedAmount(inscription);
+    const canValidate =
+        showActions &&
+        !isFinanceApproved(inscription) &&
+        !isFinanceRejected(inscription) &&
+        (inscription.montant_total_paye || 0) > 0;
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -53,7 +48,6 @@ export function PaymentModal({
                 </div>
 
                 <div className="space-y-4">
-                    {/* Photo */}
                     <div className="flex justify-center">
                         <div className="h-24 w-24 rounded-lg bg-gray-200 dark:bg-gray-700 overflow-hidden">
                             {inscription.photo_url ? (
@@ -70,7 +64,6 @@ export function PaymentModal({
                         </div>
                     </div>
 
-                    {/* Info Grid */}
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <p className="text-text-secondary">Nom complet</p>
@@ -102,19 +95,24 @@ export function PaymentModal({
                         </div>
                     </div>
 
-                    {/* Payment Info */}
                     <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-3">
                             <DollarSign className="h-5 w-5 text-emerald-600" />
                             <span className="font-semibold text-emerald-800 dark:text-emerald-300">
                                 Détails du paiement
                             </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
-                                <p className="text-emerald-700 dark:text-emerald-400">Montant payé</p>
+                                <p className="text-emerald-700 dark:text-emerald-400">Montant déclaré</p>
                                 <p className="font-bold text-emerald-800 dark:text-emerald-300 text-lg">
                                     {formatMontant(inscription.montant_total_paye)}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-emerald-700 dark:text-emerald-400">Montant compté</p>
+                                <p className="font-bold text-emerald-800 dark:text-emerald-300 text-lg">
+                                    {formatMontant(countedAmount)}
                                 </p>
                             </div>
                             <div>
@@ -123,26 +121,26 @@ export function PaymentModal({
                                     {formatMontant(inscription.montant_requis || 4000)}
                                 </p>
                             </div>
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-emerald-300 dark:border-emerald-700">
-                            <p className="text-emerald-700 dark:text-emerald-400 text-sm">Reste à payer</p>
-                            <p className="font-bold text-red-600 text-xl">
-                                {formatMontant(
-                                    Math.max(0, (inscription.montant_requis || 4000) -
-                                    (inscription.montant_total_paye || 0))
-                                )}
-                            </p>
+                            <div>
+                                <p className="text-emerald-700 dark:text-emerald-400">Reste à payer</p>
+                                <p className="font-bold text-red-600 text-lg">
+                                    {formatMontant(
+                                        Math.max(
+                                            0,
+                                            (inscription.montant_requis || 4000) - (inscription.montant_total_paye || 0)
+                                        )
+                                    )}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Statut */}
                     <div className="flex items-center justify-center gap-2">
                         <span className="text-text-secondary">Statut:</span>
-                        {getStatutBadge()}
+                        <Badge className={getFinanceBadgeClasses(statusMeta.variant)}>{statusMeta.label}</Badge>
                     </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 mt-6">
                     <Button variant="outline" className="flex-1" onClick={onClose}>
                         Fermer
