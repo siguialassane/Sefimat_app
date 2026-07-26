@@ -220,6 +220,7 @@ export function BadgeManagement() {
     const [dortoirFilter, setDortoirFilter] = useState("");
     const [selectedParticipant, setSelectedParticipant] = useState(null);
     const [generating, setGenerating] = useState(false);
+    const [checkedIds, setCheckedIds] = useState(new Set());
     const badgeRef = useRef(null);
 
     // Filtrer les participants validés depuis le DataContext
@@ -259,6 +260,41 @@ export function BadgeManagement() {
             setSelectedParticipant(filteredParticipants[0]);
         }
     }, [filteredParticipants, selectedParticipant]);
+
+    // Participants cochés (dans la liste filtrée)
+    const checkedParticipants = useMemo(
+        () => filteredParticipants.filter((p) => checkedIds.has(p.id)),
+        [filteredParticipants, checkedIds]
+    );
+
+    const allChecked = filteredParticipants.length > 0 &&
+        filteredParticipants.every((p) => checkedIds.has(p.id));
+
+    // Cocher / décocher un participant
+    const toggleCheck = (id) => {
+        setCheckedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    // Cocher / décocher tous les participants filtrés
+    const toggleCheckAll = () => {
+        setCheckedIds((prev) => {
+            const next = new Set(prev);
+            if (allChecked) {
+                filteredParticipants.forEach((p) => next.delete(p.id));
+            } else {
+                filteredParticipants.forEach((p) => next.add(p.id));
+            }
+            return next;
+        });
+    };
 
     // Fonction utilitaire pour précharger une image
     const preloadImage = (src) => {
@@ -367,9 +403,9 @@ export function BadgeManagement() {
         }
     };
 
-    // Générer tous les badges en PDF
-    const generateAllBadges = async () => {
-        if (filteredParticipants.length === 0) {
+    // Générer un PDF multi-pages pour une liste de participants
+    const generateBadgesPDF = async (participantsList, fileName) => {
+        if (participantsList.length === 0) {
             notify.warning("Aucun participant à exporter", { title: "Export vide" });
             return;
         }
@@ -396,8 +432,8 @@ export function BadgeManagement() {
                 compress: false,
             });
 
-            for (let i = 0; i < filteredParticipants.length; i++) {
-                const participant = filteredParticipants[i];
+            for (let i = 0; i < participantsList.length; i++) {
+                const participant = participantsList[i];
                 setSelectedParticipant(participant);
 
                 // Précharger la photo du participant si elle existe
@@ -440,16 +476,30 @@ export function BadgeManagement() {
                 pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
             }
 
-            pdf.save(`badges_sefimap_${new Date().toISOString().split("T")[0]}.pdf`);
-            notify.success("Export de tous les badges terminé.", { title: "Export réussi" });
+            pdf.save(fileName);
+            notify.success(`Export de ${participantsList.length} badge(s) terminé.`, { title: "Export réussi" });
 
         } catch (error) {
-            console.error("Erreur génération tous badges:", error);
+            console.error("Erreur génération badges:", error);
             notify.error("Erreur lors de la génération des badges", { title: "Export impossible" });
         } finally {
             setGenerating(false);
         }
     };
+
+    // Générer tous les badges en PDF
+    const generateAllBadges = () =>
+        generateBadgesPDF(
+            filteredParticipants,
+            `badges_sefimap_${new Date().toISOString().split("T")[0]}.pdf`
+        );
+
+    // Générer uniquement les badges cochés
+    const generateSelectedBadges = () =>
+        generateBadgesPDF(
+            checkedParticipants,
+            `badges_selection_sefimap_${new Date().toISOString().split("T")[0]}.pdf`
+        );
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
@@ -464,18 +514,33 @@ export function BadgeManagement() {
                         Sélectionnez un participant pour prévisualiser et télécharger son badge
                     </p>
                 </div>
-                <Button
-                    onClick={generateAllBadges}
-                    disabled={generating || filteredParticipants.length === 0}
-                    className="gap-2"
-                >
-                    {generating ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Download className="h-4 w-4" />
-                    )}
-                    Exporter tous ({filteredParticipants.length})
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button
+                        onClick={generateSelectedBadges}
+                        disabled={generating || checkedParticipants.length === 0}
+                        variant="outline"
+                        className="gap-2"
+                    >
+                        {generating ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4" />
+                        )}
+                        Exporter la sélection ({checkedParticipants.length})
+                    </Button>
+                    <Button
+                        onClick={generateAllBadges}
+                        disabled={generating || filteredParticipants.length === 0}
+                        className="gap-2"
+                    >
+                        {generating ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4" />
+                        )}
+                        Exporter tous ({filteredParticipants.length})
+                    </Button>
+                </div>
             </header>
 
             {/* Main Content - Split Layout */}
@@ -509,6 +574,23 @@ export function BadgeManagement() {
                         </div>
                         <div className="mt-2 flex items-center justify-between text-sm text-text-secondary">
                             <span>{filteredParticipants.length} participants validés</span>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={allChecked}
+                                    onChange={toggleCheckAll}
+                                    disabled={filteredParticipants.length === 0}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-[var(--color-primary,#2563eb)]"
+                                />
+                                <span>
+                                    Tout cocher
+                                    {checkedParticipants.length > 0 && (
+                                        <span className="ml-1 font-medium text-primary">
+                                            ({checkedParticipants.length} coché{checkedParticipants.length > 1 ? "s" : ""})
+                                        </span>
+                                    )}
+                                </span>
+                            </label>
                         </div>
                     </div>
 
@@ -544,6 +626,15 @@ export function BadgeManagement() {
                                             : ""
                                             }`}
                                     >
+                                        {/* Checkbox de sélection */}
+                                        <input
+                                            type="checkbox"
+                                            checked={checkedIds.has(participant.id)}
+                                            onChange={() => toggleCheck(participant.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer flex-shrink-0 accent-[var(--color-primary,#2563eb)]"
+                                        />
+
                                         {/* Photo */}
                                         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
                                             {participant.photo_url ? (
