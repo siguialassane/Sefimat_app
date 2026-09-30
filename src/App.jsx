@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider, AuthProvider, DataProvider } from "@/contexts";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Toaster, notify } from "@/components/ui/toast";
-import { AdminLayout, FinanceLayout, PresidentLayout, ScientifiqueLayout } from "@/components/layout";
+import { AdminLayout, FinanceLayout, PresidentLayout, ScientifiqueLayout, ManagerLayout } from "@/components/layout";
 
 const PublicRegistration = lazy(() => import("@/pages/PublicRegistration").then((module) => ({ default: module.PublicRegistration })));
 const Login = lazy(() => import("@/pages/Login").then((module) => ({ default: module.Login })));
@@ -31,6 +31,9 @@ const GestionNotes = lazy(() => import("@/pages/scientifique/GestionNotes").then
 const ListeClasses = lazy(() => import("@/pages/scientifique/ListeClasses").then((module) => ({ default: module.ListeClasses })));
 const ConfigClasses = lazy(() => import("@/pages/scientifique/ConfigClasses").then((module) => ({ default: module.ConfigClasses })));
 const GestionBulletins = lazy(() => import("@/pages/scientifique/GestionBulletins").then((module) => ({ default: module.default })));
+const ManagerDashboard = lazy(() => import("@/pages/manager/ManagerDashboard").then((module) => ({ default: module.ManagerDashboard })));
+const PresidentsManagement = lazy(() => import("@/pages/manager/PresidentsManagement").then((module) => ({ default: module.PresidentsManagement })));
+const PresidentDetails = lazy(() => import("@/pages/manager/PresidentDetails").then((module) => ({ default: module.PresidentDetails })));
 
 function App() {
   useEffect(() => {
@@ -123,6 +126,18 @@ function App() {
                   <Route path="classes" element={<ListeClasses />} />
                   <Route path="bulletins" element={<GestionBulletins />} />
                   <Route path="config" element={<ConfigClasses />} />
+                </Route>
+
+                {/* Manager Routes */}
+                <Route path="/manager" element={
+                  <ProtectedRoute allowedRoles={["manager"]}>
+                    <ManagerLayout />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<Navigate to="/manager/dashboard" replace />} />
+                  <Route path="dashboard" element={<ManagerDashboard />} />
+                  <Route path="presidents" element={<PresidentsManagement />} />
+                  <Route path="presidents/:id" element={<PresidentDetails />} />
                 </Route>
 
                 {/* Fallback */}

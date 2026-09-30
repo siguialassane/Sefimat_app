@@ -354,16 +354,6 @@ export function RegistrationManagement() {
                                 <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
                                 <p className="text-text-secondary dark:text-gray-400">Chargement des inscriptions...</p>
                             </div>
-                        ) : filteredRegistrations.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-16">
-                                <p className="text-text-secondary dark:text-gray-400 text-lg mb-2">Aucune inscription trouvée</p>
-                                <p className="text-text-secondary dark:text-gray-500 text-sm">
-                                    {registrations.length === 0
-                                        ? "Les inscriptions apparaîtront ici une fois soumises."
-                                        : "Essayez de modifier vos filtres de recherche."
-                                    }
-                                </p>
-                            </div>
                         ) : (
                             <>
                                 <div className="overflow-x-auto">
@@ -388,6 +378,16 @@ export function RegistrationManagement() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border-light dark:divide-border-dark">
+                                            {filteredRegistrations.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={11} className="p-8 text-center text-sm text-text-secondary dark:text-gray-500">
+                                                        {registrations.length === 0
+                                                            ? "0 inscription — elles apparaîtront ici une fois soumises."
+                                                            : "0 inscription — essayez de modifier vos filtres de recherche."
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            )}
                                             {filteredRegistrations.map((registration) => (
                                                 <tr
                                                     key={registration.id}
@@ -502,6 +502,7 @@ export function RegistrationManagement() {
                     setDeleteModal({ open: true, registration: editModal.registration });
                 }}
                 onUpdate={handleUpdate}
+                onPaymentAdded={(id, updates) => updateInscriptionLocal(id, updates)}
                 chefsQuartier={chefsQuartier}
                 dortoirs={dortoirs}
                 statusConfig={statusConfig}

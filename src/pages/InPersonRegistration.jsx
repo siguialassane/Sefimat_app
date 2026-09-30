@@ -45,7 +45,7 @@ const registrationSchema = z.object({
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     dortoirId: z.string().min(1, "Veuillez sélectionner un dortoir"),
     montantPaye: z.number()
-        .min(0, "Le montant doit être positif")
+        .min(1, "Le montant est obligatoire (minimum 1 FCFA)")
         .max(4000, "Le montant ne peut pas dépasser 4000 FCFA"),
     // niveauFormation retiré - géré par la section scientifique uniquement
 });
@@ -264,10 +264,10 @@ export function InPersonRegistration() {
                         inscription_id: inscription.id,
                         montant: data.montantPaye,
                         mode_paiement: 'especes',
-                        statut: 'valide', // Validé automatiquement pour inscriptions présentielles
+                        statut: 'validé', // Validé automatiquement pour inscriptions présentielles
                         type_paiement: 'inscription',
                         valide_par: user.id,
-                        date_validation: new Date().toISOString(),
+                        // (created_at fait foi — pas de colonne date_validation)
                     });
 
                 if (paiementError) {

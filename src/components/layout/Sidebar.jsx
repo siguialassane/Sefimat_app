@@ -9,7 +9,7 @@ import {
     IdCard,
     Bed,
 } from "lucide-react";
-import { Mosque } from "@/components/icons";
+import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts";
@@ -43,9 +43,7 @@ export function Sidebar() {
             <div className="p-6 pb-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20 text-primary">
-                            <Mosque className="h-6 w-6" />
-                        </div>
+                        <Logo />
                         <div className="flex flex-col">
                             <h1 className="text-lg font-bold tracking-tight text-text-main dark:text-white">
                                 SEFIMAP

@@ -1,11 +1,16 @@
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Download, CheckCheck, DollarSign } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { useData } from "@/contexts";
+import { supabase } from "@/lib/supabase";
 import { PaymentFilters, PaymentTable, PaymentModal } from "./components";
+import { AddPaymentDialog } from "@/components/AddPaymentDialog";
 import { Card } from "@/components/ui/card";
 import { notify } from "@/components/ui/toast";
 import {
+    canCancelFinanceValidation,
+    getAbandonedAmount,
     getFinanceCollectedAmount,
     isFinanceApproved,
     isFullyPaid,
@@ -18,13 +23,17 @@ export function PaymentList() {
         chefsQuartier,
         loading,
         refresh,
+        updateInscriptionLocal,
     } = useData();
 
+    const location = useLocation();
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterChef, setFilterChef] = useState("");
+    const [filterChef, setFilterChef] = useState(location.state?.filterChef || "");
     const [filterStatus, setFilterStatus] = useState("tous");
     const [selectedInscription, setSelectedInscription] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
+    const [paymentDialogFor, setPaymentDialogFor] = useState(null);
+    const [actionLoading, setActionLoading] = useState(false);
 
     const paiementsValides = useMemo(() => {
         return allInscriptions.filter(
@@ -36,8 +45,9 @@ export function PaymentList() {
         const soldes = paiementsValides.filter(isFullyPaid).length;
         const validesAdmin = paiementsValides.filter((i) => i.statut_paiement === "valide_financier").length;
         const totalCollecte = paiementsValides.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
+        const totalNonDu = paiementsValides.reduce((acc, i) => acc + getAbandonedAmount(i), 0);
 
-        return { soldes, validesAdmin, totalCollecte, total: paiementsValides.length };
+        return { soldes, validesAdmin, totalCollecte, totalNonDu, total: paiementsValides.length };
     }, [paiementsValides]);
 
     const filteredInscriptions = useMemo(() => {
@@ -73,19 +83,71 @@ export function PaymentList() {
         notify.success("Liste des paiements actualisée.", { title: "Actualisation réussie" });
     }, [refresh]);
 
+    const handleCancelValidation = useCallback(async (inscriptionId) => {
+        const inscription = allInscriptions.find((i) => i.id === inscriptionId);
+        if (!inscription) return;
+        if (!canCancelFinanceValidation(inscription)) {
+            notify.warning("Seule la validation d'un paiement partiel (moins de 4000 FCFA) peut être annulée.", {
+                title: "Annulation impossible",
+            });
+            return;
+        }
+        if (!confirm("Annuler la validation finance de " + inscription.nom + " " + inscription.prenom + " ? Le président pourra de nouveau encaisser.")) return;
+        setActionLoading(true);
+        try {
+            const updateData = {
+                statut_paiement: "partiel",
+                workflow_status: "pending_finance",
+                montant_non_du: 0,
+                valide_par_financier: null,
+                date_validation_financier: null,
+            };
+            const { error } = await supabase.from("inscriptions").update(updateData).eq("id", inscriptionId);
+            if (error) throw error;
+            updateInscriptionLocal(inscriptionId, updateData);
+            setModalOpen(false);
+            setSelectedInscription(null);
+            notify.success("Validation annulée. Le président peut de nouveau encaisser.", {
+                title: "Annulation réussie",
+            });
+        } catch (err) {
+            console.error("Erreur annulation validation:", err);
+            notify.error("Erreur lors de l'annulation", { title: "Annulation impossible" });
+        } finally {
+            setActionLoading(false);
+        }
+    }, [allInscriptions, updateInscriptionLocal]);
+
+    const handleAddPaymentOpen = useCallback((inscriptionId) => {
+        const inscription = allInscriptions.find((i) => i.id === inscriptionId);
+        if (inscription) {
+            setPaymentDialogFor(inscription);
+        }
+    }, [allInscriptions]);
+
+    const handleAddPaymentSuccess = useCallback((inscriptionId, updates) => {
+        updateInscriptionLocal(inscriptionId, updates);
+        setPaymentDialogFor(null);
+        if (selectedInscription?.id === inscriptionId) {
+            setSelectedInscription((prev) => (prev ? { ...prev, ...updates } : prev));
+        }
+    }, [updateInscriptionLocal, selectedInscription]);
+
     const formatMontant = (montant) => {
         return new Intl.NumberFormat("fr-FR").format(montant || 0) + " FCFA";
     };
 
     const exportToCSV = () => {
-        const headers = ["Référence", "Nom", "Prénom", "Téléphone", "Président", "Montant payé", "Statut", "Date"];
+        const headers = ["Référence", "Nom", "Prénom", "Téléphone", "Président", "Origine", "Montant payé", "Non dû", "Statut", "Date"];
         const rows = filteredInscriptions.map((i) => [
             i.reference_id || "",
             i.nom,
             i.prenom,
             i.telephone || "",
-            i.chef_quartier?.nom_complet || "Présentiel",
+            i.chef_quartier?.nom_complet || "Guichet (Secrétariat)",
+            i.chef_quartier_id ? "Président" : "Guichet",
             getFinanceCollectedAmount(i),
+            getAbandonedAmount(i),
             i.statut_paiement,
             new Date(i.created_at).toLocaleDateString("fr-FR"),
         ]);
@@ -132,7 +194,7 @@ export function PaymentList() {
 
             <div className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-[1400px] mx-auto space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                         <Card className="p-5">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
@@ -177,6 +239,17 @@ export function PaymentList() {
                                 </div>
                             </div>
                         </Card>
+                        <Card className="p-5">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
+                                    <DollarSign className="h-5 w-5 text-gray-500" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-text-secondary">Reliquats non dus</p>
+                                    <p className="text-xl font-bold text-gray-500">{formatMontant(stats.totalNonDu)}</p>
+                                </div>
+                            </div>
+                        </Card>
                     </div>
 
                     <PaymentFilters
@@ -197,7 +270,12 @@ export function PaymentList() {
                             setSelectedInscription(inscription);
                             setModalOpen(true);
                         }}
+                        onAddPayment={handleAddPaymentOpen}
+                        onCancelValidation={handleCancelValidation}
+                        actionLoading={actionLoading}
                         showActions={false}
+                        showAddPayment
+                        showCancelValidation
                         emptyMessage="Aucun paiement validé"
                         emptyDescription="Aucun montant n'est encore pris en compte par la finance."
                     />
@@ -211,7 +289,20 @@ export function PaymentList() {
                         setModalOpen(false);
                         setSelectedInscription(null);
                     }}
+                    onAddPayment={handleAddPaymentOpen}
+                    onCancelValidation={handleCancelValidation}
+                    actionLoading={actionLoading}
                     showActions={false}
+                    showAddPayment
+                    showCancelValidation
+                />
+            )}
+
+            {paymentDialogFor && (
+                <AddPaymentDialog
+                    inscription={paymentDialogFor}
+                    onClose={() => setPaymentDialogFor(null)}
+                    onSuccess={handleAddPaymentSuccess}
                 />
             )}
         </div>

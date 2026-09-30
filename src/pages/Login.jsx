@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/contexts";
 
 const loginSchema = z.object({
-    email: z.string().email("Adresse email invalide"),
+    email: z.string().min(1, "Entrez votre email ou identifiant"),
     password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
 });
 
@@ -26,6 +27,8 @@ const getRedirectPath = (role) => {
             return "/scientifique/dashboard";
         case "president":
             return "/admin/President";
+        case "manager":
+            return "/manager/dashboard";
         default:
             return "/admin/dashboard";
     }
@@ -138,14 +141,7 @@ export function Login() {
             <header className="w-full border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 py-4 lg:px-10">
                 <div className="max-w-[1440px] mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-4 text-text-main dark:text-white">
-                        <div className="h-8 w-8 text-primary">
-                            <svg className="w-full h-full" fill="none" viewBox="0 0 48 48">
-                                <path
-                                    d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z"
-                                    fill="currentColor"
-                                />
-                            </svg>
-                        </div>
+                        <Logo className="h-8 w-8" />
                         <h2 className="text-xl font-bold leading-tight tracking-tight">SEFIMAP Admin</h2>
                     </div>
                     <div className="flex items-center gap-4">
@@ -196,13 +192,13 @@ export function Login() {
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                             {/* Email Field */}
                             <div className="flex flex-col gap-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">Email ou identifiant</Label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
                                     <Input
                                         id="email"
-                                        type="email"
-                                        placeholder="admin@sefimap.ci"
+                                        type="text"
+                                        placeholder="admin@sefimap.ci ou identifiant"
                                         className={`pl-11 ${errors.email ? "border-red-500" : ""}`}
                                         {...register("email")}
                                     />

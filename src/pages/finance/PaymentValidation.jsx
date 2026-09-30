@@ -46,7 +46,9 @@ export function PaymentValidation() {
                 return inscription.statut_paiement === "partiel" || inscription.statut_paiement === "non_payé";
             }
 
-            return inscription.type_inscription === "presentielle" && inscription.statut_paiement === "partiel";
+            // Les inscriptions présentielles sont validées définitivement au guichet :
+            // elles n'apparaissent plus dans la file de validation finance.
+            return false;
         });
     }, [allInscriptions]);
 
@@ -91,6 +93,10 @@ export function PaymentValidation() {
                 valide_par_financier: user.id,
                 date_validation_financier: new Date().toISOString(),
             };
+
+            // Sauvegarder le reliquat abandonné (reste non dû après validation, même partielle)
+            const requis = inscription?.montant_requis || 4000;
+            updateData.montant_non_du = Math.max(0, requis - (inscription?.montant_total_paye || 0));
 
             if (inscription?.created_by === "president") {
                 updateData.workflow_status = "pending_secretariat";

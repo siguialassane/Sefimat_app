@@ -34,10 +34,7 @@ function buildStats(inscriptions, paiements) {
   const femmes = inscriptionsVisiblesSecretariat.filter(i => i?.sexe === 'femme').length;
 
   const totalCollecte = safeInscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
-  const paiementsEnAttente = safeInscriptions.filter(i => {
-    if (isFinanceValidationPending(i)) return true;
-    return i?.created_by !== 'president' && i?.statut_paiement === 'partiel';
-  }).length;
+  const paiementsEnAttente = safeInscriptions.filter(i => isFinanceValidationPending(i)).length;
   const paiementsPartiels = safeInscriptions.filter(i =>
     shouldCountInFinanceTotals(i) &&
     !isFullyPaid(i) &&

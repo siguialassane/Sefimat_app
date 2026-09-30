@@ -1,11 +1,15 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, DollarSign, CheckCircle, XCircle } from "lucide-react";
+import { X, DollarSign, CheckCircle, XCircle, Plus, Undo2 } from "lucide-react";
 import {
+    canAddPayment,
+    canCancelFinanceValidation,
+    getAbandonedAmount,
     getFinanceBadgeClasses,
     getFinanceCollectedAmount,
     getFinanceStatusMeta,
+    getRemainingDue,
     isFinanceApproved,
     isFinanceRejected,
 } from "@/lib/finance";
@@ -15,8 +19,12 @@ export function PaymentModal({
     onClose,
     onValidate,
     onReject,
+    onAddPayment,
+    onCancelValidation,
     actionLoading,
     showActions = true,
+    showAddPayment = false,
+    showCancelValidation = false,
 }) {
     if (!inscription) return null;
 
@@ -26,6 +34,8 @@ export function PaymentModal({
 
     const statusMeta = getFinanceStatusMeta(inscription);
     const countedAmount = getFinanceCollectedAmount(inscription);
+    const resteDu = getRemainingDue(inscription);
+    const nonDu = getAbandonedAmount(inscription);
     const canValidate =
         showActions &&
         !isFinanceApproved(inscription) &&
@@ -78,11 +88,18 @@ export function PaymentModal({
                             </p>
                         </div>
                         <div>
-                            <p className="text-text-secondary">Président de section</p>
+                            <p className="text-text-secondary">Origine</p>
                             <p className="font-medium text-text-main dark:text-white">
-                                {inscription.chef_quartier?.nom_complet || (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                                        Présentiel
+                                {inscription.chef_quartier?.nom_complet ? (
+                                    <span className="flex flex-col gap-1">
+                                        {inscription.chef_quartier.nom_complet}
+                                        <span className="inline-flex w-fit items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                            Président
+                                        </span>
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Inscription guichet (Secrétariat)">
+                                        Guichet
                                     </span>
                                 )}
                             </p>
@@ -124,13 +141,13 @@ export function PaymentModal({
                             <div>
                                 <p className="text-emerald-700 dark:text-emerald-400">Reste à payer</p>
                                 <p className="font-bold text-red-600 text-lg">
-                                    {formatMontant(
-                                        Math.max(
-                                            0,
-                                            (inscription.montant_requis || 4000) - (inscription.montant_total_paye || 0)
-                                        )
-                                    )}
+                                    {formatMontant(resteDu)}
                                 </p>
+                                {nonDu > 0 && (
+                                    <p className="text-xs text-text-secondary">
+                                        Dont {formatMontant(nonDu)} non dus (abandonnés)
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -164,6 +181,28 @@ export function PaymentModal({
                                 Valider
                             </Button>
                         </>
+                    )}
+                    {showAddPayment && canAddPayment(inscription) && (
+                        <Button
+                            variant="outline"
+                            onClick={() => onAddPayment?.(inscription.id)}
+                            disabled={actionLoading}
+                            title="Ajouter un paiement"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Paiement
+                        </Button>
+                    )}
+                    {showCancelValidation && canCancelFinanceValidation(inscription) && (
+                        <Button
+                            variant="outline"
+                            onClick={() => onCancelValidation?.(inscription.id)}
+                            disabled={actionLoading}
+                            title="Annuler la validation finance (rouvre les encaissements)"
+                        >
+                            <Undo2 className="h-4 w-4 mr-2" />
+                            Annuler
+                        </Button>
                     )}
                 </div>
             </Card>

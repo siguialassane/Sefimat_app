@@ -8,10 +8,9 @@ import {
     LogOut,
     Menu,
     X,
-    DollarSign,
     List,
 } from "lucide-react";
-import { Mosque } from "@/components/icons";
+import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/contexts";
 import { cn } from "@/lib/utils";
@@ -57,9 +56,7 @@ export function FinanceLayout() {
                 <div className="p-6 border-b border-border-light dark:border-border-dark">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">
-                                <DollarSign className="h-6 w-6" />
-                            </div>
+                            <Logo />
                             <div>
                                 <h1 className="font-bold text-lg text-text-main dark:text-white">
                                     SEFIMAP
@@ -130,9 +127,7 @@ export function FinanceLayout() {
                         {/* Logo */}
                         <div className="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">
-                                    <DollarSign className="h-6 w-6" />
-                                </div>
+                                <Logo />
                                 <div>
                                     <h1 className="font-bold text-lg text-text-main dark:text-white">
                                         SEFIMAP
@@ -198,9 +193,7 @@ export function FinanceLayout() {
                             <Menu className="h-6 w-6" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-500">
-                                <DollarSign className="h-5 w-5" />
-                            </div>
+                            <Logo className="h-8 w-8" />
                             <span className="font-bold text-lg text-text-main dark:text-white">
                                 Financier
                             </span>

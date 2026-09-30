@@ -40,7 +40,7 @@ const registrationSchema = z.object({
     nombreParticipations: z.number().min(0, "Le nombre doit être positif ou zéro"),
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     montantPaye: z.number()
-        .min(0, "Le montant doit être positif")
+        .min(1, "Le montant est obligatoire (minimum 1 FCFA)")
         .max(4000, "Le montant ne peut pas dépasser 4000 FCFA"),
     modePaiement: z.string().optional(),
 });
@@ -155,8 +155,8 @@ export function PresidentRegistration() {
 
         // Validation stricte du montant - BLOQUER si > 4000
         const montant = Math.floor(data.montantPaye || 0);
-        if (montant > 4000) {
-            notify.warning("Le montant ne peut pas dépasser 4000 FCFA.", {
+        if (montant > 4000 || montant <= 0) {
+            notify.warning("Le montant est obligatoire et ne peut pas dépasser 4000 FCFA.", {
                 title: "Montant invalide",
             });
             setCurrentStep(4);

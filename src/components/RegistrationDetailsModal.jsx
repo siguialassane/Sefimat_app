@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { LazyImage } from "@/components/ui/lazy-image";
-import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap, Building, BookOpen, Users } from "lucide-react";
+import { X, CheckCircle, Edit, Trash2, Save, User, MapPin, Calendar, Phone, GraduationCap, Building, BookOpen, Users, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { notify } from "@/components/ui/toast";
+import { AddPaymentDialog } from "@/components/AddPaymentDialog";
+import { canAddPayment } from "@/lib/finance";
 
 // Mapping niveau formation
 const niveauFormationMap = {
@@ -24,6 +26,7 @@ export function RegistrationDetailsModal({
     onValidate,
     onDelete,
     onUpdate,
+    onPaymentAdded,
     chefsQuartier,
     dortoirs = [],
     statusConfig
@@ -31,6 +34,7 @@ export function RegistrationDetailsModal({
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({});
     const [dortoirStats, setDortoirStats] = useState([]);
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
     // Initialiser les données du formulaire quand l'inscription change
     useEffect(() => {
@@ -714,6 +718,12 @@ export function RegistrationDetailsModal({
                                     Valider
                                 </Button>
                             )}
+                            {canAddPayment(registration.originalData) && (
+                                <Button variant="outline" onClick={() => setPaymentDialogOpen(true)} className="gap-2" title="Ajouter un paiement (complément guichet)">
+                                    <Plus className="w-4 h-4" />
+                                    Ajouter un paiement
+                                </Button>
+                            )}
                             <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2">
                                 <Edit className="w-4 h-4" />
                                 Modifier
@@ -726,6 +736,18 @@ export function RegistrationDetailsModal({
                     )}
                 </div>
             </Card>
+
+            {paymentDialogOpen && (
+                <AddPaymentDialog
+                    inscription={registration.originalData}
+                    onClose={() => setPaymentDialogOpen(false)}
+                    onSuccess={(id, updates) => {
+                        setFormData((prev) => ({ ...prev, ...updates }));
+                        onPaymentAdded?.(id, updates);
+                        setPaymentDialogOpen(false);
+                    }}
+                />
+            )}
         </div>
     );
 }

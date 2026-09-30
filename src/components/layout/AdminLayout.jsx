@@ -1,7 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Menu } from "lucide-react";
-import { Mosque } from "@/components/icons";
+import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useState } from "react";
 
@@ -33,9 +33,7 @@ export function AdminLayout() {
                             <Menu className="h-6 w-6" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-                                <Mosque className="h-5 w-5" />
-                            </div>
+                            <Logo className="h-8 w-8" />
                             <span className="font-bold text-lg text-text-main dark:text-white">SEFIMAP</span>
                         </div>
                     </div>

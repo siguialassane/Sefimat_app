@@ -22,10 +22,11 @@ import {
 import { supabase } from "@/lib/supabase";
 import { notify } from "@/components/ui/toast";
 import {
+    canAddPayment,
     getFinanceBadgeClasses,
     getFinanceStatusMeta,
-    isFinanceRejected,
     isFullyPaid,
+    isPresidentBlockedForPayment,
 } from "@/lib/finance";
 
 export function PresidentPayments() {
@@ -127,7 +128,7 @@ export function PresidentPayments() {
 
         // Convertir en entier (INTEGER) pour correspondre au type de la fonction PostgreSQL
         const amount = Math.floor(parseFloat(paymentAmount));
-        const remaining = 4000 - (selectedInscription.montant_total_paye || 0);
+        const remaining = (selectedInscription.montant_requis || 4000) - (selectedInscription.montant_total_paye || 0);
 
         if (amount > remaining) {
             notify.warning(`Le montant ne peut pas dépasser ${remaining} FCFA (reste à payer)`, { title: "Montant invalide" });
@@ -159,14 +160,19 @@ export function PresidentPayments() {
 
             console.log("PresidentPayments: Paiement ajouté avec succès:", data);
 
+            const requis = selectedInscription.montant_requis || 4000;
             let statutPaiement = "non_payé";
-            if (data.new_total >= 4000) statutPaiement = "soldé";
+            if (data.new_total >= requis) statutPaiement = "soldé";
             else if (data.new_total > 0) statutPaiement = "partiel";
 
+            // IMPORTANT: l'ajout d'argent ne touche JAMAIS au workflow (pas de régression).
             const syncStatus = {
                 statut_paiement: statutPaiement,
-                workflow_status: "pending_finance",
             };
+            // Si la finance avait abandonné un reliquat, le réduire du montant ajouté
+            if ((selectedInscription.montant_non_du || 0) > 0) {
+                syncStatus.montant_non_du = Math.max(0, requis - data.new_total);
+            }
 
             const { error: inscriptionUpdateError } = await supabase
                 .from("inscriptions")
@@ -370,7 +376,13 @@ export function PresidentPayments() {
                                                 </p>
                                             </div>
                                             {getStatusBadge(inscription)}
-                                            {!isFullyPaid(inscription) && !isFinanceRejected(inscription) && (
+                                            {isPresidentBlockedForPayment(inscription) && (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700" title="Dossier validé par la finance : aucun encaissement à ajouter">
+                                                    <Check className="h-3 w-3" />
+                                                    Validé par la finance
+                                                </span>
+                                            )}
+                                            {canAddPayment(inscription) && (
                                                     <Button
                                                         size="sm"
                                                         className="bg-amber-600 hover:bg-amber-700"
@@ -433,7 +445,7 @@ export function PresidentPayments() {
                                         </span>
                                         <span className="text-text-secondary">|</span>
                                         <span className="text-red-500">
-                                            Reste: {formatMontant(4000 - (selectedInscription.montant_total_paye || 0))}
+                                            Reste: {formatMontant(Math.max(0, (selectedInscription.montant_requis || 4000) - (selectedInscription.montant_total_paye || 0) - (selectedInscription.montant_non_du || 0)))}
                                         </span>
                                     </div>
                                 </div>

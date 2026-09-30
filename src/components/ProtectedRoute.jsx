@@ -1,10 +1,12 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts";
+import { getDefaultRoute } from "../config/users.config";
 
 /**
- * ProtectedRoute simplifié - Protection des routes avec auth locale
+ * ProtectedRoute - Protection des routes avec auth locale
+ * @param {string[]} [allowedRoles] - rôles autorisés (optionnel : si absent, tout utilisateur connecté passe)
  */
-export function ProtectedRoute({ children }) {
+export function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -24,6 +26,12 @@ export function ProtectedRoute({ children }) {
   if (!user) {
     console.log('ProtectedRoute: Pas connecté, redirection vers login');
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Rôle non autorisé = redirection vers le tableau de bord du rôle
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    console.log('ProtectedRoute: Rôle non autorisé, redirection');
+    return <Navigate to={getDefaultRoute(user.role)} replace />;
   }
 
   // Utilisateur connecté = afficher le contenu

@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { UserPlus, CreditCard, LogOut, Menu, X, Users, LayoutDashboard } from "lucide-react";
+import { UserPlus, CreditCard, LogOut, Menu, X, LayoutDashboard } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -111,9 +112,7 @@ export function PresidentLayout() {
                 <div className="p-6 border-b border-border-light dark:border-border-dark">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600">
-                                <Users className="h-6 w-6" />
-                            </div>
+                            <Logo />
                             <div>
                                 <h1 className="font-bold text-lg text-text-main dark:text-white">SEFIMAP</h1>
                                 <p className="text-xs text-amber-600 font-medium">Espace Président</p>
@@ -170,9 +169,7 @@ export function PresidentLayout() {
                     <aside className="lg:hidden fixed inset-y-0 left-0 w-64 bg-surface-light dark:bg-surface-dark z-50 flex flex-col">
                         <div className="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600">
-                                    <Users className="h-6 w-6" />
-                                </div>
+                                <Logo />
                                 <div>
                                     <h1 className="font-bold text-lg text-text-main dark:text-white">SEFIMAP</h1>
                                     <p className="text-xs text-amber-600 font-medium">Espace Président</p>
@@ -226,9 +223,7 @@ export function PresidentLayout() {
                             <Menu className="h-6 w-6" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-500">
-                                <Users className="h-5 w-5" />
-                            </div>
+                            <Logo className="h-8 w-8" />
                             <div>
                                 <span className="font-bold text-sm text-text-main dark:text-white block">{president.nom_complet}</span>
                                 <span className="text-xs text-text-secondary">{president.zone}</span>

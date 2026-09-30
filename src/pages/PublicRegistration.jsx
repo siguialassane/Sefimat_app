@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { Mosque } from "@/components/icons";
+import { Logo } from "@/components/Logo";
 import { ArrowRight, MapPin, Users } from "lucide-react";
 
 const accessOptions = [
@@ -22,9 +22,7 @@ export function PublicRegistration() {
             <header className="border-b border-border-light bg-surface-light dark:border-border-dark dark:bg-surface-dark">
                 <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8">
                     <a href="/" className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            <Mosque className="h-5 w-5" />
-                        </div>
+                        <Logo />
                         <div>
                             <p className="text-xs font-semibold tracking-[0.16em] text-text-secondary uppercase">
                                 Port-Bouët

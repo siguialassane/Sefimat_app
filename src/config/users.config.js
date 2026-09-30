@@ -7,7 +7,7 @@
  * Pour ajouter un utilisateur:
  * 1. Ajouter une entrée dans le tableau USERS
  * 2. L'email doit être unique
- * 3. Le rôle doit être: 'secretaire', 'financier', 'scientifique', ou 'president'
+ * 3. Le rôle doit être: 'secretaire', 'financier', 'scientifique', 'president' ou 'manager'
  */
 
 export const USERS = [
@@ -44,6 +44,15 @@ export const USERS = [
     role: 'president',
     zone: 'Zone Test',
   },
+  {
+    id: 'd4e5f6a7-b8c9-4d0e-a1b2-c3d4e5f60708',
+    email: 'manager@sefimap.ci',
+    username: 'manager@2026',
+    password: 'alasco22',
+    nom: 'Manager',
+    prenom: 'SEFIMAP',
+    role: 'manager',
+  },
 ];
 
 // Clé de stockage
@@ -78,6 +87,7 @@ export function findUserByIdOrEmail(idOrEmail) {
   return (
     USERS.find(u => String(u.id) === String(idOrEmail)) ||
     USERS.find(u => u.email.toLowerCase() === key) ||
+    USERS.find(u => u.username && u.username.toLowerCase() === key) ||
     null
   );
 }
@@ -98,8 +108,9 @@ export function isValidStoredUser(user) {
  * @returns {object|null} L'utilisateur sans le mot de passe, ou null
  */
 export function authenticateUser(email, password) {
+  const key = String(email).toLowerCase();
   const user = USERS.find(
-    u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    u => (u.email.toLowerCase() === key || (u.username && u.username.toLowerCase() === key)) && u.password === password
   );
 
   if (user) {
@@ -180,6 +191,7 @@ export const ROLE_ROUTES = {
   financier: '/finance/dashboard',
   scientifique: '/scientifique/dashboard',
   president: '/president',
+  manager: '/manager/dashboard',
 };
 
 /**

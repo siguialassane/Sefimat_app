@@ -1,11 +1,15 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, CheckCircle, XCircle } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Plus, Undo2 } from "lucide-react";
 import {
+    canAddPayment,
+    canCancelFinanceValidation,
+    getAbandonedAmount,
     getFinanceBadgeClasses,
     getFinanceCollectedAmount,
     getFinanceStatusMeta,
+    getRemainingDue,
     isFinanceApproved,
     isFinanceRejected,
     isFinanceValidationPending,
@@ -18,8 +22,12 @@ export function PaymentTable({
     onViewDetails,
     onValidate,
     onReject,
+    onAddPayment,
+    onCancelValidation,
     actionLoading,
     showActions = true,
+    showAddPayment = false,
+    showCancelValidation = false,
     emptyMessage = "Aucun résultat",
     emptyDescription = "Aucune inscription ne correspond à vos critères.",
 }) {
@@ -81,6 +89,8 @@ export function PaymentTable({
                             const isRejected = isFinanceRejected(inscription);
                             const isComplete = isFullyPaid(inscription);
                             const countedAmount = getFinanceCollectedAmount(inscription);
+                            const resteDu = getRemainingDue(inscription);
+                            const nonDu = getAbandonedAmount(inscription);
                             const canValidate =
                                 showActions &&
                                 !isRejected &&
@@ -128,13 +138,18 @@ export function PaymentTable({
                                     </td>
                                     <td className="p-4">
                                         {isPresentiel ? (
-                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                                                Présentiel
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300 dark:border-amber-700" title="Inscription guichet (Secrétariat)">
+                                                Guichet
                                             </span>
                                         ) : (
-                                            <span className="text-text-secondary">
-                                                {inscription.chef_quartier?.nom_complet}
-                                            </span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-text-secondary">
+                                                    {inscription.chef_quartier?.nom_complet}
+                                                </span>
+                                                <span className="inline-flex w-fit items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                                    Président
+                                                </span>
+                                            </div>
                                         )}
                                     </td>
                                     <td className="p-4 text-center">
@@ -150,11 +165,17 @@ export function PaymentTable({
                                     <td className="p-4 text-center">
                                         {isComplete ? (
                                             <span className="text-emerald-600 font-medium">Soldé</span>
+                                        ) : resteDu === 0 && nonDu > 0 ? (
+                                            <span className="text-text-secondary font-medium" title="Reliquat abandonné (non dû)">
+                                                Non dû
+                                            </span>
                                         ) : (
                                             <span className="text-red-500">
-                                                {formatMontant(
-                                                    (inscription.montant_requis || 4000) -
-                                                    (inscription.montant_total_paye || 0)
+                                                {formatMontant(resteDu)}
+                                                {nonDu > 0 && (
+                                                    <span className="block text-[11px] text-text-secondary">
+                                                        (−{formatMontant(nonDu)} non dus)
+                                                    </span>
                                                 )}
                                             </span>
                                         )}
@@ -192,6 +213,30 @@ export function PaymentTable({
                                                         <XCircle className="h-4 w-4" />
                                                     </Button>
                                                 </>
+                                            )}
+                                            {showAddPayment && canAddPayment(inscription) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => onAddPayment?.(inscription.id)}
+                                                    disabled={actionLoading}
+                                                    title="Ajouter un paiement"
+                                                >
+                                                    <Plus className="h-4 w-4 mr-1" />
+                                                    Paiement
+                                                </Button>
+                                            )}
+                                            {showCancelValidation && canCancelFinanceValidation(inscription) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => onCancelValidation?.(inscription.id)}
+                                                    disabled={actionLoading}
+                                                    title="Annuler la validation finance (rouvre les encaissements)"
+                                                >
+                                                    <Undo2 className="h-4 w-4 mr-1" />
+                                                    Annuler
+                                                </Button>
                                             )}
                                         </div>
                                     </td>

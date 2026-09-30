@@ -2,14 +2,10 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import {
     LayoutDashboard,
-    ClipboardCheck,
-    BookOpen,
     Users,
-    Settings,
     LogOut,
     Menu,
     X,
-    FileText,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -19,37 +15,17 @@ import { cn } from "@/lib/utils";
 const menuItems = [
     {
         icon: LayoutDashboard,
-        label: "Tableau de bord",
-        path: "/scientifique/dashboard",
-    },
-    {
-        icon: ClipboardCheck,
-        label: "Test d'entrée",
-        path: "/scientifique/test-entree",
-    },
-    {
-        icon: BookOpen,
-        label: "Gestion des notes",
-        path: "/scientifique/notes",
+        label: "Vue globale",
+        path: "/manager/dashboard",
     },
     {
         icon: Users,
-        label: "Liste des classes",
-        path: "/scientifique/classes",
-    },
-    {
-        icon: FileText,
-        label: "Bulletins",
-        path: "/scientifique/bulletins",
-    },
-    {
-        icon: Settings,
-        label: "Configuration",
-        path: "/scientifique/config",
+        label: "Présidents",
+        path: "/manager/presidents",
     },
 ];
 
-export function ScientifiqueLayout() {
+export function ManagerLayout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { signOut, userProfile } = useAuth();
     const navigate = useNavigate();
@@ -72,8 +48,8 @@ export function ScientifiqueLayout() {
                                 <h1 className="font-bold text-lg text-text-main dark:text-white">
                                     SEFIMAP
                                 </h1>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                                    Cellule Scientifique
+                                <p className="text-xs text-violet-600 dark:text-violet-400 font-medium">
+                                    Manager
                                 </p>
                             </div>
                         </div>
@@ -91,7 +67,7 @@ export function ScientifiqueLayout() {
                                 cn(
                                     "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                                     isActive
-                                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
                                         : "text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                                 )
                             }
@@ -105,15 +81,15 @@ export function ScientifiqueLayout() {
                 {/* User Info & Logout */}
                 <div className="p-4 border-t border-border-light dark:border-border-dark">
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-600 font-bold text-sm">
-                            {userProfile?.nom_complet?.charAt(0) || "S"}
+                        <div className="h-10 w-10 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-600 font-bold text-sm">
+                            {userProfile?.nom_complet?.charAt(0) || userProfile?.nom?.charAt(0) || "M"}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-text-main dark:text-white truncate">
-                                {userProfile?.nom_complet || "Admin Scientifique"}
+                                {userProfile?.nom_complet || `${userProfile?.prenom || ""} ${userProfile?.nom || ""}`.trim() || "Manager"}
                             </p>
                             <p className="text-xs text-text-secondary truncate">
-                                {userProfile?.email || "Cellule Scientifique"}
+                                {userProfile?.email || "Manager"}
                             </p>
                         </div>
                     </div>
@@ -143,8 +119,8 @@ export function ScientifiqueLayout() {
                                     <h1 className="font-bold text-lg text-text-main dark:text-white">
                                         SEFIMAP
                                     </h1>
-                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                                        Cellule Scientifique
+                                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium">
+                                        Manager
                                     </p>
                                 </div>
                             </div>
@@ -167,7 +143,7 @@ export function ScientifiqueLayout() {
                                         cn(
                                             "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                                             isActive
-                                                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                                ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
                                                 : "text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                                         )
                                     }
@@ -206,14 +182,14 @@ export function ScientifiqueLayout() {
                         <div className="flex items-center gap-2">
                             <Logo className="h-8 w-8" />
                             <span className="font-bold text-lg text-text-main dark:text-white">
-                                Scientifique
+                                Manager
                             </span>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
-                        <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-600 font-bold text-xs">
-                            {userProfile?.nom_complet?.charAt(0) || "S"}
+                        <div className="h-8 w-8 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-600 font-bold text-xs">
+                            {userProfile?.nom_complet?.charAt(0) || userProfile?.nom?.charAt(0) || "M"}
                         </div>
                     </div>
                 </header>

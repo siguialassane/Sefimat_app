@@ -13,10 +13,12 @@ import {
     RefreshCw,
     UserCheck,
     Building2,
+    Eye,
 } from "lucide-react";
 import { useAuth, useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
 import {
+    getAbandonedAmount,
     getFinanceCollectedAmount,
     getFinanceStatusMeta,
     isFinanceApproved,
@@ -30,6 +32,7 @@ export function FinanceDashboard() {
 
     const {
         inscriptions,
+        chefsQuartier,
         stats: globalStats,
         loading,
         lastUpdate,
@@ -64,18 +67,28 @@ export function FinanceDashboard() {
 
     const pendingValidations = useMemo(() => {
         return inscriptions
-            .filter((i) => {
-                if (isFinanceValidationPending(i)) {
-                    return true;
-                }
-                if (i.created_by !== "president" && i.statut_paiement === "partiel") {
-                    return true;
-                }
-                return false;
-            })
+            .filter((i) => isFinanceValidationPending(i))
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
             .slice(0, 5);
     }, [inscriptions]);
+
+    const presidentStats = useMemo(() => {
+        return (chefsQuartier || [])
+            .map((chef) => {
+                const dossiers = inscriptions.filter((i) => i.chef_quartier_id === chef.id);
+                const pending = dossiers.filter(isFinanceValidationPending);
+                return {
+                    chef,
+                    dossiers: dossiers.length,
+                    encaisse: dossiers.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    valides: dossiers.filter(isFinanceApproved).length,
+                    pendingCount: pending.length,
+                    pendingAmount: pending.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    nonDu: dossiers.reduce((acc, i) => acc + getAbandonedAmount(i), 0),
+                };
+            })
+            .sort((a, b) => b.encaisse - a.encaisse);
+    }, [inscriptions, chefsQuartier]);
 
     const recentPayments = useMemo(() => {
         return inscriptions
@@ -393,6 +406,89 @@ export function FinanceDashboard() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Card className="overflow-hidden">
+                <CardHeader className="border-b border-border-light dark:border-border-dark">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2">
+                                <UserCheck className="h-5 w-5 text-purple-500" />
+                                Suivi par président de section
+                            </CardTitle>
+                            <CardDescription>
+                                Dossiers, montants encaissés et validations par président
+                            </CardDescription>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => navigate("/finance/liste")}>
+                            Voir tout
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    {loading && !inscriptions.length ? (
+                        <div className="p-8 text-center">
+                            <div className="h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                        </div>
+                    ) : presidentStats.length === 0 ? (
+                        <div className="p-8 text-center text-text-secondary">
+                            <Users className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                            <p>Aucun président enregistré</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-border-light dark:border-border-dark">
+                                    <tr>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white">Président</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Dossiers</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Encaissé</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Validés</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">En attente</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Non dû</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-right">Détail</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border-light dark:divide-border-dark">
+                                    {presidentStats.map((row) => (
+                                        <tr key={row.chef.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
+                                            <td className="p-4">
+                                                <p className="font-medium text-text-main dark:text-white">{row.chef.nom_complet}</p>
+                                                <p className="text-xs text-text-secondary">{row.chef.zone || "Section non précisée"}</p>
+                                            </td>
+                                            <td className="p-4 text-center font-medium">{row.dossiers}</td>
+                                            <td className="p-4 text-center font-bold text-emerald-600">{formatMontant(row.encaisse)}</td>
+                                            <td className="p-4 text-center">
+                                                <Badge variant="success">{row.valides}</Badge>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                {row.pendingCount > 0 ? (
+                                                    <span>
+                                                        <Badge variant="warning">{row.pendingCount}</Badge>
+                                                        <span className="block text-xs text-text-secondary mt-1">{formatMontant(row.pendingAmount)}</span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-text-secondary">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-center text-text-secondary">{formatMontant(row.nonDu)}</td>
+                                            <td className="p-4 text-right">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => navigate("/finance/liste", { state: { filterChef: row.chef.id } })}
+                                                >
+                                                    <Eye className="h-4 w-4 mr-1" />
+                                                    Voir
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

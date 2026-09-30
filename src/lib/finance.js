@@ -104,3 +104,39 @@ export function getFinanceBadgeClasses(variant) {
             return "bg-gray-500 text-white";
     }
 }
+export function getAbandonedAmount(inscription) {
+    return inscription?.montant_non_du || 0;
+}
+
+export function getRemainingDue(inscription) {
+    return Math.max(
+        0,
+        getRequiredAmount(inscription) -
+            (inscription?.montant_total_paye || 0) -
+            getAbandonedAmount(inscription)
+    );
+}
+
+export function isPresidentBlockedForPayment(inscription) {
+    return (
+        isPresidentRegistration(inscription) &&
+        inscription?.workflow_status === "pending_secretariat"
+    );
+}
+
+export function canCancelFinanceValidation(inscription) {
+    if (!isPresidentRegistration(inscription)) return false;
+    if (inscription?.workflow_status !== "pending_secretariat") return false;
+    return (inscription?.montant_total_paye || 0) < getRequiredAmount(inscription);
+}
+
+export function canAddPayment(inscription) {
+    if (!inscription) return false;
+    if (isFinanceRejected(inscription)) return false;
+    if (isPresidentBlockedForPayment(inscription)) return false;
+    return (inscription?.montant_total_paye || 0) < getRequiredAmount(inscription);
+}
+
+export function getOriginLabel(inscription) {
+    return isPresidentRegistration(inscription) ? "Président" : "Guichet";
+}

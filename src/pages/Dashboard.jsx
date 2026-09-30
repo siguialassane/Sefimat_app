@@ -56,8 +56,6 @@ export function Dashboard() {
 
     // Calculer les statistiques dérivées depuis le DataContext
     const dashboardStats = useMemo(() => {
-        if (!visibleInscriptions.length) return null;
-        
         return [
             {
                 title: "Total Inscriptions",
@@ -81,12 +79,10 @@ export function Dashboard() {
                 iconColor: "text-amber-600 dark:text-amber-400",
             },
         ];
-    }, [visibleStats, visibleInscriptions.length]);
+    }, [visibleStats]);
 
     // Calculer les données démographiques depuis le DataContext
     const demographics = useMemo(() => {
-        if (!visibleInscriptions.length) return null;
-        
         const total = visibleInscriptions.length;
         const niveauCounts = visibleInscriptions.reduce((acc, i) => {
             acc[i.niveau_etude] = (acc[i.niveau_etude] || 0) + 1;
@@ -107,7 +103,7 @@ export function Dashboard() {
 
     // Calculer les données des leaders depuis le DataContext
     const leadersData = useMemo(() => {
-        if (!chefsQuartier.length || !visibleInscriptions.length) return [];
+        if (!chefsQuartier.length) return [];
         
         return chefsQuartier.map(chef => {
             const chefInscriptions = visibleInscriptions.filter(i => i.chef_quartier_id === chef.id);
@@ -150,8 +146,6 @@ export function Dashboard() {
     }, [dortoirs, visibleInscriptions]);
 
     const niveauFormationStats = useMemo(() => {
-        if (!visibleInscriptions.length) return [];
-
         const counts = {
             debutant: 0,
             normal: 0,
@@ -172,8 +166,7 @@ export function Dashboard() {
                 niveau_formation,
                 nombre_inscrits,
                 pourcentage: total > 0 ? Math.round((nombre_inscrits / total) * 100) : 0,
-            }))
-            .filter((item) => item.nombre_inscrits > 0);
+            }));
     }, [visibleInscriptions]);
 
     // Fonction de rafraîchissement
@@ -232,7 +225,7 @@ export function Dashboard() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {isLoading && !dashboardStats ? (
+                {isLoading ? (
                     Array.from({ length: 3 }).map((_, index) => (
                         <Card key={index} className="p-5 flex flex-col gap-4 animate-pulse">
                             <div className="flex justify-between items-start">
@@ -244,7 +237,7 @@ export function Dashboard() {
                             </div>
                         </Card>
                     ))
-                ) : dashboardStats ? (
+                ) : (
                     dashboardStats.map((stat, index) => (
                         <Card
                             key={index}
@@ -265,10 +258,6 @@ export function Dashboard() {
                             </div>
                         </Card>
                     ))
-                ) : (
-                    <div className="col-span-full text-center py-8 text-text-secondary">
-                        Aucune donnée disponible
-                    </div>
                 )}
             </div>
 
@@ -279,7 +268,7 @@ export function Dashboard() {
                     <CardDescription>Répartition par genre et niveau d'étude</CardDescription>
                 </div>
 
-                {isLoading || !demographics ? (
+                {isLoading ? (
                     <div className="flex flex-col gap-4 animate-pulse">
                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
@@ -388,7 +377,11 @@ export function Dashboard() {
                             })}
                         </div>
                     ) : (
-                        <p className="text-center text-text-secondary py-8">Aucune donnée disponible</p>
+                        <div className="grid grid-cols-1 gap-3">
+                            <div className="p-4 rounded-lg border border-dashed border-border-light dark:border-border-dark text-center text-sm text-text-secondary">
+                                0 dortoir configuré
+                            </div>
+                        </div>
                     )}
                 </Card>
 
@@ -407,7 +400,7 @@ export function Dashboard() {
                             <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
                             <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
                         </div>
-                    ) : niveauFormationStats.length > 0 ? (
+                    ) : (
                         <div className="flex flex-col gap-4">
                             {niveauFormationStats.map(stat => {
                                 const niveauLabels = {
@@ -452,8 +445,6 @@ export function Dashboard() {
                                 </div>
                             </div>
                         </div>
-                    ) : (
-                        <p className="text-center text-text-secondary py-8">Aucune donnée disponible</p>
                     )}
                 </Card>
             </div>
