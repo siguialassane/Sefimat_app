@@ -2,8 +2,8 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, us
 import { supabase } from '../lib/supabase';
 import {
   getFinanceCollectedAmount,
+  getRemainingDue,
   isFinanceValidationPending,
-  isFullyPaid,
   shouldCountInFinanceTotals,
 } from '../lib/finance';
 import { useAuth } from './AuthContext';
@@ -37,11 +37,13 @@ function buildStats(inscriptions, paiements) {
   const paiementsEnAttente = safeInscriptions.filter(i => isFinanceValidationPending(i)).length;
   const paiementsPartiels = safeInscriptions.filter(i =>
     shouldCountInFinanceTotals(i) &&
-    !isFullyPaid(i) &&
+    getRemainingDue(i) > 0 &&
     (i?.montant_total_paye || 0) > 0
   ).length;
   const paiementsComplets = safeInscriptions.filter(i =>
-    shouldCountInFinanceTotals(i) && isFullyPaid(i)
+    shouldCountInFinanceTotals(i) &&
+    getRemainingDue(i) === 0 &&
+    (i?.montant_total_paye || 0) > 0
   ).length;
 
   return {

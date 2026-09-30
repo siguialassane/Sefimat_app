@@ -15,10 +15,11 @@ import {
 import { useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
 import {
+    getAbandonedAmount,
     getFinanceCollectedAmount,
     getFinanceStatusKey,
     getFinanceStatusMeta,
-    isFullyPaid,
+    getRemainingDue,
 } from "@/lib/finance";
 
 export function PaymentSummary() {
@@ -34,10 +35,10 @@ export function PaymentSummary() {
         const totalCollecte = inscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
         const totalRestant = inscriptions.reduce((acc, i) => {
             const montantRequis = i.montant_requis || 4000;
-            return acc + Math.max(0, montantRequis - getFinanceCollectedAmount(i));
+            return acc + Math.max(0, montantRequis - getFinanceCollectedAmount(i) - getAbandonedAmount(i));
         }, 0);
-        const nombreComplet = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && isFullyPaid(i)).length;
-        const nombrePartiel = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && !isFullyPaid(i)).length;
+        const nombreComplet = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && getRemainingDue(i) === 0).length;
+        const nombrePartiel = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && getRemainingDue(i) > 0).length;
 
         return { totalCollecte, totalRestant, nombreComplet, nombrePartiel };
     }, [inscriptions]);
@@ -247,7 +248,6 @@ export function PaymentSummary() {
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Référence</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Participant</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Président de section</th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant compté</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant déclaré</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white text-center">Statut</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Date</th>
@@ -288,9 +288,6 @@ export function PaymentSummary() {
                                                         </td>
                                                         <td className="p-4 text-text-secondary">
                                                             {inscription.chef_quartier?.nom_complet || "Présentiel"}
-                                                        </td>
-                                                        <td className="p-4 text-center font-bold text-emerald-600">
-                                                            {formatMontant(getFinanceCollectedAmount(inscription))}
                                                         </td>
                                                         <td className="p-4 text-center font-medium text-blue-600">
                                                             {formatMontant(inscription.montant_total_paye)}

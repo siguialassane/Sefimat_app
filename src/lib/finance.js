@@ -31,7 +31,9 @@ export function isFinanceApproved(inscription) {
 }
 
 export function isFullyPaid(inscription) {
-    return (inscription?.montant_total_paye || 0) >= getRequiredAmount(inscription);
+    // Soldé = de l'argent encaissé ET plus rien de dû (le reliquat abandonné
+    // par la finance n'est pas une dette : requis - payé - non_du = 0).
+    return (inscription?.montant_total_paye || 0) > 0 && getRemainingDue(inscription) === 0;
 }
 
 export function getFinanceCollectedAmount(inscription) {

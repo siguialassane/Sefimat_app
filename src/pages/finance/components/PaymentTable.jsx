@@ -7,7 +7,6 @@ import {
     canCancelFinanceValidation,
     getAbandonedAmount,
     getFinanceBadgeClasses,
-    getFinanceCollectedAmount,
     getFinanceStatusMeta,
     getRemainingDue,
     isFinanceApproved,
@@ -75,7 +74,6 @@ export function PaymentTable({
                             <th className="p-4 font-semibold text-text-main dark:text-white">Référence</th>
                             <th className="p-4 font-semibold text-text-main dark:text-white">Président de section</th>
                             <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant déclaré</th>
-                            <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant compté</th>
                             <th className="p-4 font-semibold text-text-main dark:text-white text-center">Reste</th>
                             <th className="p-4 font-semibold text-text-main dark:text-white text-center">Statut</th>
                             <th className="p-4 font-semibold text-text-main dark:text-white text-right">Actions</th>
@@ -88,7 +86,6 @@ export function PaymentTable({
                             const isApproved = isFinanceApproved(inscription);
                             const isRejected = isFinanceRejected(inscription);
                             const isComplete = isFullyPaid(inscription);
-                            const countedAmount = getFinanceCollectedAmount(inscription);
                             const resteDu = getRemainingDue(inscription);
                             const nonDu = getAbandonedAmount(inscription);
                             const canValidate =
@@ -155,11 +152,6 @@ export function PaymentTable({
                                     <td className="p-4 text-center">
                                         <span className={`font-bold ${isComplete ? "text-emerald-600" : "text-blue-600"}`}>
                                             {formatMontant(inscription.montant_total_paye)}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-center">
-                                        <span className={`font-bold ${countedAmount > 0 ? "text-emerald-600" : "text-text-secondary"}`}>
-                                            {formatMontant(countedAmount)}
                                         </span>
                                     </td>
                                     <td className="p-4 text-center">
