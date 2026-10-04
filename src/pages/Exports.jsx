@@ -294,7 +294,7 @@ export function Exports() {
                 return;
             }
 
-            if (format === "excel") {
+            if (format === "csv") {
                 exportToCSV(data, filtered);
             } else if (format === "pdf") {
                 await exportToPDF(data, filtered);
@@ -360,15 +360,15 @@ export function Exports() {
                         </Button>
                         <Button
                             className="gap-2"
-                            onClick={() => handleExport("excel", false)}
+                            onClick={() => handleExport("csv", false)}
                             disabled={isExporting !== null}
                         >
-                            {isExporting === "excel-full" ? (
+                            {isExporting === "csv-full" ? (
                                 <span className="h-4 w-4 border-2 border-text-main/30 border-t-text-main rounded-full animate-spin" />
                             ) : (
                                 <FileSpreadsheet className="h-5 w-5" />
                             )}
-                            Télécharger Excel
+                            Télécharger CSV
                         </Button>
                     </div>
                 </CardContent>
@@ -480,84 +480,22 @@ export function Exports() {
                             </Button>
                             <Button
                                 className="flex-1 md:flex-initial gap-2"
-                                onClick={() => handleExport("excel", true)}
+                                onClick={() => handleExport("csv", true)}
                                 disabled={isExporting !== null}
                             >
-                                {isExporting === "excel-filtered" ? (
+                                {isExporting === "csv-filtered" ? (
                                     <span className="h-4 w-4 border-2 border-text-main/30 border-t-text-main rounded-full animate-spin" />
                                 ) : (
                                     <FileSpreadsheet className="h-5 w-5" />
                                 )}
-                                Excel Filtré
+                                CSV Filtré
                             </Button>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Export History Section */}
-            <Card className="mt-8">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Download className="h-5 w-5 text-primary" />
-                        Historique des exports
-                    </CardTitle>
-                    <CardDescription>Vos derniers téléchargements</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="divide-y divide-border-light dark:divide-border-dark">
-                        {[
-                            {
-                                name: "export_complet_20241012.xlsx",
-                                type: "Excel",
-                                date: "12/10/2024 à 14:32",
-                                size: "245 KB",
-                            },
-                            {
-                                name: "inscriptions_validees.pdf",
-                                type: "PDF",
-                                date: "11/10/2024 à 09:15",
-                                size: "1.2 MB",
-                            },
-                            {
-                                name: "rapport_abobo_zone1.xlsx",
-                                type: "Excel",
-                                date: "10/10/2024 à 16:48",
-                                size: "89 KB",
-                            },
-                        ].map((file, index) => (
-                            <div
-                                key={index}
-                                className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
-                            >
-                                <div className="flex items-center gap-3">
-                                    {file.type === "Excel" ? (
-                                        <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                            <FileSpreadsheet className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                        </div>
-                                    ) : (
-                                        <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                                            <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />
-                                        </div>
-                                    )}
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-medium text-text-main dark:text-white">
-                                            {file.name}
-                                        </span>
-                                        <span className="text-xs text-text-secondary dark:text-gray-400">
-                                            {file.date} • {file.size}
-                                        </span>
-                                    </div>
-                                </div>
-                                <Button variant="ghost" size="sm" className="gap-1">
-                                    <Download className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Télécharger</span>
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+
         </div>
     );
 }
