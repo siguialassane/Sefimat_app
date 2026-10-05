@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useData, useAuth } from "@/contexts";
 import { supabase } from "@/lib/supabase";
+import { determinerNiveau, plageNiveau, choisirClasseDisponible, NIVEAUX, NIVEAU_LABELS } from "@/lib/niveaux";
 import { notify } from "@/components/ui/toast";
 
 export function TestEntree() {
@@ -15,10 +16,10 @@ export function TestEntree() {
         notesExamens,
         classes,
         configCapaciteClasses,
+        configSeuilsNiveaux,
         dortoirs,
         addNoteLocal,
         addClasseLocal,
-        refresh,
     } = useData();
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -57,31 +58,36 @@ export function TestEntree() {
             });
     }, [inscriptions, notesExamens, searchTerm]);
 
-    // Déterminer le niveau selon la note
-    const determinerNiveau = useCallback((note) => {
-        if (note <= 5) return 'niveau_1';
-        if (note <= 10) return 'niveau_2';
-        if (note <= 14) return 'niveau_3';
-        return 'niveau_superieur';
-    }, []);
+    // Déterminer le niveau selon la note (seuils configurables)
+    const attribuerNiveau = useCallback((note) => {
+        return determinerNiveau(note, configSeuilsNiveaux);
+    }, [configSeuilsNiveaux]);
 
-    // Trouver ou créer une classe disponible
-    const trouverOuCreerClasse = useCallback(async (niveau) => {
+    // Trouver ou créer une classe disponible.
+    // extraCounts = réservations du lot en cours (enregistrement groupé) :
+    // sans elles, toute la boucle verrait effectif=0 (closure React) et
+    // entasserait tout le monde dans la 1re classe au lieu de splitter A->B.
+    const trouverOuCreerClasse = useCallback(async (niveau, extraCounts, classesCreees) => {
         // Capacité configurée pour ce niveau
         const config = configCapaciteClasses.find(c => c.niveau === niveau);
         const capacite = config?.capacite || 10;
 
-        // Classes existantes de ce niveau
-        const classesDuNiveau = classes
+        // Classes existantes de ce niveau (+ celles créées pendant le lot,
+        // invisibles à la closure avant le prochain re-rendu)
+        const classesDuNiveau = [...classes, ...(classesCreees || [])]
             .filter(c => c.niveau === niveau)
             .sort((a, b) => a.numero - b.numero);
 
+        // Effectifs actuels par classe
+        const effectifs = {};
+        for (const n of notesExamens) {
+            if (n.classe_id) effectifs[n.classe_id] = (effectifs[n.classe_id] || 0) + 1;
+        }
+
         // Chercher une classe avec de la place
-        for (const classe of classesDuNiveau) {
-            const effectif = notesExamens.filter(n => n.classe_id === classe.id).length;
-            if (effectif < classe.capacite) {
-                return classe;
-            }
+        const disponible = choisirClasseDisponible(classesDuNiveau, effectifs, extraCounts);
+        if (disponible) {
+            return disponible;
         }
 
         // Aucune classe disponible, en créer une nouvelle
@@ -105,6 +111,7 @@ export function TestEntree() {
 
         // Ajouter localement pour mise à jour immédiate
         addClasseLocal(nouvelleClasse);
+        if (classesCreees) classesCreees.push(nouvelleClasse);
 
         return nouvelleClasse;
     }, [classes, notesExamens, configCapaciteClasses, addClasseLocal]);
@@ -132,8 +139,8 @@ export function TestEntree() {
         }
     }, [validateNote]);
 
-    // Enregistrer la note d'entrée
-    const handleSaveNote = useCallback(async (inscription) => {
+    // Enregistrer la note d'entrée (extraCounts : réservations du lot, cf. ci-dessus)
+    const handleSaveNote = useCallback(async (inscription, extraCounts, classesCreees) => {
         const noteValue = noteInputs[inscription.id];
         if (noteValue === undefined || noteValue === '') {
             setErrors(prev => ({ ...prev, [inscription.id]: "Veuillez saisir une note" }));
@@ -150,11 +157,11 @@ export function TestEntree() {
         setErrors(prev => ({ ...prev, [inscription.id]: null }));
 
         try {
-            // Déterminer le niveau
-            const niveau = determinerNiveau(note);
+            // Déterminer le niveau (seuils configurables)
+            const niveau = attribuerNiveau(note);
 
             // Trouver ou créer une classe
-            const classe = await trouverOuCreerClasse(niveau);
+            const classe = await trouverOuCreerClasse(niveau, extraCounts, classesCreees);
 
             // Créer l'enregistrement de note
             const { data: nouvelleNote, error } = await supabase
@@ -179,6 +186,11 @@ export function TestEntree() {
 
             // Ajouter localement
             addNoteLocal(nouvelleNote);
+
+            // Réserver la place pour la suite du lot en cours
+            if (extraCounts && classe?.id) {
+                extraCounts[classe.id] = (extraCounts[classe.id] || 0) + 1;
+            }
 
             // Marquer comme succès
             setSuccessIds(prev => new Set([...prev, inscription.id]));
@@ -212,7 +224,7 @@ export function TestEntree() {
                 return newSet;
             });
         }
-    }, [noteInputs, user, determinerNiveau, trouverOuCreerClasse, addNoteLocal]);
+    }, [noteInputs, user, attribuerNiveau, trouverOuCreerClasse, addNoteLocal]);
 
     // Enregistrer toutes les notes saisies
     const handleSaveAll = useCallback(async () => {
@@ -232,9 +244,11 @@ export function TestEntree() {
         setSavingAll(true);
         let successCount = 0;
         let errorCount = 0;
+        const extraCounts = {};
+        const classesCreees = [];
 
         for (const participant of participantsAvecNote) {
-            const success = await handleSaveNote(participant);
+            const success = await handleSaveNote(participant, extraCounts, classesCreees);
             if (success) {
                 successCount++;
             } else {
@@ -277,8 +291,8 @@ export function TestEntree() {
         if (!noteValue) return null;
         const note = parseFloat(noteValue);
         if (isNaN(note) || note < 0 || note > 20) return null;
-        return determinerNiveau(note);
-    }, [noteInputs, determinerNiveau]);
+        return attribuerNiveau(note);
+    }, [noteInputs, attribuerNiveau]);
 
     const niveauLabels = {
         niveau_1: { label: 'Niveau 1', color: 'destructive' },
@@ -307,10 +321,14 @@ export function TestEntree() {
                         <div className="text-sm text-blue-800 dark:text-blue-200">
                             <p className="font-medium mb-1">Attribution automatique :</p>
                             <ul className="list-disc list-inside space-y-1">
-                                <li>Note 0 à 5 → <span className="font-semibold">Niveau 1</span></li>
-                                <li>Note 5 à 10 → <span className="font-semibold">Niveau 2</span></li>
-                                <li>Note 10 à 14 → <span className="font-semibold">Niveau 3</span></li>
-                                <li>Note 15 à 20 → <span className="font-semibold">Niveau Supérieur</span></li>
+                                {NIVEAUX.map(niv => {
+                                    const plage = plageNiveau(niv, configSeuilsNiveaux);
+                                    return (
+                                        <li key={niv}>
+                                            Note {String(plage.min).replace('.', ',')} à {String(plage.max).replace('.', ',')} → <span className="font-semibold">{NIVEAU_LABELS[niv]}</span>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
                     </div>

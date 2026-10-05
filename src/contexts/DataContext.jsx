@@ -78,6 +78,7 @@ export function DataProvider({ children }) {
   const [chefsQuartier, setChefsQuartier] = useState([]);
   const [notesExamens, setNotesExamens] = useState([]);
   const [configCapaciteClasses, setConfigCapaciteClasses] = useState([]);
+  const [configSeuilsNiveaux, setConfigSeuilsNiveaux] = useState([]);
   const [stats, setStats] = useState(() => buildStats([], []));
   const [lastUpdate, setLastUpdate] = useState(null);
   // Dernier versement arrivé en caisse (notif temps réel, consommé par la finance).
@@ -106,6 +107,7 @@ export function DataProvider({ children }) {
         chefsQuartierRes,
         notesExamensRes,
         configCapaciteRes,
+        configSeuilsRes,
       ] = await Promise.all([
         supabase
           .from('inscriptions')
@@ -122,6 +124,7 @@ export function DataProvider({ children }) {
           .from('notes_examens')
           .select('*, inscription:inscriptions(*), classe:classes(*)'),
         supabase.from('config_capacite_classes').select('*').order('niveau'),
+        supabase.from('config_seuils_niveaux').select('*').order('note_max'),
       ]);
 
       if (!mountedRef.current) return;
@@ -133,6 +136,7 @@ export function DataProvider({ children }) {
       const nextChefs = chefsQuartierRes.error ? [] : (chefsQuartierRes.data || []);
       const nextNotes = notesExamensRes.error ? [] : (notesExamensRes.data || []);
       const nextConfig = configCapaciteRes.error ? [] : (configCapaciteRes.data || []);
+      const nextSeuils = configSeuilsRes.error ? [] : (configSeuilsRes.data || []);
 
       setInscriptions(nextInscriptions);
       setPaiements(nextPaiements);
@@ -141,6 +145,7 @@ export function DataProvider({ children }) {
       setChefsQuartier(nextChefs);
       setNotesExamens(nextNotes);
       setConfigCapaciteClasses(nextConfig);
+      setConfigSeuilsNiveaux(nextSeuils);
       setStats(buildStats(nextInscriptions, nextPaiements));
       setLastUpdate(new Date());
       setError(null);
@@ -375,6 +380,7 @@ export function DataProvider({ children }) {
     chefsQuartier,
     notesExamens,
     configCapaciteClasses,
+    configSeuilsNiveaux,
     stats,
     statsScientifique,
     lastUpdate,

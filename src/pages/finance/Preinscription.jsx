@@ -13,8 +13,8 @@ import { REQUIRED_PAYMENT_AMOUNT } from "@/lib/finance";
 const MONTANT_REQUIS = REQUIRED_PAYMENT_AMOUNT;
 
 // Préinscription présentielle (cellule finance) : nom + prénom + montant
-// encaissé (> 0, dedans direct). Le trigger set_sefi_id génère le code
-// SEFI- que le participant présente au secrétariat pour finaliser.
+// encaissé (> 0, dedans direct). Le trigger trigger_set_reference_id génère
+// le code SEFI- que le participant présente au secrétariat pour finaliser.
 export function Preinscription() {
     const { user } = useAuth();
     const { refresh } = useData();

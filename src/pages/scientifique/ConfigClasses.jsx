@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useData } from "@/contexts";
 import { supabase } from "@/lib/supabase";
+import { getSeuilsMap, plageNiveau, validerSeuils, NOTE_MIN, NOTE_MAX } from "@/lib/niveaux";
 import { notify } from "@/components/ui/toast";
 
 export function ConfigClasses() {
-    const { configCapaciteClasses, classes, notesExamens, refresh } = useData();
+    const { configCapaciteClasses, configSeuilsNiveaux, classes, notesExamens, refresh } = useData();
 
     const [editedCapacites, setEditedCapacites] = useState({});
+    const [editedSeuils, setEditedSeuils] = useState({});
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -47,19 +49,65 @@ export function ConfigClasses() {
         }));
     }, []);
 
-    // Sauvegarder les capacités
+    // Seuils effectifs (éditions en cours + config chargée + défauts)
+    const seuilsEffectifs = useCallback(() => {
+        const base = getSeuilsMap(configSeuilsNiveaux);
+        return { ...base, ...editedSeuils };
+    }, [configSeuilsNiveaux, editedSeuils]);
+
+    // Obtenir la valeur actuelle d'un seuil (édité ou configuré)
+    const getSeuilValue = useCallback((niveau) => {
+        if (editedSeuils[niveau] !== undefined) {
+            return editedSeuils[niveau];
+        }
+        const config = configSeuilsNiveaux.find(c => c.niveau === niveau);
+        return config ? parseFloat(config.note_max) : getSeuilsMap([])[niveau];
+    }, [editedSeuils, configSeuilsNiveaux]);
+
+    // Gérer les changements de seuil
+    const handleSeuilChange = useCallback((niveau, value) => {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) return;
+        setEditedSeuils(prev => ({
+            ...prev,
+            [niveau]: numValue
+        }));
+    }, []);
+
+    // Sauvegarder les capacités et les seuils
     const handleSave = useCallback(async () => {
-        if (Object.keys(editedCapacites).length === 0) return;
+        if (Object.keys(editedCapacites).length === 0 && Object.keys(editedSeuils).length === 0) return;
 
         setSaving(true);
         setSuccess(false);
 
         try {
-            // Mettre à jour chaque niveau modifié
+            // Valider les seuils si modifiés (0 < N1 < N2 < N3 < 20)
+            if (Object.keys(editedSeuils).length > 0) {
+                const effectifs = seuilsEffectifs();
+                const erreur = validerSeuils(effectifs.niveau_1, effectifs.niveau_2, effectifs.niveau_3);
+                if (erreur) {
+                    notify.error(erreur, { title: "Seuils invalides" });
+                    setSaving(false);
+                    return;
+                }
+            }
+
+            // Mettre à jour chaque capacité modifiée
             for (const [niveau, capacite] of Object.entries(editedCapacites)) {
                 const { error } = await supabase
                     .from('config_capacite_classes')
                     .update({ capacite, updated_at: new Date().toISOString() })
+                    .eq('niveau', niveau);
+
+                if (error) throw error;
+            }
+
+            // Mettre à jour chaque seuil modifié
+            for (const [niveau, noteMax] of Object.entries(editedSeuils)) {
+                const { error } = await supabase
+                    .from('config_seuils_niveaux')
+                    .update({ note_max: noteMax, updated_at: new Date().toISOString() })
                     .eq('niveau', niveau);
 
                 if (error) throw error;
@@ -70,8 +118,9 @@ export function ConfigClasses() {
 
             // Nettoyer les éditions
             setEditedCapacites({});
+            setEditedSeuils({});
             setSuccess(true);
-            notify.success("Capacités des classes mises à jour.", { title: "Configuration enregistrée" });
+            notify.success("Capacités et seuils des niveaux mis à jour.", { title: "Configuration enregistrée" });
 
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
@@ -80,16 +129,28 @@ export function ConfigClasses() {
         } finally {
             setSaving(false);
         }
-    }, [editedCapacites, refresh]);
+    }, [editedCapacites, editedSeuils, seuilsEffectifs, refresh]);
 
-    const hasChanges = Object.keys(editedCapacites).length > 0;
+    const hasChanges = Object.keys(editedCapacites).length > 0 || Object.keys(editedSeuils).length > 0;
 
     const niveaux = [
-        { key: 'niveau_1', label: 'Niveau 1', description: 'Note 0 à 5', color: 'bg-red-500' },
-        { key: 'niveau_2', label: 'Niveau 2', description: 'Note 5 à 10', color: 'bg-orange-500' },
-        { key: 'niveau_3', label: 'Niveau 3', description: 'Note 10 à 14', color: 'bg-yellow-500' },
-        { key: 'niveau_superieur', label: 'Niveau Supérieur', description: 'Note 15 à 20', color: 'bg-green-500' },
+        { key: 'niveau_1', label: 'Niveau 1', color: 'bg-red-500' },
+        { key: 'niveau_2', label: 'Niveau 2', color: 'bg-orange-500' },
+        { key: 'niveau_3', label: 'Niveau 3', color: 'bg-yellow-500' },
+        { key: 'niveau_superieur', label: 'Niveau Supérieur', color: 'bg-green-500' },
     ];
+
+    // Libellé dynamique "Note X à Y" à partir des seuils effectifs
+    const getPlageLabel = useCallback((niveauKey) => {
+        const rows = [
+            { niveau: 'niveau_1', note_max: seuilsEffectifs().niveau_1 },
+            { niveau: 'niveau_2', note_max: seuilsEffectifs().niveau_2 },
+            { niveau: 'niveau_3', note_max: seuilsEffectifs().niveau_3 },
+        ];
+        const plage = plageNiveau(niveauKey, rows);
+        const fmt = (v) => String(v).replace('.', ',');
+        return `Note ${fmt(plage.min)} à ${fmt(plage.max)}`;
+    }, [seuilsEffectifs]);
 
     return (
         <div className="p-4 lg:p-6 space-y-6">
@@ -100,7 +161,7 @@ export function ConfigClasses() {
                         Configuration des classes
                     </h1>
                     <p className="text-text-secondary mt-1">
-                        Définir la capacité maximale par niveau de formation
+                        Définir la capacité maximale par niveau et les seuils de notes d'entrée
                     </p>
                 </div>
                 <Button
@@ -136,7 +197,12 @@ export function ConfigClasses() {
                             <p>
                                 La capacité définit le nombre maximum de participants par classe.
                                 Lorsqu'une classe est pleine, une nouvelle classe est automatiquement créée
-                                (ex: Niveau 1 - 1, Niveau 1 - 2, etc.).
+                                (ex: Niveau 1-A, puis Niveau 1-B, etc.).
+                            </p>
+                            <p className="mt-2">
+                                Les seuils définissent la note maximale d'entrée de chaque niveau :
+                                une note inférieure ou égale au seuil va dans ce niveau,
+                                au-delà du seuil du Niveau 3 le participant va au Niveau Supérieur.
                             </p>
                         </div>
                     </div>
@@ -149,15 +215,17 @@ export function ConfigClasses() {
                     const stats = getStatsNiveau(niveau.key);
                     const capacite = getCapaciteValue(niveau.key);
                     const isEdited = editedCapacites[niveau.key] !== undefined;
+                    const seuilEdited = editedSeuils[niveau.key] !== undefined;
+                    const showSeuil = niveau.key !== 'niveau_superieur';
 
                     return (
-                        <Card key={niveau.key} className={isEdited ? 'ring-2 ring-blue-500' : ''}>
+                        <Card key={niveau.key} className={(isEdited || seuilEdited) ? 'ring-2 ring-blue-500' : ''}>
                             <CardHeader>
                                 <div className="flex items-center gap-3">
                                     <div className={`h-4 w-4 rounded-full ${niveau.color}`} />
                                     <div>
                                         <CardTitle>{niveau.label}</CardTitle>
-                                        <CardDescription>{niveau.description}</CardDescription>
+                                        <CardDescription>{getPlageLabel(niveau.key)}</CardDescription>
                                     </div>
                                 </div>
                             </CardHeader>
@@ -180,6 +248,28 @@ export function ConfigClasses() {
                                         <span className="text-text-secondary text-sm">participants max</span>
                                     </div>
                                 </div>
+
+                                {/* Seuil de note maximale */}
+                                {showSeuil && (
+                                    <div>
+                                        <Label htmlFor={`seuil-${niveau.key}`}>
+                                            Note maximale d'entrée
+                                        </Label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Input
+                                                id={`seuil-${niveau.key}`}
+                                                type="number"
+                                                min="1"
+                                                max="19"
+                                                step="0.5"
+                                                value={getSeuilValue(niveau.key)}
+                                                onChange={(e) => handleSeuilChange(niveau.key, e.target.value)}
+                                                className="w-24"
+                                            />
+                                            <span className="text-text-secondary text-sm">/ 20</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Stats */}
                                 <div className="pt-4 border-t border-border-light dark:border-border-dark space-y-2">

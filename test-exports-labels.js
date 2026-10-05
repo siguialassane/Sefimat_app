@@ -23,6 +23,11 @@ check("Versements: export .csv", paymentList.includes("versements_") && paymentL
 const paymentSummary = readFileSync("./src/pages/finance/PaymentSummary.jsx", "utf8");
 check("Synthèse: export .csv", paymentSummary.includes("recapitulatif_paiements_") && paymentSummary.includes(".csv"));
 
+const bulletins = readFileSync("./src/pages/scientifique/GestionBulletins.jsx", "utf8");
+check("Bulletins: pas d'export global", !bulletins.includes("Exporter tous les bulletins"));
+check("Bulletins: filtre niveau/classe exigé", bulletins.includes("Filtre requis") && bulletins.includes("Exporter le niveau") && bulletins.includes("Exporter la classe"));
+check("Bulletins: téléchargement unique conservé", bulletins.includes("onClick={() => genererBulletin(note"));
+
 if (failures > 0) {
     console.log(`\n${failures} échec(s)`);
     process.exit(1);

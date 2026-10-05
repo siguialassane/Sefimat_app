@@ -73,11 +73,11 @@ export function InPersonRegistration() {
     const [remoteAccepted, setRemoteAccepted] = useState(false);
     const [currentStep, setCurrentStep] = useState(1);
     const [showAllRecent, setShowAllRecent] = useState(false);
-    // Dossier préinscrit retrouvé par code (null = phase de recherche)
+    // Dossier préinscrit choisi dans la liste (null = phase de choix)
     const [dossier, setDossier] = useState(null);
-    const [code, setCode] = useState("");
-    const [searching, setSearching] = useState(false);
-    const [searchError, setSearchError] = useState(null);
+    const [aCompleter, setACompleter] = useState([]);
+    const [filtreListe, setFiltreListe] = useState("");
+    const [chargementListe, setChargementListe] = useState(false);
 
     const dortoirs = contextDortoirs || [];
 
@@ -112,46 +112,37 @@ export function InPersonRegistration() {
         return dortoir.nom;
     };
 
-    const rechercherDossier = useCallback(async (codeSaisi) => {
-        const ref = (codeSaisi || "").trim().toUpperCase();
-        if (!ref) {
-            setSearchError("Saisissez le code remis au participant (ex : SEFI-12).");
-            return;
-        }
-        setSearching(true);
-        setSearchError(null);
+    const chargerACompleter = useCallback(async () => {
+        setChargementListe(true);
         try {
             const { data, error } = await supabase
                 .from("inscriptions")
                 .select("id, reference_id, nom, prenom, montant_total_paye, montant_requis, dossier_complet, statut, type_inscription, created_at")
-                .eq("reference_id", ref)
-                .order("created_at", { ascending: false });
+                .eq("type_inscription", "presentielle")
+                .eq("dossier_complet", false)
+                .order("created_at", { ascending: false })
+                .limit(60);
             if (error) throw error;
-            const rows = data;
-            if (!rows || rows.length === 0) {
-                setSearchError(`Aucun dossier trouvé pour le code ${ref}. Vérifiez le code.`);
-                return;
-            }
-            const dossierTrouve = rows.find((r) => r.type_inscription === "presentielle" && r.dossier_complet === false) || null;
-            if (!dossierTrouve) {
-                setSearchError(`Le dossier ${ref} est déjà complété (ou n'est pas une préinscription).`);
-                return;
-            }
-            reset({ sexe: "homme", nombreParticipations: 0 });
-            setPhotoFile(null);
-            setPhotoKey((prev) => prev + 1);
-            setPhotoError(null);
-            setCurrentStep(1);
-            setQrSession(null);
-            setRemotePhoto(null);
-            setRemoteAccepted(false);
-            setDossier(dossierTrouve);
+            setACompleter(data || []);
         } catch (err) {
-            console.error("Erreur recherche dossier:", err);
-            setSearchError("Recherche impossible, réessayez.");
+            console.error("Liste à compléter:", err);
         } finally {
-            setSearching(false);
+            setChargementListe(false);
         }
+    }, []);
+
+    useEffect(() => { if (user) chargerACompleter(); }, [user, chargerACompleter]);
+
+    const choisirDossier = useCallback((row) => {
+        reset({ sexe: "homme", nombreParticipations: 0 });
+        setPhotoFile(null);
+        setPhotoKey((prev) => prev + 1);
+        setPhotoError(null);
+        setCurrentStep(1);
+        setQrSession(null);
+        setRemotePhoto(null);
+        setRemoteAccepted(false);
+        setDossier(row);
     }, [reset]);
 
     const nextStep = useCallback(async () => {
@@ -315,7 +306,7 @@ export function InPersonRegistration() {
             updateInscriptionLocal?.(dossier.id, { ...updateData, nom: dossier.nom, prenom: dossier.prenom });
 
             setDossier(null);
-            setCode("");
+            chargerACompleter();
             reset({ sexe: "homme", nombreParticipations: 0 });
             setPhotoFile(null);
             setPhotoKey((prev) => prev + 1);
@@ -371,27 +362,30 @@ export function InPersonRegistration() {
                                                 <Ticket className="h-6 w-6" />
                                             </div>
                                             <h2 className="text-xl font-bold text-text-main dark:text-white">
-                                                Code du participant
+                                                Dossiers à compléter
                                             </h2>
                                             <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                                Code SEFI- remis par la finance
+                                                {aCompleter.length === 0 ? "Aucune préinscription en attente" : `${aCompleter.length} préinscription${aCompleter.length > 1 ? "s" : ""} en attente`}
                                             </p>
                                         </div>
-                                        <div className="flex flex-col gap-3">
-                                            <Input
-                                                id="code-recherche"
-                                                placeholder="Ex : SEFI-12"
-                                                value={code}
-                                                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                                                onKeyDown={(e) => { if (e.key === "Enter") rechercherDossier(code); }}
-                                                className="text-center font-mono text-lg tracking-wider"
-                                            />
-                                            <Button onClick={() => rechercherDossier(code)} disabled={searching} className="gap-2">
-                                                <Search className="h-4 w-4" />
-                                                {searching ? "Recherche..." : "Rechercher"}
-                                            </Button>
-                                            {searchError && (
-                                                <p className="text-red-500 text-sm text-center">{searchError}</p>
+                                        <div className="relative mb-3">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                                            <Input placeholder="Nom ou code..." value={filtreListe} onChange={(e) => setFiltreListe(e.target.value)} className="pl-10" />
+                                        </div>
+                                        <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1">
+                                            {chargementListe && <p className="text-sm text-text-secondary text-center py-4">Chargement...</p>}
+                                            {!chargementListe && aCompleter.filter((r) => `${r.nom} ${r.prenom} ${r.reference_id}`.toLowerCase().includes(filtreListe.toLowerCase())).map((r) => (
+                                                <div key={r.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-gray-900 border border-border-light dark:border-border-dark">
+                                                    <div className="min-w-0">
+                                                        <p className="font-mono text-xs font-bold text-primary">{r.reference_id}</p>
+                                                        <p className="font-semibold text-sm text-text-main dark:text-white truncate">{r.nom} {r.prenom}</p>
+                                                        <p className="text-xs text-text-secondary dark:text-gray-400">{(r.montant_total_paye || 0).toLocaleString("fr-FR")} FCFA encaissés</p>
+                                                    </div>
+                                                    <Button size="sm" onClick={() => choisirDossier(r)}>Finaliser</Button>
+                                                </div>
+                                            ))}
+                                            {!chargementListe && aCompleter.length === 0 && (
+                                                <p className="text-sm text-text-secondary dark:text-gray-400 text-center py-4">La finance n'a pas encore de préinscription en attente.</p>
                                             )}
                                         </div>
                                     </>
@@ -422,7 +416,7 @@ export function InPersonRegistration() {
                                             </p>
                                             <button
                                                 type="button"
-                                                onClick={() => { setDossier(null); setCode(""); setSearchError(null); setQrSession(null); setRemotePhoto(null); setRemoteAccepted(false); }}
+                                                onClick={() => { setDossier(null); chargerACompleter(); setQrSession(null); setRemotePhoto(null); setRemoteAccepted(false); }}
                                                 className="text-xs font-medium text-primary hover:underline mt-2"
                                             >
                                                 Changer de dossier
@@ -557,19 +551,19 @@ export function InPersonRegistration() {
                                                             </p>
                                                         </div>
 
-                                                        <div className="flex flex-col gap-2">
-                                                            <Label>Genre</Label>
+                                                        <fieldset className="flex flex-col gap-2">
+                                                            <legend className="text-sm font-medium">Genre</legend>
                                                             <div className="flex gap-3">
-                                                                <label className="flex-1 relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300">
+                                                                <label className={`flex-1 relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-within:ring-2 focus-within:ring-primary/60 ${sexeParticipant === "homme" ? "border-primary bg-primary/10 text-primary" : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"}`}>
                                                                     <input type="radio" value="homme" {...register("sexe")} className="sr-only" defaultChecked />
-                                                                    <span className="flex items-center gap-2"><span className="text-lg">♂</span> Homme</span>
+                                                                    <span className="flex items-center gap-2" aria-hidden="true"><span className="text-lg">♂</span> Homme{sexeParticipant === "homme" ? " ✓" : ""}</span>
                                                                 </label>
-                                                                <label className="flex-1 relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300">
+                                                                <label className={`flex-1 relative flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-within:ring-2 focus-within:ring-primary/60 ${sexeParticipant === "femme" ? "border-primary bg-primary/10 text-primary" : "border-border-light dark:border-border-dark bg-white dark:bg-gray-900 text-text-main dark:text-gray-300"}`}>
                                                                     <input type="radio" value="femme" {...register("sexe")} className="sr-only" />
-                                                                    <span className="flex items-center gap-2"><span className="text-lg">♀</span> Femme</span>
+                                                                    <span className="flex items-center gap-2" aria-hidden="true"><span className="text-lg">♀</span> Femme{sexeParticipant === "femme" ? " ✓" : ""}</span>
                                                                 </label>
                                                             </div>
-                                                        </div>
+                                                        </fieldset>
 
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div className="flex flex-col gap-2">

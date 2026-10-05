@@ -440,8 +440,13 @@ export default function GestionBulletins() {
         }
     }, [getDortoirNom, participantsAvecNotes, calculerRang, loadImageAsBase64]);
 
-    // Générer tous les bulletins
+    // Générer les bulletins du niveau / de la classe sélectionné(e).
+    // Pas d'extraction globale : un filtre niveau ou classe est obligatoire.
     const genererTousBulletins = useCallback(async () => {
+        if (!filtreNiveau && !filtreClasse) {
+            notify.warning('Sélectionnez un niveau ou une classe pour exporter.', { title: 'Filtre requis' });
+            return;
+        }
         if (participantsFiltres.length === 0) {
             notify.warning('Aucun participant avec des notes à exporter', { title: 'Export vide' });
             return;
@@ -458,7 +463,7 @@ export default function GestionBulletins() {
         } finally {
             setExporting(false);
         }
-    }, [participantsFiltres, genererBulletin, participantsAvecNotes]);
+    }, [participantsFiltres, genererBulletin, participantsAvecNotes, filtreNiveau, filtreClasse]);
 
     // Classes uniques pour le filtre
     const classesUniques = useMemo(() => {
@@ -510,7 +515,7 @@ export default function GestionBulletins() {
                     </Button>
                     <Button 
                         onClick={genererTousBulletins}
-                        disabled={exporting || participantsFiltres.length === 0}
+                        disabled={exporting || participantsFiltres.length === 0 || (!filtreNiveau && !filtreClasse)}
                         className="gap-2"
                     >
                         {exporting ? (
@@ -518,7 +523,7 @@ export default function GestionBulletins() {
                         ) : (
                             <Download className="h-4 w-4" />
                         )}
-                        Exporter tous les bulletins
+                        {filtreClasse ? 'Exporter la classe' : filtreNiveau ? 'Exporter le niveau' : 'Exporter (niveau ou classe requis)'}
                     </Button>
                 </div>
             </div>

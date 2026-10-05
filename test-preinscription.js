@@ -32,7 +32,7 @@ check("préinscription: versement validé direct", pre.includes('statut: "valid�
 check("préinscription: code affiché", pre.includes("reference_id"));
 
 const fin = readFileSync("./src/pages/InPersonRegistration.jsx", "utf8");
-check("finalisation: recherche par code", fin.includes("reference_id") && fin.includes("Rechercher"));
+check("finalisation: choix dans liste (chargerACompleter)", fin.includes("chargerACompleter") && fin.includes("choisirDossier"));
 check("finalisation: nom/prénom verrouillés", !fin.includes('register("nom")') && !fin.includes('register("prenom")'));
 check("finalisation: dossier_complet true", fin.includes("dossier_complet: true"));
 check("finalisation: photo obligatoire", fin.includes("La photo est obligatoire"));
@@ -62,6 +62,16 @@ const comp = readFileSync("./src/pages/InPersonRegistration.jsx", "utf8");
 check("finalisation: bouton QR", comp.includes("Photo par téléphone"));
 check("finalisation: aperçu à confirmer", comp.includes("Accepter") && comp.includes("remoteAccepted"));
 check("finalisation: photo distante à la soumission", comp.includes("remotePhoto ? remotePhoto"));
+check("finalisation: liste sans saisie code", comp.includes("Dossiers à compléter") && !comp.includes("code-recherche"));
+check("finalisation: Genre coché visible", comp.includes("border-primary bg-primary/10"));
+
+const migRef = "./supabase/migrations/20261013_reference_id_unique.sql";
+check("migration codes uniques existe", existsSync(migRef));
+if (existsSync(migRef)) {
+    const sql = readFileSync(migRef, "utf8");
+    check("codes: contrainte UNIQUE", sql.includes("inscriptions_reference_id_unique"));
+    check("codes: compteur recalé + anti-course", sql.includes("GREATEST") && sql.includes("EXIT WHEN NOT EXISTS"));
+}
 
 if (failures > 0) {
     console.log(`\n${failures} échec(s)`);
