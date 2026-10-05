@@ -92,6 +92,17 @@ export function findUserByIdOrEmail(idOrEmail) {
   );
 }
 
+/**
+ * Libellé d'affichage d'un acteur tracé (id ou email). Pensé pour survivre
+ * à la future vraie connexion : même colonne, résolution élargie.
+ */
+export function getUserLabel(idOrEmail) {
+  if (!idOrEmail) return '—';
+  const found = findUserByIdOrEmail(idOrEmail);
+  if (found) return `${found.prenom || ''} ${found.nom || ''}`.trim() || found.email;
+  return String(idOrEmail);
+}
+
 export function isValidStoredUser(user) {
   if (!user || typeof user !== 'object') return false;
   if (!user.email || !user.role) return false;
@@ -190,7 +201,7 @@ export const ROLE_ROUTES = {
   secretaire: '/admin/dashboard',
   financier: '/finance/dashboard',
   scientifique: '/scientifique/dashboard',
-  president: '/president',
+  president: '/admin/President',
   manager: '/manager/dashboard',
 };
 

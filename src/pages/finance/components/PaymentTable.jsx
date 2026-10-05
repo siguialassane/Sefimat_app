@@ -1,10 +1,12 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, CheckCircle, XCircle, Plus, Undo2 } from "lucide-react";
+import { Eye, CheckCircle, Ban, Plus, Undo2 } from "lucide-react";
 import {
+    canAbandonRemainder,
     canAddPayment,
     canCancelFinanceValidation,
+    canUnrejectFinance,
     getAbandonedAmount,
     getFinanceBadgeClasses,
     getFinanceStatusMeta,
@@ -20,13 +22,16 @@ export function PaymentTable({
     loading,
     onViewDetails,
     onValidate,
-    onReject,
     onAddPayment,
     onCancelValidation,
+    onAbandon,
+    onUnreject,
     actionLoading,
     showActions = true,
     showAddPayment = false,
     showCancelValidation = false,
+    showAbandon = false,
+    showUnreject = false,
     emptyMessage = "Aucun résultat",
     emptyDescription = "Aucune inscription ne correspond à vos critères.",
 }) {
@@ -155,12 +160,12 @@ export function PaymentTable({
                                         </span>
                                     </td>
                                     <td className="p-4 text-center">
-                                        {isComplete ? (
-                                            <span className="text-emerald-600 font-medium">Soldé</span>
-                                        ) : resteDu === 0 && nonDu > 0 ? (
+                                        {resteDu === 0 && nonDu > 0 ? (
                                             <span className="text-text-secondary font-medium" title="Reliquat abandonné (non dû)">
                                                 Non dû
                                             </span>
+                                        ) : isComplete ? (
+                                            <span className="text-emerald-600 font-medium">Soldé</span>
                                         ) : (
                                             <span className="text-red-500">
                                                 {formatMontant(resteDu)}
@@ -186,25 +191,16 @@ export function PaymentTable({
                                                 Détails
                                             </Button>
                                             {canValidate && (
-                                                <>
-                                                    <Button
-                                                        size="sm"
-                                                        className="bg-emerald-600 hover:bg-emerald-700"
-                                                        onClick={() => onValidate?.(inscription.id)}
-                                                        disabled={actionLoading}
-                                                    >
-                                                        <CheckCircle className="h-4 w-4 mr-1" />
-                                                        Valider
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => onReject?.(inscription.id)}
-                                                        disabled={actionLoading}
-                                                    >
-                                                        <XCircle className="h-4 w-4" />
-                                                    </Button>
-                                                </>
+                                                <Button
+                                                    size="sm"
+                                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                                    onClick={() => onValidate?.(inscription.id)}
+                                                    disabled={actionLoading}
+                                                    title="Valider le dossier (part au secrétariat ; la dette restante reste suivie)"
+                                                >
+                                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                                    Valider
+                                                </Button>
                                             )}
                                             {showAddPayment && canAddPayment(inscription) && (
                                                 <Button
@@ -218,16 +214,41 @@ export function PaymentTable({
                                                     Paiement
                                                 </Button>
                                             )}
+                                            {showAbandon && canAbandonRemainder(inscription) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => onAbandon?.(inscription.id)}
+                                                    disabled={actionLoading}
+                                                    title={`Abandonner le reliquat restant (${formatMontant(resteDu)}) — geste irréversible`}
+                                                    className="text-red-600 border-red-200 hover:bg-red-50"
+                                                >
+                                                    <Ban className="h-4 w-4 mr-1" />
+                                                    Abandonner
+                                                </Button>
+                                            )}
                                             {showCancelValidation && canCancelFinanceValidation(inscription) && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     onClick={() => onCancelValidation?.(inscription.id)}
                                                     disabled={actionLoading}
-                                                    title="Annuler la validation finance (rouvre les encaissements)"
+                                                    title="Annuler la validation (le dossier retourne en attente finance)"
                                                 >
                                                     <Undo2 className="h-4 w-4 mr-1" />
                                                     Annuler
+                                                </Button>
+                                            )}
+                                            {showUnreject && canUnrejectFinance(inscription) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => onUnreject?.(inscription.id)}
+                                                    disabled={actionLoading}
+                                                    title="Annuler le refus (le dossier retourne en attente finance)"
+                                                >
+                                                    <Undo2 className="h-4 w-4 mr-1" />
+                                                    Rouvrir
                                                 </Button>
                                             )}
                                         </div>

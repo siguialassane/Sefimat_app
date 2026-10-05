@@ -20,6 +20,8 @@ import { supabase } from "@/lib/supabase";
 import {
     getFinanceBadgeClasses,
     getFinanceStatusMeta,
+    getRemainingDue,
+    REQUIRED_PAYMENT_AMOUNT,
 } from "@/lib/finance";
 
 export function RegistrationDetail() {
@@ -115,7 +117,7 @@ export function RegistrationDetail() {
         );
     }
 
-    const resteAPayer = 4000 - (inscription.montant_total_paye || 0);
+    const resteAPayer = getRemainingDue(inscription);
 
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark">
@@ -206,7 +208,7 @@ export function RegistrationDetail() {
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                                 <p className="text-xs text-text-secondary mb-1">Montant requis</p>
-                                <p className="text-lg font-bold text-blue-600">4 000 FCFA</p>
+                                <p className="text-lg font-bold text-blue-600">{formatMontant(inscription.montant_requis || REQUIRED_PAYMENT_AMOUNT)}</p>
                             </div>
                             <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                                 <p className="text-xs text-text-secondary mb-1">Payé</p>
@@ -223,7 +225,7 @@ export function RegistrationDetail() {
                             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                                 <p className="text-xs text-text-secondary mb-1">Progression</p>
                                 <p className="text-lg font-bold text-purple-600">
-                                    {Math.round(((inscription.montant_total_paye || 0) / 4000) * 100)}%
+                                    {Math.round(((inscription.montant_total_paye || 0) / (inscription.montant_requis || REQUIRED_PAYMENT_AMOUNT)) * 100)}%
                                 </p>
                             </div>
                         </div>
@@ -233,13 +235,13 @@ export function RegistrationDetail() {
                             <div className="flex justify-between text-sm">
                                 <span className="text-text-secondary">Progression du paiement</span>
                                 <span className="font-medium text-text-main dark:text-white">
-                                    {formatMontant(inscription.montant_total_paye)} / 4 000 FCFA
+                                    {formatMontant(inscription.montant_total_paye)} / {formatMontant(inscription.montant_requis || REQUIRED_PAYMENT_AMOUNT)}
                                 </span>
                             </div>
                             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                                 <div
                                     className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all"
-                                    style={{ width: `${Math.min(((inscription.montant_total_paye || 0) / 4000) * 100, 100)}%` }}
+                                    style={{ width: `${Math.min(((inscription.montant_total_paye || 0) / (inscription.montant_requis || REQUIRED_PAYMENT_AMOUNT)) * 100, 100)}%` }}
                                 />
                             </div>
                         </div>

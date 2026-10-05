@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LazyImage } from '@/components/ui/lazy-image';
 import { notify } from '@/components/ui/toast';
-import { useData } from '@/contexts/DataContext';
+import { useData } from '@/contexts';
 import {
     Download,
     FileText,
@@ -89,17 +89,6 @@ export default function GestionBulletins() {
         return { text: 'Insuffisant', color: '#EF4444' };
     };
 
-    // Couleurs par niveau
-    const getNiveauColor = (niveau) => {
-        switch (niveau) {
-            case 'niveau_1': return { r: 239, g: 68, b: 68 };     // Rouge
-            case 'niveau_2': return { r: 249, g: 115, b: 22 };    // Orange
-            case 'niveau_3': return { r: 234, g: 179, b: 8 };     // Jaune
-            case 'niveau_superieur': return { r: 34, g: 197, b: 94 }; // Vert
-            default: return { r: 59, g: 130, b: 246 };
-        }
-    };
-
     // Convertir image en base64
     const loadImageAsBase64 = async (url) => {
         try {
@@ -130,14 +119,6 @@ export default function GestionBulletins() {
         return dortoir?.nom || 'Non assigné';
     }, [dortoirs]);
 
-    // Labels des niveaux
-    const niveauLabels = {
-        niveau_1: 'Niveau 1',
-        niveau_2: 'Niveau 2',
-        niveau_3: 'Niveau 3',
-        niveau_superieur: 'Niveau Supérieur'
-    };
-
     // Calculer le rang d'un participant dans sa classe
     const calculerRang = useCallback((note, participantsAvecNotes) => {
         // Filtrer les participants de la même classe
@@ -158,7 +139,6 @@ export default function GestionBulletins() {
             const { default: jsPDF } = await import('jspdf');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
             const margin = 15;
 
             // Charger les logos

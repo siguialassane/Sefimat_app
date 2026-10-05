@@ -19,6 +19,18 @@ const niveauFormationMap = {
     superieur: "Supérieur"
 };
 
+// Construire les données du formulaire depuis l'inscription (valeurs par défaut incluses)
+function buildFormData(registration) {
+    if (!registration?.originalData) return {};
+    return {
+        ...registration.originalData,
+        niveau_etude: registration.originalData.niveau_etude || "aucun",
+        chef_quartier_id: registration.originalData.chef_quartier_id || "",
+        dortoir_id: registration.originalData.dortoir_id || "",
+        niveau_formation: registration.originalData.niveau_formation || ""
+    };
+}
+
 export function RegistrationDetailsModal({
     isOpen,
     onClose,
@@ -32,23 +44,17 @@ export function RegistrationDetailsModal({
     statusConfig
 }) {
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({});
+    const [formData, setFormData] = useState(() => buildFormData(registration));
     const [dortoirStats, setDortoirStats] = useState([]);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+    const [prevRegistration, setPrevRegistration] = useState(registration);
 
-    // Initialiser les données du formulaire quand l'inscription change
-    useEffect(() => {
-        if (registration?.originalData) {
-            setFormData({
-                ...registration.originalData,
-                niveau_etude: registration.originalData.niveau_etude || "aucun",
-                chef_quartier_id: registration.originalData.chef_quartier_id || "",
-                dortoir_id: registration.originalData.dortoir_id || "",
-                niveau_formation: registration.originalData.niveau_formation || ""
-            });
-        }
+    // Réinitialiser le formulaire quand l'inscription change (ajustement pendant le rendu)
+    if (registration !== prevRegistration) {
+        setPrevRegistration(registration);
+        setFormData(buildFormData(registration));
         setIsEditing(false);
-    }, [registration]);
+    }
 
     // Charger les statistiques des dortoirs
     useEffect(() => {
@@ -90,6 +96,14 @@ export function RegistrationDetailsModal({
     const handleChange = (field, value) => {
         // Validation spéciale pour l'affectation de dortoir
         if (field === 'dortoir_id' && value) {
+            const sexeParticipant = formData.sexe || registration.originalData?.sexe || "";
+            const dortoirCible = dortoirs.find((d) => d.id === value);
+            if ((sexeParticipant === "homme" || sexeParticipant === "femme") && dortoirCible?.sexe && dortoirCible.sexe !== sexeParticipant) {
+                notify.warning(`Le dortoir "${dortoirCible.nom}" est réservé aux ${dortoirCible.sexe === "femme" ? "femmes" : "hommes"}.`, {
+                    title: "Dortoir non autorisé",
+                });
+                return; // Bloquer l'affectation
+            }
             const dortoirStats = getDortoirStats(value);
             const currentDortoirId = registration.originalData?.dortoir_id;
 
@@ -112,12 +126,6 @@ export function RegistrationDetailsModal({
         return dortoirStats.find(d => d.id === dortoirId);
     };
 
-    // Trouver le nom du dortoir
-    const getDortoirName = () => {
-        const dortoir = dortoirs.find(d => d.id === registration.originalData?.dortoir_id);
-        return dortoir?.nom || "Non assigné";
-    };
-
     // Vérifier si un dortoir est complet (sauf s'il est déjà affecté à cet participant)
     const isDortoirFull = (dortoirId) => {
         const currentDortoirId = registration.originalData?.dortoir_id;
@@ -126,6 +134,26 @@ export function RegistrationDetailsModal({
         const stats = getDortoirStats(dortoirId);
         return stats && stats.nombre_inscrits >= stats.capacite;
     };
+
+    // Sexe du participant (valeur en cours d'édition en priorité)
+    const participantSexe = formData.sexe || registration.originalData?.sexe || "";
+
+    // Ne proposer que les dortoirs du même sexe que le participant (tout afficher si inconnu)
+    const visibleDortoirs = (participantSexe === "homme" || participantSexe === "femme")
+        ? dortoirs.filter((d) => !d.sexe || d.sexe === participantSexe)
+        : (dortoirs || []);
+
+    const visibleDortoirStats = dortoirStats.filter((stat) => visibleDortoirs.some((d) => d.id === stat.id));
+
+    // Libellé du dortoir avec repère de sexe : rose = femme, vert = homme
+    const getDortoirOptionLabel = (dortoir, capacityText, isFull) => {
+        let prefix = "";
+        if (dortoir?.sexe === "femme") prefix = "\u2640 ";
+        else if (dortoir?.sexe === "homme") prefix = "\u2642 ";
+        return `${prefix}${dortoir.nom}${capacityText}${isFull ? " - COMPLET" : ""}`;
+    };
+
+    const getStatSexe = (stat) => stat.sexe || dortoirs.find((d) => d.id === stat.id)?.sexe || "";
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in backdrop-blur-sm">
@@ -341,7 +369,7 @@ export function RegistrationDetailsModal({
                                             className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.dortoir_id ? "border-amber-500" : ""}`}
                                         >
                                             <option value="">Sélectionner un dortoir</option>
-                                            {dortoirs?.map(dortoir => {
+                                            {visibleDortoirs.map(dortoir => {
                                                 const stats = getDortoirStats(dortoir.id);
                                                 const isFull = isDortoirFull(dortoir.id);
                                                 const capacityText = stats
@@ -354,11 +382,16 @@ export function RegistrationDetailsModal({
                                                         value={dortoir.id}
                                                         disabled={isFull}
                                                     >
-                                                        {dortoir.nom}{capacityText}{isFull ? ' - COMPLET' : ''}
+                                                        {getDortoirOptionLabel(dortoir, capacityText, isFull)}
                                                     </option>
                                                 );
                                             })}
                                         </Select>
+                                        {(participantSexe === "homme" || participantSexe === "femme") && (
+                                            <p className="text-xs text-text-secondary">
+                                                Seuls les dortoirs du même sexe que le participant sont proposés.
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* Note sur le niveau de formation */}
@@ -554,8 +587,9 @@ export function RegistrationDetailsModal({
                                             </span>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                            {dortoirStats.map(stat => {
+                                            {visibleDortoirStats.map(stat => {
                                                 const isSelected = formData.dortoir_id === stat.id;
+                                                const statSexe = getStatSexe(stat);
                                                 const tauxNum = parseFloat(stat.taux_remplissage);
                                                 const colorClass = tauxNum >= 90
                                                     ? 'bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700'
@@ -571,6 +605,11 @@ export function RegistrationDetailsModal({
                                                         <div className="text-xs font-semibold text-text-main dark:text-white truncate">
                                                             {stat.nom}
                                                         </div>
+                                                        {statSexe !== "" && (
+                                                            <span className={`mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${statSexe === "femme" ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
+                                                                {statSexe === "femme" ? "\u2640 Femme" : "\u2642 Homme"}
+                                                            </span>
+                                                        )}
                                                         <div className="text-lg font-bold text-primary mt-1">
                                                             {stat.nombre_inscrits}
                                                             <span className="text-xs text-text-secondary dark:text-gray-400 font-normal">
@@ -608,8 +647,16 @@ export function RegistrationDetailsModal({
                                             value={formData.dortoir_id || ""}
                                             onChange={async (e) => {
                                                 const newValue = e.target.value;
-                                                // Valider la capacité avant de permettre le changement
+                                                // Valider le sexe et la capacité avant de permettre le changement
                                                 if (newValue) {
+                                                    const sexeParticipant = formData.sexe || registration.originalData?.sexe || "";
+                                                    const dortoirCible = dortoirs.find((d) => d.id === newValue);
+                                                    if ((sexeParticipant === "homme" || sexeParticipant === "femme") && dortoirCible?.sexe && dortoirCible.sexe !== sexeParticipant) {
+                                                        notify.warning(`Le dortoir "${dortoirCible.nom}" est réservé aux ${dortoirCible.sexe === "femme" ? "femmes" : "hommes"}.`, {
+                                                            title: "Dortoir non autorisé",
+                                                        });
+                                                        return;
+                                                    }
                                                     const stats = getDortoirStats(newValue);
                                                     const currentDortoirId = registration.originalData?.dortoir_id;
 
@@ -631,7 +678,7 @@ export function RegistrationDetailsModal({
                                             className={`bg-white dark:bg-gray-800 text-text-main dark:text-white ${!formData.dortoir_id && isOnlineRegistration ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20" : ""}`}
                                         >
                                             <option value="">Non assigné</option>
-                                            {dortoirs?.map(dortoir => {
+                                            {visibleDortoirs.map(dortoir => {
                                                 const stats = getDortoirStats(dortoir.id);
                                                 const isFull = isDortoirFull(dortoir.id);
                                                 const capacityText = stats
@@ -644,11 +691,16 @@ export function RegistrationDetailsModal({
                                                         value={dortoir.id}
                                                         disabled={isFull}
                                                     >
-                                                        {dortoir.nom}{capacityText}{isFull ? ' - COMPLET' : ''}
+                                                        {getDortoirOptionLabel(dortoir, capacityText, isFull)}
                                                     </option>
                                                 );
                                             })}
                                         </Select>
+                                        {(participantSexe === "homme" || participantSexe === "femme") && (
+                                            <p className="text-xs text-text-secondary">
+                                                Seuls les dortoirs du même sexe que le participant sont proposés.
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* Note sur le niveau de formation */}

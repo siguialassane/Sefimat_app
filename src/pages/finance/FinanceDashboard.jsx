@@ -19,11 +19,13 @@ import { useAuth, useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
 import {
     getAbandonedAmount,
+    getFinanceBadgeClasses,
     getFinanceCollectedAmount,
-    getFinanceStatusMeta,
+    getPendingAmount,
+    getVersementStatusMeta,
     isFinanceApproved,
     isFinanceValidationPending,
-    shouldCountInFinanceTotals,
+    REQUIRED_PAYMENT_AMOUNT,
 } from "@/lib/finance";
 
 export function FinanceDashboard() {
@@ -32,6 +34,7 @@ export function FinanceDashboard() {
 
     const {
         inscriptions,
+        paiements,
         chefsQuartier,
         stats: globalStats,
         loading,
@@ -39,29 +42,28 @@ export function FinanceDashboard() {
         refresh,
     } = useData();
 
+    const inscriptionById = useMemo(() => {
+        const map = new Map();
+        for (const inscription of inscriptions) {
+            map.set(inscription.id, inscription);
+        }
+        return map;
+    }, [inscriptions]);
+
     const stats = useMemo(() => {
-        const financeCountedInscriptions = inscriptions.filter(shouldCountInFinanceTotals);
-        const paiementsValides = inscriptions.filter(
-            (i) => isFinanceApproved(i) && (i.montant_total_paye || 0) > 0
-        ).length;
-        const paiementsNonValides = inscriptions.filter(isFinanceValidationPending).length;
-        const paiementsPresident = financeCountedInscriptions.filter(
-            (i) => i.type_inscription === "en_ligne" && (i.montant_total_paye || 0) > 0
-        ).length;
-        const paiementsSecretariat = financeCountedInscriptions.filter(
-            (i) => i.type_inscription === "presentielle" && (i.montant_total_paye || 0) > 0
-        ).length;
+        const dossiersPresident = inscriptions.filter((i) => i.chef_quartier_id);
+        const dossiersGuichet = inscriptions.filter((i) => !i.chef_quartier_id);
 
         return {
-            totalCollecte: globalStats.totalCollecte,
-            paiementsEnAttente: globalStats.paiementsEnAttente,
-            paiementsPartiels: globalStats.paiementsPartiels,
-            paiementsComplets: globalStats.paiementsComplets,
-            nombreInscrits: inscriptions.length,
-            paiementsValides,
-            paiementsNonValides,
-            paiementsPresident,
-            paiementsSecretariat,
+            montantDedans: globalStats.montantDedans,
+            montantDehors: globalStats.montantDehors,
+            versementsEnAttente: globalStats.versementsEnAttente,
+            dossiersEnAttente: inscriptions.filter(isFinanceValidationPending).length,
+            dossiersSoldes: globalStats.paiementsComplets,
+            dedansPresident: dossiersPresident.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0),
+            dedansGuichet: dossiersGuichet.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0),
+            nbPresident: dossiersPresident.length,
+            nbGuichet: dossiersGuichet.length,
         };
     }, [inscriptions, globalStats]);
 
@@ -76,27 +78,24 @@ export function FinanceDashboard() {
         return (chefsQuartier || [])
             .map((chef) => {
                 const dossiers = inscriptions.filter((i) => i.chef_quartier_id === chef.id);
-                const pending = dossiers.filter(isFinanceValidationPending);
                 return {
                     chef,
                     dossiers: dossiers.length,
-                    encaisse: dossiers.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    declare: dossiers.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    valide: dossiers.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0),
                     valides: dossiers.filter(isFinanceApproved).length,
-                    pendingCount: pending.length,
-                    pendingAmount: pending.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    dehors: dossiers.reduce((acc, i) => acc + getPendingAmount(i), 0),
                     nonDu: dossiers.reduce((acc, i) => acc + getAbandonedAmount(i), 0),
                 };
             })
-            .sort((a, b) => b.encaisse - a.encaisse);
+            .sort((a, b) => b.declare - a.declare);
     }, [inscriptions, chefsQuartier]);
 
-    const recentPayments = useMemo(() => {
-        return inscriptions
-            .filter((i) => (i.montant_total_paye || 0) > 0)
-            .filter((i) => shouldCountInFinanceTotals(i) || isFinanceValidationPending(i))
+    const derniersVersements = useMemo(() => {
+        return [...(paiements || [])]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .slice(0, 10);
-    }, [inscriptions]);
+            .slice(0, 5);
+    }, [paiements]);
 
     const handleRefresh = useCallback(() => {
         refresh();
@@ -109,51 +108,51 @@ export function FinanceDashboard() {
 
     const statCards = [
         {
-            title: "Total Collecté",
-            value: formatMontant(stats.totalCollecte),
+            title: "En caisse (dedans)",
+            value: formatMontant(stats.montantDedans),
             icon: DollarSign,
             iconBg: "bg-emerald-50 dark:bg-emerald-900/20",
             iconColor: "text-emerald-600 dark:text-emerald-400",
         },
         {
-            title: "Paiements Validés",
-            value: stats.paiementsValides.toString(),
-            icon: CheckCircle,
-            iconBg: "bg-green-50 dark:bg-green-900/20",
-            iconColor: "text-green-600 dark:text-green-400",
-        },
-        {
-            title: "En attente validation",
-            value: stats.paiementsNonValides.toString(),
+            title: "Dehors (en attente)",
+            value: formatMontant(stats.montantDehors),
             icon: Clock,
             iconBg: "bg-amber-50 dark:bg-amber-900/20",
             iconColor: "text-amber-600 dark:text-amber-400",
         },
         {
-            title: "Paiements Complets",
-            value: stats.paiementsComplets.toString(),
+            title: "Dossiers en attente",
+            value: stats.dossiersEnAttente.toString(),
             icon: Users,
             iconBg: "bg-blue-50 dark:bg-blue-900/20",
             iconColor: "text-blue-600 dark:text-blue-400",
+        },
+        {
+            title: "Dossiers soldés",
+            value: stats.dossiersSoldes.toString(),
+            icon: CheckCircle,
+            iconBg: "bg-green-50 dark:bg-green-900/20",
+            iconColor: "text-green-600 dark:text-green-400",
         },
     ];
 
     const sourceCards = [
         {
-            title: "Par Président Section",
-            value: stats.paiementsPresident.toString(),
+            title: "Via les présidents (dedans)",
+            value: formatMontant(stats.dedansPresident),
             icon: UserCheck,
             iconBg: "bg-purple-50 dark:bg-purple-900/20",
             iconColor: "text-purple-600 dark:text-purple-400",
-            description: "Montants déjà validés par la finance",
+            description: stats.nbPresident + " dossiers",
         },
         {
-            title: "Par Secrétariat",
-            value: stats.paiementsSecretariat.toString(),
+            title: "Au guichet (dedans)",
+            value: formatMontant(stats.dedansGuichet),
             icon: Building2,
             iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
             iconColor: "text-indigo-600 dark:text-indigo-400",
-            description: "Inscriptions présentielles",
+            description: stats.nbGuichet + " dossiers (présentiel)",
         },
     ];
 
@@ -242,7 +241,7 @@ export function FinanceDashboard() {
                                 {stat.title}
                             </p>
                             <p className="text-2xl font-bold text-text-main dark:text-white">
-                                {stat.value} <span className="text-sm font-normal text-text-secondary">paiements</span>
+                                {stat.value}
                             </p>
                             <p className="text-xs text-text-secondary mt-1">{stat.description}</p>
                         </div>
@@ -260,7 +259,7 @@ export function FinanceDashboard() {
                                     Validations en attente
                                 </CardTitle>
                                 <CardDescription>
-                                    Montants saisis par les présidents avant validation finance
+                                    Dossiers saisis par les présidents, en attente de validation finance
                                 </CardDescription>
                             </div>
                             <Button variant="outline" size="sm" onClick={() => navigate("/finance/validation")}>
@@ -313,7 +312,7 @@ export function FinanceDashboard() {
                                                 {formatMontant(item.montant_total_paye || 0)}
                                             </p>
                                             <p className="text-xs text-text-secondary">
-                                                / {formatMontant(item.montant_requis || 4000)}
+                                                / {formatMontant(item.montant_requis || REQUIRED_PAYMENT_AMOUNT)}
                                             </p>
                                         </div>
                                     </div>
@@ -329,13 +328,13 @@ export function FinanceDashboard() {
                             <div>
                                 <CardTitle className="flex items-center gap-2">
                                     <TrendingUp className="h-5 w-5 text-emerald-500" />
-                                    Derniers paiements
+                                    Derniers versements
                                 </CardTitle>
                                 <CardDescription>
-                                    Validés et en attente, selon le workflow finance
+                                    Déclarations et réceptions les plus récentes
                                 </CardDescription>
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => navigate("/finance/synthese")}>
+                            <Button variant="outline" size="sm" onClick={() => navigate("/finance/liste")}>
                                 Voir tout
                             </Button>
                         </div>
@@ -345,31 +344,28 @@ export function FinanceDashboard() {
                             <div className="p-8 text-center">
                                 <div className="h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
                             </div>
-                        ) : recentPayments.length === 0 ? (
+                        ) : derniersVersements.length === 0 ? (
                             <div className="p-8 text-center text-text-secondary">
                                 <DollarSign className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                                <p>Aucun paiement enregistré</p>
+                                <p>Aucun versement enregistré</p>
                             </div>
                         ) : (
                             <div className="divide-y divide-border-light dark:divide-border-dark">
-                                {recentPayments.slice(0, 5).map((payment) => {
-                                    const statusMeta = getFinanceStatusMeta(payment);
-                                    const amountShown = shouldCountInFinanceTotals(payment)
-                                        ? getFinanceCollectedAmount(payment)
-                                        : payment.montant_total_paye || 0;
-
+                                {derniersVersements.map((versement) => {
+                                    const inscription = inscriptionById.get(versement.inscription_id);
+                                    const meta = getVersementStatusMeta(versement);
+                                    const isPresident = !!inscription?.chef_quartier_id;
                                     return (
                                         <div
-                                            key={payment.id}
+                                            key={versement.id}
                                             className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5"
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                                                    payment.type_inscription === "en_ligne"
-                                                        ? "bg-purple-100 dark:bg-purple-900/30"
-                                                        : "bg-indigo-100 dark:bg-indigo-900/30"
-                                                }`}>
-                                                    {payment.type_inscription === "en_ligne" ? (
+                                                <div className={"h-10 w-10 rounded-full flex items-center justify-center " + (isPresident
+                                                    ? "bg-purple-100 dark:bg-purple-900/30"
+                                                    : "bg-indigo-100 dark:bg-indigo-900/30"
+                                                )}>
+                                                    {isPresident ? (
                                                         <UserCheck className="h-5 w-5 text-purple-600" />
                                                     ) : (
                                                         <Building2 className="h-5 w-5 text-indigo-600" />
@@ -377,24 +373,20 @@ export function FinanceDashboard() {
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-text-main dark:text-white">
-                                                        {payment.nom} {payment.prenom}
+                                                        {inscription ? inscription.nom + " " + inscription.prenom : "Dossier inconnu"}
                                                     </p>
                                                     <p className="text-xs text-text-secondary">
-                                                        {new Date(payment.created_at).toLocaleDateString("fr-FR")} • {
-                                                            payment.type_inscription === "en_ligne"
-                                                                ? "Président Section"
-                                                                : "Secrétariat"
-                                                        }
+                                                        {new Date(versement.created_at).toLocaleDateString("fr-FR")} • {isPresident ? "Président de section" : "Guichet"}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-bold text-emerald-600">
-                                                    +{formatMontant(amountShown)}
+                                                    +{formatMontant(versement.montant)}
                                                 </p>
                                                 <div className="flex items-center gap-1 justify-end">
-                                                    <Badge variant={statusMeta.variant} className="text-xs">
-                                                        {statusMeta.label}
+                                                    <Badge className={getFinanceBadgeClasses(meta.variant) + " text-xs"}>
+                                                        {meta.label}
                                                     </Badge>
                                                 </div>
                                             </div>
@@ -416,7 +408,7 @@ export function FinanceDashboard() {
                                 Suivi par président de section
                             </CardTitle>
                             <CardDescription>
-                                Dossiers, montants encaissés et validations par président
+                                Dossiers, montants déclarés, reçus et dehors par président
                             </CardDescription>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => navigate("/finance/liste")}>
@@ -441,9 +433,9 @@ export function FinanceDashboard() {
                                     <tr>
                                         <th className="p-4 font-semibold text-text-main dark:text-white">Président</th>
                                         <th className="p-4 font-semibold text-text-main dark:text-white text-center">Dossiers</th>
-                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Encaissé</th>
-                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Validés</th>
-                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">En attente</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Déclaré</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Dossiers validés</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Dehors</th>
                                         <th className="p-4 font-semibold text-text-main dark:text-white text-center">Non dû</th>
                                         <th className="p-4 font-semibold text-text-main dark:text-white text-right">Détail</th>
                                     </tr>
@@ -456,16 +448,13 @@ export function FinanceDashboard() {
                                                 <p className="text-xs text-text-secondary">{row.chef.zone || "Section non précisée"}</p>
                                             </td>
                                             <td className="p-4 text-center font-medium">{row.dossiers}</td>
-                                            <td className="p-4 text-center font-bold text-emerald-600">{formatMontant(row.encaisse)}</td>
+                                            <td className="p-4 text-center font-bold text-emerald-600">{formatMontant(row.declare)}<span className="block text-xs font-normal text-text-secondary mt-1">dont {formatMontant(row.valide)} reçus</span></td>
                                             <td className="p-4 text-center">
                                                 <Badge variant="success">{row.valides}</Badge>
                                             </td>
                                             <td className="p-4 text-center">
-                                                {row.pendingCount > 0 ? (
-                                                    <span>
-                                                        <Badge variant="warning">{row.pendingCount}</Badge>
-                                                        <span className="block text-xs text-text-secondary mt-1">{formatMontant(row.pendingAmount)}</span>
-                                                    </span>
+                                                {row.dehors > 0 ? (
+                                                    <span className="font-bold text-amber-600">{formatMontant(row.dehors)}</span>
                                                 ) : (
                                                     <span className="text-text-secondary">—</span>
                                                 )}

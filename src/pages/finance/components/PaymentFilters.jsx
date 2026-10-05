@@ -38,7 +38,7 @@ export function PaymentFilters({
                             onChange={(e) => onStatusChange(e.target.value)}
                         >
                             <option value="tous">📋 Tous les paiements</option>
-                            <option value="solde">💰 Soldé (4000 FCFA)</option>
+                            <option value="solde">💰 Soldés</option>
                             <option value="valide_financier">✅ Validé par admin</option>
                         </Select>
                     </div>

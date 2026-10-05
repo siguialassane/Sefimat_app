@@ -41,7 +41,7 @@ const registrationSchema = z.object({
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     montantPaye: z.number()
         .min(1, "Le montant est obligatoire (minimum 1 FCFA)")
-        .max(4000, "Le montant ne peut pas dépasser 4000 FCFA"),
+        .max(5000, "Le montant ne peut pas dépasser 5000 FCFA"),
     modePaiement: z.string().optional(),
 });
 
@@ -153,10 +153,10 @@ export function PresidentRegistration() {
             return;
         }
 
-        // Validation stricte du montant - BLOQUER si > 4000
+        // Validation stricte du montant - BLOQUER si > 5000
         const montant = Math.floor(data.montantPaye || 0);
-        if (montant > 4000 || montant <= 0) {
-            notify.warning("Le montant est obligatoire et ne peut pas dépasser 4000 FCFA.", {
+        if (montant > 5000 || montant <= 0) {
+            notify.warning("Le montant est obligatoire et ne peut pas dépasser 5000 FCFA.", {
                 title: "Montant invalide",
             });
             setCurrentStep(4);
@@ -170,7 +170,7 @@ export function PresidentRegistration() {
 
             // 2. Calcul statut paiement
             let statutPaiement = "non_payé";
-            if (montant >= 4000) statutPaiement = "soldé";
+            if (montant >= 5000) statutPaiement = "soldé";
             else if (montant > 0) statutPaiement = "partiel";
 
             // 3. Créer l'inscription
@@ -198,7 +198,7 @@ export function PresidentRegistration() {
                     statut_paiement: statutPaiement,
                     mode_paiement: data.modePaiement || "especes",
                     created_by: 'president', // Marquer comme créé par président pour le workflow
-                    // Si paiement soldé dès le départ → direct au secrétariat, sinon validation finance
+                    // Le dossier passe toujours par la finance (validation ou auto-transition à la réception)
                     workflow_status: 'pending_finance',
                 })
                 .select()
@@ -207,13 +207,13 @@ export function PresidentRegistration() {
             if (error) throw error;
 
             // 4. Enregistrer paiement si montant > 0
-            // IMPORTANT: Les paiements président sont TOUJOURS validés (l'argent est collecté directement)
+            // Les versements président arrivent EN ATTENTE (dehors) : la finance les réceptionne en caisse
             if (montant > 0) {
                 const { error: paiementError } = await supabase.from("paiements").insert({
                     inscription_id: inscription.id,
                     montant: montant,
                     mode_paiement: data.modePaiement || "especes",
-                    statut: "validé",
+                    statut: "attente",
                     type_paiement: "inscription",
                 });
                 
@@ -637,7 +637,7 @@ export function PresidentRegistration() {
                                                     Paiement
                                                 </h3>
                                                 <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
-                                                    Montant requis: <span className="font-bold text-amber-600">4.000 FCFA</span>
+                                                    Montant requis: <span className="font-bold text-amber-600">5.000 FCFA</span>
                                                 </p>
                                             </div>
 
@@ -646,19 +646,19 @@ export function PresidentRegistration() {
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="montantPaye" className="flex items-center gap-2">
                                                         <Wallet className="w-4 h-4 text-amber-600" />
-                                                        Montant payé (FCFA) - Max 4000
+                                                        Montant payé (FCFA) - Max 5000
                                                     </Label>
                                                     <Input
                                                         id="montantPaye"
                                                         type="number"
                                                         min="0"
-                                                        max="4000"
+                                                        max="5000"
                                                         step="100"
                                                         placeholder="0"
                                                         {...register("montantPaye", { valueAsNumber: true })}
                                                         className={cn(
                                                             "text-lg",
-                                                            montantPaye > 4000 
+                                                            montantPaye > 5000 
                                                                 ? "border-red-500 focus:border-red-500 bg-red-50" 
                                                                 : "border-amber-200 focus:border-amber-500"
                                                         )}
@@ -668,17 +668,17 @@ export function PresidentRegistration() {
                                                             {errors.montantPaye.message}
                                                         </p>
                                                     )}
-                                                    {montantPaye > 4000 && (
+                                                    {montantPaye > 5000 && (
                                                         <p className="text-red-600 text-xs font-bold flex items-center gap-1">
-                                                            ⚠️ Le montant ne peut pas dépasser 4000 FCFA !
+                                                            ⚠️ Le montant ne peut pas dépasser 5000 FCFA !
                                                         </p>
                                                     )}
-                                                    {montantPaye > 0 && montantPaye <= 4000 && montantPaye < 4000 && (
+                                                    {montantPaye > 0 && montantPaye < 5000 && (
                                                         <p className="text-amber-600 text-xs">
-                                                            Reste à payer: {(4000 - montantPaye).toLocaleString()} FCFA
+                                                            Reste à payer: {(5000 - montantPaye).toLocaleString()} FCFA
                                                         </p>
                                                     )}
-                                                    {montantPaye === 4000 && (
+                                                    {montantPaye === 5000 && (
                                                         <p className="text-emerald-600 text-xs flex items-center gap-1">
                                                             <Check className="h-3 w-3" /> Paiement complet
                                                         </p>
@@ -726,7 +726,7 @@ export function PresidentRegistration() {
                                                         <div className="text-text-secondary">Montant:</div>
                                                         <div className={cn(
                                                             "font-bold",
-                                                            montantPaye >= 4000 ? "text-emerald-500" : "text-amber-500"
+                                                            montantPaye >= 5000 ? "text-emerald-500" : "text-amber-500"
                                                         )}>
                                                             {montantPaye.toLocaleString()} FCFA
                                                         </div>

@@ -10,6 +10,7 @@ const Login = lazy(() => import("@/pages/Login").then((module) => ({ default: mo
 const Dashboard = lazy(() => import("@/pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const RegistrationManagement = lazy(() => import("@/pages/RegistrationManagement").then((module) => ({ default: module.RegistrationManagement })));
 const InPersonRegistration = lazy(() => import("@/pages/InPersonRegistration").then((module) => ({ default: module.InPersonRegistration })));
+const Corbeille = lazy(() => import("@/pages/Corbeille").then((module) => ({ default: module.Corbeille })));
 const BadgeManagement = lazy(() => import("@/pages/BadgeManagement").then((module) => ({ default: module.BadgeManagement })));
 const Exports = lazy(() => import("@/pages/Exports").then((module) => ({ default: module.Exports })));
 const ConfigDortoirs = lazy(() => import("@/pages/ConfigDortoirs").then((module) => ({ default: module.ConfigDortoirs })));
@@ -17,7 +18,9 @@ const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard").t
 const FinanceStats = lazy(() => import("@/pages/finance/FinanceStats").then((module) => ({ default: module.FinanceStats })));
 const PaymentValidation = lazy(() => import("@/pages/finance/PaymentValidation").then((module) => ({ default: module.PaymentValidation })));
 const PaymentList = lazy(() => import("@/pages/finance/PaymentList").then((module) => ({ default: module.PaymentList })));
+const Caisse = lazy(() => import("@/pages/finance/Caisse"));
 const PaymentSummary = lazy(() => import("@/pages/finance/PaymentSummary").then((module) => ({ default: module.PaymentSummary })));
+const Preinscription = lazy(() => import("@/pages/finance/Preinscription").then((module) => ({ default: module.Preinscription })));
 const PresidentRegistration = lazy(() => import("@/pages/president/PresidentRegistration").then((module) => ({ default: module.PresidentRegistration })));
 const PresidentPayments = lazy(() => import("@/pages/president/PresidentPayments").then((module) => ({ default: module.PresidentPayments })));
 const PresidentDashboard = lazy(() => import("@/pages/president/PresidentDashboard").then((module) => ({ default: module.PresidentDashboard })));
@@ -34,6 +37,7 @@ const GestionBulletins = lazy(() => import("@/pages/scientifique/GestionBulletin
 const ManagerDashboard = lazy(() => import("@/pages/manager/ManagerDashboard").then((module) => ({ default: module.ManagerDashboard })));
 const PresidentsManagement = lazy(() => import("@/pages/manager/PresidentsManagement").then((module) => ({ default: module.PresidentsManagement })));
 const PresidentDetails = lazy(() => import("@/pages/manager/PresidentDetails").then((module) => ({ default: module.PresidentDetails })));
+const ScanPhoto = lazy(() => import("@/pages/ScanPhoto").then((module) => ({ default: module.ScanPhoto })));
 
 function App() {
   useEffect(() => {
@@ -69,6 +73,8 @@ function App() {
                 <Route path="/" element={<PublicRegistration />} />
                 <Route path="/inscription" element={<PublicRegistration />} />
                 <Route path="/login" element={<Login />} />
+                {/* Photo par téléphone : page publique, jeton à usage unique */}
+                <Route path="/scan/:token" element={<ScanPhoto />} />
 
                 {/* President de Section Routes (Public - Lien unique) */}
                 <Route path="/president/:lienUnique" element={<PresidentLayout />}>
@@ -80,13 +86,13 @@ function App() {
                 </Route>
 
                 {/* Admin President Dashboard */}
-                <Route path="/admin/President" element={<PresidentDashboard />} />
-                <Route path="/admin/President/inscription/:id" element={<RegistrationDetail />} />
-                <Route path="/admin/President/inscriptions" element={<AllRegistrations />} />
+                <Route path="/admin/President" element={<ProtectedRoute allowedRoles={["president"]}><PresidentDashboard /></ProtectedRoute>} />
+                <Route path="/admin/President/inscription/:id" element={<ProtectedRoute allowedRoles={["president"]}><RegistrationDetail /></ProtectedRoute>} />
+                <Route path="/admin/President/inscriptions" element={<ProtectedRoute allowedRoles={["president"]}><AllRegistrations /></ProtectedRoute>} />
 
                 {/* Admin Routes (Cellule Secrétariat) */}
                 <Route path="/admin" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={["secretaire"]}>
                     <AdminLayout />
                   </ProtectedRoute>
                 }>
@@ -94,6 +100,7 @@ function App() {
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="inscriptions" element={<RegistrationManagement />} />
                   <Route path="inscription-presentielle" element={<InPersonRegistration />} />
+                            <Route path="corbeille" element={<Corbeille />} />
                   <Route path="badges" element={<BadgeManagement />} />
                   <Route path="exports" element={<Exports />} />
                   <Route path="config-dortoirs" element={<ConfigDortoirs />} />
@@ -101,21 +108,23 @@ function App() {
 
                 {/* Finance Routes (Cellule Financier) */}
                 <Route path="/finance" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={["financier"]}>
                     <FinanceLayout />
                   </ProtectedRoute>
                 }>
                   <Route index element={<Navigate to="/finance/dashboard" replace />} />
                   <Route path="dashboard" element={<FinanceDashboard />} />
+                  <Route path="caisse" element={<Caisse />} />
                   <Route path="stats" element={<FinanceStats />} />
                   <Route path="validation" element={<PaymentValidation />} />
                   <Route path="liste" element={<PaymentList />} />
                   <Route path="synthese" element={<PaymentSummary />} />
+                  <Route path="preinscription" element={<Preinscription />} />
                 </Route>
 
                 {/* Scientifique Routes (Cellule Scientifique) */}
                 <Route path="/scientifique" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={["scientifique"]}>
                     <ScientifiqueLayout />
                   </ProtectedRoute>
                 }>

@@ -18,15 +18,21 @@ import {
     History,
     Wallet,
     RefreshCw,
+    Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { notify } from "@/components/ui/toast";
 import {
     canAddPayment,
     getFinanceBadgeClasses,
+    getFinanceCollectedAmount,
     getFinanceStatusMeta,
+    getMaxAcceptablePayment,
+    getRemainingDue,
+    getVersementStatusMeta,
+    isFinanceApproved,
     isFullyPaid,
-    isPresidentBlockedForPayment,
+    REQUIRED_PAYMENT_AMOUNT,
 } from "@/lib/finance";
 
 export function PresidentPayments() {
@@ -44,16 +50,11 @@ export function PresidentPayments() {
     const [stats, setStats] = useState({
         totalMembers: 0,
         totalCollected: 0,
+        totalValidated: 0,
         totalPending: 0,
         fullyPaid: 0,
         partiallyPaid: 0,
     });
-
-    useEffect(() => {
-        if (president?.id) {
-            loadInscriptions();
-        }
-    }, [president?.id, filterStatus]);
 
     const loadInscriptions = async () => {
         setLoading(true);
@@ -76,7 +77,7 @@ export function PresidentPayments() {
             setInscriptions(visibleInscriptions);
 
             const totalCollected = allInscriptions.reduce((acc, inscription) => acc + (inscription.montant_total_paye || 0), 0);
-            const totalRequired = allInscriptions.length * 4000;
+            const totalValidated = allInscriptions.reduce((acc, inscription) => acc + getFinanceCollectedAmount(inscription), 0);
             const fullyPaid = allInscriptions.filter(isFullyPaid).length;
             const partiallyPaid = allInscriptions.filter(
                 (inscription) => (inscription.montant_total_paye || 0) > 0 && !isFullyPaid(inscription)
@@ -85,7 +86,8 @@ export function PresidentPayments() {
             setStats({
                 totalMembers: allInscriptions.length,
                 totalCollected,
-                totalPending: Math.max(0, totalRequired - totalCollected),
+                totalValidated,
+                totalPending: allInscriptions.reduce((acc, inscription) => acc + getRemainingDue(inscription), 0),
                 fullyPaid,
                 partiallyPaid,
             });
@@ -96,13 +98,21 @@ export function PresidentPayments() {
         }
     };
 
+    useEffect(() => {
+        if (president?.id) {
+            // Chargement réseau au montage / changement de filtre (fetch-then-set).
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            loadInscriptions();
+        }
+    }, [president?.id, filterStatus]);
+
     const loadPaymentHistory = async (inscriptionId) => {
         try {
             const { data, error } = await supabase
                 .from("paiements")
                 .select("*")
                 .eq("inscription_id", inscriptionId)
-                .order("date_paiement", { ascending: false });
+                .order("created_at", { ascending: false });
 
             if (!error) {
                 setPaymentHistory(data || []);
@@ -128,10 +138,10 @@ export function PresidentPayments() {
 
         // Convertir en entier (INTEGER) pour correspondre au type de la fonction PostgreSQL
         const amount = Math.floor(parseFloat(paymentAmount));
-        const remaining = (selectedInscription.montant_requis || 4000) - (selectedInscription.montant_total_paye || 0);
+        const maxAcceptable = getMaxAcceptablePayment(selectedInscription);
 
-        if (amount > remaining) {
-            notify.warning(`Le montant ne peut pas dépasser ${remaining} FCFA (reste à payer)`, { title: "Montant invalide" });
+        if (amount > maxAcceptable) {
+            notify.warning(`Le montant ne peut pas dépasser ${maxAcceptable.toLocaleString("fr-FR")} FCFA (maximum accepté)`, { title: "Montant invalide" });
             return;
         }
 
@@ -160,7 +170,7 @@ export function PresidentPayments() {
 
             console.log("PresidentPayments: Paiement ajouté avec succès:", data);
 
-            const requis = selectedInscription.montant_requis || 4000;
+            const requis = selectedInscription.montant_requis || REQUIRED_PAYMENT_AMOUNT;
             let statutPaiement = "non_payé";
             if (data.new_total >= requis) statutPaiement = "soldé";
             else if (data.new_total > 0) statutPaiement = "partiel";
@@ -190,7 +200,7 @@ export function PresidentPayments() {
             loadInscriptions();
 
             // Afficher un message de succès
-            notify.success(`Paiement de ${amount.toLocaleString()} FCFA enregistré. Nouveau total: ${data.new_total.toLocaleString()} FCFA`, {
+            notify.success(`Paiement de ${amount.toLocaleString()} FCFA enregistré (en attente de réception par la finance). Nouveau total: ${data.new_total.toLocaleString()} FCFA`, {
                 title: "Paiement enregistré",
             });
         } catch (error) {
@@ -260,9 +270,12 @@ export function PresidentPayments() {
                                     <Wallet className="h-5 w-5 text-green-600" />
                                 </div>
                                 <div>
-                                    <p className="text-xs text-text-secondary">Collecté</p>
+                                    <p className="text-xs text-text-secondary">Encaissé déclaré</p>
                                     <p className="text-xl font-bold text-green-600">
                                         {formatMontant(stats.totalCollected)}
+                                    </p>
+                                    <p className="text-xs text-text-secondary">
+                                        dont {formatMontant(stats.totalValidated)} validés
                                     </p>
                                 </div>
                             </div>
@@ -372,17 +385,17 @@ export function PresidentPayments() {
                                                     {formatMontant(inscription.montant_total_paye)}
                                                 </p>
                                                 <p className="text-xs text-text-secondary">
-                                                    / {formatMontant(4000)}
+                                                    / {formatMontant(inscription.montant_requis || REQUIRED_PAYMENT_AMOUNT)}
                                                 </p>
                                             </div>
                                             {getStatusBadge(inscription)}
-                                            {isPresidentBlockedForPayment(inscription) && (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700" title="Dossier validé par la finance : aucun encaissement à ajouter">
+                                            {isFinanceApproved(inscription) && (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700" title="Dossier validé par la finance (les compléments restent possibles)">
                                                     <Check className="h-3 w-3" />
                                                     Validé par la finance
                                                 </span>
                                             )}
-                                            {canAddPayment(inscription) && (
+                                            {canAddPayment(inscription) ? (
                                                     <Button
                                                         size="sm"
                                                         className="bg-amber-600 hover:bg-amber-700"
@@ -390,6 +403,16 @@ export function PresidentPayments() {
                                                     >
                                                         <Plus className="h-4 w-4 mr-1" />
                                                         Paiement
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => openPaymentModal(inscription)}
+                                                        title="Voir l'historique des versements"
+                                                    >
+                                                        <Eye className="h-4 w-4 mr-1" />
+                                                        Détails
                                                     </Button>
                                                 )}
                                         </div>
@@ -409,7 +432,7 @@ export function PresidentPayments() {
                             <div className="flex justify-between items-start">
                                 <CardTitle className="flex items-center gap-2">
                                     <CreditCard className="h-5 w-5 text-amber-500" />
-                                    Ajouter un paiement
+                                    {canAddPayment(selectedInscription) ? "Ajouter un paiement" : "Détail des paiements"}
                                 </CardTitle>
                                 <button
                                     onClick={() => setModalOpen(false)}
@@ -445,13 +468,14 @@ export function PresidentPayments() {
                                         </span>
                                         <span className="text-text-secondary">|</span>
                                         <span className="text-red-500">
-                                            Reste: {formatMontant(Math.max(0, (selectedInscription.montant_requis || 4000) - (selectedInscription.montant_total_paye || 0) - (selectedInscription.montant_non_du || 0)))}
+                                            Reste dû: {formatMontant(getRemainingDue(selectedInscription))}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Payment Form */}
+                            {/* Payment Form (caché en lecture seule) */}
+                            {canAddPayment(selectedInscription) && (
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <Label htmlFor="paymentAmount">Montant (FCFA) *</Label>
@@ -459,7 +483,7 @@ export function PresidentPayments() {
                                         id="paymentAmount"
                                         type="number"
                                         min="1"
-                                        max={4000 - (selectedInscription.montant_total_paye || 0)}
+                                        max={getMaxAcceptablePayment(selectedInscription)}
                                         value={paymentAmount}
                                         onChange={(e) => setPaymentAmount(e.target.value)}
                                         placeholder="Ex: 1000"
@@ -475,6 +499,7 @@ export function PresidentPayments() {
                                     </Select>
                                 </div>
                             </div>
+                            )}
 
                             {/* Payment History */}
                             {paymentHistory.length > 0 && (
@@ -483,8 +508,10 @@ export function PresidentPayments() {
                                         <History className="h-4 w-4" />
                                         Historique des paiements
                                     </Label>
-                                    <div className="max-h-32 overflow-y-auto border border-border-light dark:border-border-dark rounded-lg">
-                                        {paymentHistory.map((payment) => (
+                                    <div className="max-h-48 overflow-y-auto border border-border-light dark:border-border-dark rounded-lg">
+                                        {paymentHistory.map((payment) => {
+                                            const meta = getVersementStatusMeta(payment);
+                                            return (
                                             <div
                                                 key={payment.id}
                                                 className="p-3 flex justify-between items-center border-b last:border-b-0 border-border-light dark:border-border-dark"
@@ -496,12 +523,26 @@ export function PresidentPayments() {
                                                     <span className="text-xs text-text-secondary ml-2">
                                                         {payment.mode_paiement}
                                                     </span>
+                                                    {payment.statut === "refuse" && payment.motif_refus && (
+                                                        <span className="block text-xs text-red-600 mt-1">
+                                                            Refusé : {payment.motif_refus}
+                                                        </span>
+                                                    )}
+                                                    {payment.statut === "validé" && payment.date_reception && (
+                                                        <span className="block text-xs text-emerald-600 mt-1">
+                                                            Reçu le {new Date(payment.date_reception).toLocaleDateString("fr-FR")}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <span className="text-xs text-text-secondary">
-                                                    {new Date(payment.date_paiement).toLocaleDateString("fr-FR")}
-                                                </span>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <Badge className={getFinanceBadgeClasses(meta.variant)}>{meta.label}</Badge>
+                                                    <span className="text-xs text-text-secondary">
+                                                        {new Date(payment.created_at).toLocaleDateString("fr-FR")}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -515,6 +556,7 @@ export function PresidentPayments() {
                                 >
                                     Annuler
                                 </Button>
+                                {canAddPayment(selectedInscription) && (
                                 <Button
                                     className="flex-1 bg-amber-600 hover:bg-amber-700"
                                     onClick={handleAddPayment}
@@ -532,6 +574,7 @@ export function PresidentPayments() {
                                         </>
                                     )}
                                 </Button>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

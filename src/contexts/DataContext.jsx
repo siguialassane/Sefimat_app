@@ -1,14 +1,14 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   getFinanceCollectedAmount,
+  getPendingAmount,
   getRemainingDue,
   isFinanceValidationPending,
-  shouldCountInFinanceTotals,
+  isVersementPending,
 } from '../lib/finance';
 import { useAuth } from './AuthContext';
-
-const DataContext = createContext(null);
+import { DataContext } from './data-context';
 
 function buildStats(inscriptions, paiements) {
   const safeInscriptions = Array.isArray(inscriptions) ? inscriptions : [];
@@ -35,16 +35,18 @@ function buildStats(inscriptions, paiements) {
 
   const totalCollecte = safeInscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
   const paiementsEnAttente = safeInscriptions.filter(i => isFinanceValidationPending(i)).length;
+  // Soldé/partiel = état de la dette (déclaré + reste), indépendant de la réception en caisse.
   const paiementsPartiels = safeInscriptions.filter(i =>
-    shouldCountInFinanceTotals(i) &&
     getRemainingDue(i) > 0 &&
     (i?.montant_total_paye || 0) > 0
   ).length;
   const paiementsComplets = safeInscriptions.filter(i =>
-    shouldCountInFinanceTotals(i) &&
     getRemainingDue(i) === 0 &&
     (i?.montant_total_paye || 0) > 0
   ).length;
+  // Caisse : dehors (attente) vs dedans (reçu).
+  const versementsEnAttente = safePaiements.filter(p => isVersementPending(p)).length;
+  const montantDehors = safeInscriptions.reduce((acc, i) => acc + getPendingAmount(i), 0);
 
   return {
     totalInscriptions,
@@ -53,6 +55,9 @@ function buildStats(inscriptions, paiements) {
     hommes,
     femmes,
     totalCollecte,
+    montantDedans: totalCollecte,
+    montantDehors,
+    versementsEnAttente,
     paiementsEnAttente,
     paiementsPartiels,
     paiementsComplets,
@@ -75,6 +80,8 @@ export function DataProvider({ children }) {
   const [configCapaciteClasses, setConfigCapaciteClasses] = useState([]);
   const [stats, setStats] = useState(() => buildStats([], []));
   const [lastUpdate, setLastUpdate] = useState(null);
+  // Dernier versement arrivé en caisse (notif temps réel, consommé par la finance).
+  const [caisseEvent, setCaisseEvent] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -151,6 +158,7 @@ export function DataProvider({ children }) {
   useEffect(() => {
     mountedRef.current = true;
 
+    /* eslint-disable react-hooks/set-state-in-effect -- reset synchrone à la déconnexion */
     if (!isAuthenticated) {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -169,6 +177,7 @@ export function DataProvider({ children }) {
       setError(null);
       return;
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     console.log('DataContext: 🚀 Utilisateur connecté, chargement...');
     loadAll(false);
@@ -301,6 +310,45 @@ export function DataProvider({ children }) {
     });
   }, []);
 
+  // Temps réel caisse : un versement président arrive -> état local + event
+  // pour le toast finance. Le polling reste en fallback.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const channel = supabase
+      .channel("caisse-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "paiements" },
+        (payload) => {
+          const row = payload?.new;
+          if (row) addPaiementLocal(row);
+          if (row?.statut === "attente") {
+            setCaisseEvent({ versement: row, at: Date.now() });
+          }
+          loadAll(true);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "paiements" },
+        (payload) => {
+          if (payload?.new?.id) updatePaiementLocal(payload.new.id, payload.new);
+          loadAll(true);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "inscriptions" },
+        () => {
+          loadAll(true);
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, loadAll, addPaiementLocal, updatePaiementLocal]);
+
   const addClasseLocal = useCallback((classe) => {
     if (!classe) return;
     setClasses(prev => {
@@ -330,6 +378,7 @@ export function DataProvider({ children }) {
     stats,
     statsScientifique,
     lastUpdate,
+    caisseEvent,
     loading,
     error,
     refresh,
@@ -350,12 +399,4 @@ export function DataProvider({ children }) {
   );
 }
 
-export function useData() {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData doit être utilisé dans DataProvider');
-  }
-  return context;
-}
-
-export default DataContext;
+// useData + DataContext vivent dans ./data-context (fast refresh).

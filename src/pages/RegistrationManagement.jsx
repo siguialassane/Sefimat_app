@@ -21,18 +21,11 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useData } from "@/contexts";
+import { notify } from "@/components/ui/toast";
 
 // Configuration des statuts (mapping DB -> UI)
 const statusConfig = {
     en_attente: { label: "En attente", variant: "warning" },
-    valide: { label: "Validé", variant: "success" },
-    rejete: { label: "Rejeté", variant: "destructive" },
-};
-
-// Configuration des statuts du workflow
-const workflowConfig = {
-    en_attente_finance: { label: "En attente Finance", variant: "warning" },
-    en_attente_secretariat: { label: "En attente Secrétariat", variant: "default" },
     valide: { label: "Validé", variant: "success" },
     rejete: { label: "Rejeté", variant: "destructive" },
 };
@@ -131,6 +124,14 @@ export function RegistrationManagement() {
             // Récupérer l'inscription pour déterminer le type de workflow
             const registration = registrations.find(r => r.id === id);
             
+            // Préinscription non complétée : validation impossible, finaliser d'abord
+            if (registration?.originalData?.dossier_complet === false) {
+                notify.warning("Dossier préinscrit non complété : finalisez-le (code SEFI-) avant de le valider.", {
+                    title: "À compléter d'abord",
+                });
+                return;
+            }
+            
             // Préparer l'update selon le type d'inscription
             const updateData = {
                 statut: 'valide',
@@ -161,22 +162,31 @@ export function RegistrationManagement() {
         }
     };
 
+    // Suppression = ARCHIVAGE (jamais de perte sèche) : le dossier complet
+    // (versements + notes) part dans inscriptions_archive, restaurable
+    // depuis la Corbeille. La photo est conservée.
     const handleDelete = async (id) => {
         try {
-            const { error } = await supabase
-                .from('inscriptions')
-                .delete()
-                .eq('id', id);
-
+            const { data, error } = await supabase.rpc('archive_inscription', {
+                p_inscription_id: id,
+                p_acteur: user?.id || null,
+            });
             if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || 'Archivage impossible');
 
             // Mise à jour optimiste locale
             deleteInscriptionLocal(id);
             setDeleteModal({ open: false, registration: null });
             setEditModal({ open: false, registration: null });
+            notify.success(
+                "Dossier archivé (" + (data.versements || 0) + " versement(s), " + (data.notes || 0) + " note(s)). Restaurable depuis la Corbeille.",
+                { title: 'Dossier archivé' }
+            );
         } catch (error) {
             console.error('Erreur suppression:', error);
-            alert('Erreur lors de la suppression de l\'inscription');
+            notify.error(error.message || "Erreur lors de la suppression de l'inscription", {
+                title: 'Suppression impossible',
+            });
             setDeleteModal({ open: false, registration: null });
         }
     };
@@ -434,9 +444,14 @@ export function RegistrationManagement() {
                                                         {registration.chefQuartier}
                                                     </td>
                                                     <td className="p-4">
-                                                        <Badge variant={statusConfig[registration.statut]?.variant || 'secondary'}>
-                                                            {statusConfig[registration.statut]?.label || registration.statut}
-                                                        </Badge>
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <Badge variant={statusConfig[registration.statut]?.variant || 'secondary'}>
+                                                                {statusConfig[registration.statut]?.label || registration.statut}
+                                                            </Badge>
+                                                            {registration.originalData?.dossier_complet === false && (
+                                                                <Badge variant="warning">À compléter</Badge>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="p-4 text-text-secondary dark:text-gray-400 text-xs">
                                                         {registration.dateTime}
@@ -497,7 +512,7 @@ export function RegistrationManagement() {
                 onClose={() => setEditModal({ open: false, registration: null })}
                 registration={editModal.registration}
                 onValidate={handleValidateOne}
-                onDelete={(id) => {
+                onDelete={() => {
                     setEditModal({ open: false, registration: null });
                     setDeleteModal({ open: true, registration: editModal.registration });
                 }}
@@ -514,7 +529,7 @@ export function RegistrationManagement() {
                     <Card className="w-full max-w-md p-6 animate-fade-in">
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="text-lg font-bold text-text-main dark:text-white">
-                                Confirmer la suppression
+                                Archiver ce dossier ?
                             </h3>
                             <button
                                 onClick={() => setDeleteModal({ open: false, registration: null })}
@@ -524,11 +539,11 @@ export function RegistrationManagement() {
                             </button>
                         </div>
                         <p className="text-text-secondary dark:text-gray-400 mb-6">
-                            Êtes-vous sûr de vouloir supprimer l'inscription de{" "}
+                            Archiver le dossier de{" "}
                             <span className="font-medium text-text-main dark:text-white">
                                 {deleteModal.registration?.nom} {deleteModal.registration?.prenom}
                             </span>{" "}
-                            ?
+                            ? Ses versements et notes seront conservés dans la Corbeille et le dossier pourra être restauré.
                         </p>
                         <div className="flex gap-3 justify-end">
                             <Button
@@ -541,7 +556,7 @@ export function RegistrationManagement() {
                                 variant="destructive"
                                 onClick={() => handleDelete(deleteModal.registration?.id)}
                             >
-                                Supprimer
+                                Archiver le dossier
                             </Button>
                         </div>
                     </Card>

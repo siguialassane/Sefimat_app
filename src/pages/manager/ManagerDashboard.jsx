@@ -19,9 +19,11 @@ import { useAuth, useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
 import {
     getAbandonedAmount,
+    getFinanceCollectedAmount,
     getRemainingDue,
     isFinanceApproved,
     isFinanceValidationPending,
+    isFullyPaid,
     isPresidentRegistration,
 } from "@/lib/finance";
 
@@ -33,9 +35,10 @@ export function ManagerDashboard() {
     const stats = useMemo(() => {
         const totalInscrits = inscriptions.length;
         const totalCollecte = inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
+        const totalValide = inscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
         const resteDu = inscriptions.reduce((acc, i) => acc + getRemainingDue(i), 0);
         const totalNonDu = inscriptions.reduce((acc, i) => acc + getAbandonedAmount(i), 0);
-        const soldes = inscriptions.filter((i) => (i.montant_total_paye || 0) >= (i.montant_requis || 4000)).length;
+        const soldes = inscriptions.filter(isFullyPaid).length;
         const pendingFinance = inscriptions.filter(
             (i) => i.created_by === "president" && i.workflow_status === "pending_finance"
         ).length;
@@ -53,6 +56,7 @@ export function ManagerDashboard() {
         return {
             totalInscrits,
             totalCollecte,
+            totalValide,
             resteDu,
             totalNonDu,
             soldes,
@@ -65,6 +69,7 @@ export function ManagerDashboard() {
             viaPresident: {
                 count: viaPresident.length,
                 montant: viaPresident.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                valide: viaPresident.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0),
             },
             viaGuichet: {
                 count: viaGuichet.length,
@@ -80,12 +85,13 @@ export function ManagerDashboard() {
                 return {
                     chef,
                     dossiers: dossiers.length,
-                    encaisse: dossiers.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    declare: dossiers.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0),
+                    valide: dossiers.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0),
                     valides: dossiers.filter(isFinanceApproved).length,
                     enAttente: dossiers.filter(isFinanceValidationPending).length,
                 };
             })
-            .sort((a, b) => b.encaisse - a.encaisse);
+            .sort((a, b) => b.declare - a.declare);
     }, [inscriptions, chefsQuartier]);
 
     const handleRefresh = useCallback(() => {
@@ -99,7 +105,8 @@ export function ManagerDashboard() {
 
     const kpis = [
         { title: "Total inscrits", value: stats.totalInscrits.toString(), icon: Users, iconBg: "bg-blue-50 dark:bg-blue-900/20", iconColor: "text-blue-600" },
-        { title: "Total collecté", value: formatMontant(stats.totalCollecte), icon: DollarSign, iconBg: "bg-emerald-50 dark:bg-emerald-900/20", iconColor: "text-emerald-600" },
+        { title: "Total déclaré", value: formatMontant(stats.totalCollecte), icon: DollarSign, iconBg: "bg-blue-50 dark:bg-blue-900/20", iconColor: "text-blue-600" },
+        { title: "Total validé", value: formatMontant(stats.totalValide), icon: DollarSign, iconBg: "bg-emerald-50 dark:bg-emerald-900/20", iconColor: "text-emerald-600" },
         { title: "Reste dû", value: formatMontant(stats.resteDu), icon: Wallet, iconBg: "bg-red-50 dark:bg-red-900/20", iconColor: "text-red-600" },
         { title: "Dossiers soldés", value: stats.soldes.toString(), icon: CheckCircle, iconBg: "bg-green-50 dark:bg-green-900/20", iconColor: "text-green-600" },
         { title: "En attente finance", value: stats.pendingFinance.toString(), icon: Clock, iconBg: "bg-amber-50 dark:bg-amber-900/20", iconColor: "text-amber-600" },
@@ -165,7 +172,7 @@ export function ManagerDashboard() {
                         <p className="text-2xl font-bold text-text-main dark:text-white">
                             {stats.viaPresident.count} <span className="text-sm font-normal text-text-secondary">inscrits</span>
                         </p>
-                        <p className="text-xs text-text-secondary mt-1">{formatMontant(stats.viaPresident.montant)} encaissés</p>
+                        <p className="text-xs text-text-secondary mt-1">{formatMontant(stats.viaPresident.montant)} déclarés • {formatMontant(stats.viaPresident.valide)} validés</p>
                     </div>
                 </Card>
                 <Card className="p-5 flex items-center gap-4">
@@ -173,7 +180,7 @@ export function ManagerDashboard() {
                         <Building2 className="h-6 w-6 text-indigo-600" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-text-secondary dark:text-gray-400 text-sm font-medium">Via guichet (secrétariat)</p>
+                        <p className="text-text-secondary dark:text-gray-400 text-sm font-medium">Via guichet (Secrétariat)</p>
                         <p className="text-2xl font-bold text-text-main dark:text-white">
                             {stats.viaGuichet.count} <span className="text-sm font-normal text-text-secondary">inscrits</span>
                         </p>
@@ -240,7 +247,7 @@ export function ManagerDashboard() {
                                     <tr>
                                         <th className="p-4 font-semibold text-text-main dark:text-white">Président</th>
                                         <th className="p-4 font-semibold text-text-main dark:text-white text-center">Dossiers</th>
-                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Encaissé</th>
+                                        <th className="p-4 font-semibold text-text-main dark:text-white text-center">Déclaré</th>
                                         <th className="p-4 font-semibold text-text-main dark:text-white text-center">Validés</th>
                                         <th className="p-4 font-semibold text-text-main dark:text-white text-center">En attente</th>
                                     </tr>
@@ -253,7 +260,7 @@ export function ManagerDashboard() {
                                                 <p className="text-xs text-text-secondary">{row.chef.zone || "Section non précisée"}</p>
                                             </td>
                                             <td className="p-4 text-center font-medium">{row.dossiers}</td>
-                                            <td className="p-4 text-center font-bold text-emerald-600">{formatMontant(row.encaisse)}</td>
+                                            <td className="p-4 text-center font-bold text-emerald-600">{formatMontant(row.declare)}<span className="block text-xs font-normal text-text-secondary mt-1">dont {formatMontant(row.valide)} validés</span></td>
                                             <td className="p-4 text-center">
                                                 <Badge variant="success">{row.valides}</Badge>
                                             </td>

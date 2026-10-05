@@ -15,11 +15,12 @@ import {
 import { useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
 import {
-    getAbandonedAmount,
     getFinanceCollectedAmount,
     getFinanceStatusKey,
     getFinanceStatusMeta,
+    getPendingAmount,
     getRemainingDue,
+    REQUIRED_PAYMENT_AMOUNT,
 } from "@/lib/finance";
 
 export function PaymentSummary() {
@@ -33,14 +34,14 @@ export function PaymentSummary() {
 
     const totals = useMemo(() => {
         const totalCollecte = inscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
-        const totalRestant = inscriptions.reduce((acc, i) => {
-            const montantRequis = i.montant_requis || 4000;
-            return acc + Math.max(0, montantRequis - getFinanceCollectedAmount(i) - getAbandonedAmount(i));
-        }, 0);
+        const totalDeclare = inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
+        const totalDehors = inscriptions.reduce((acc, i) => acc + getPendingAmount(i), 0);
+        // Reste dû : même source que les écrans président (indépendant de la validation).
+        const totalRestant = inscriptions.reduce((acc, i) => acc + getRemainingDue(i), 0);
         const nombreComplet = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && getRemainingDue(i) === 0).length;
         const nombrePartiel = inscriptions.filter((i) => getFinanceCollectedAmount(i) > 0 && getRemainingDue(i) > 0).length;
 
-        return { totalCollecte, totalRestant, nombreComplet, nombrePartiel };
+        return { totalCollecte, totalDeclare, totalDehors, totalRestant, nombreComplet, nombrePartiel };
     }, [inscriptions]);
 
     const formatMontant = (montant) => {
@@ -64,9 +65,11 @@ export function PaymentSummary() {
             "Prénom",
             "Téléphone",
             "Président de section",
-            "Montant comptabilisé",
+            "Reçu (dedans)",
+            "Dehors (en attente)",
             "Montant déclaré",
             "Montant requis",
+            "Reste dû",
             "Statut finance",
             "Date inscription",
         ];
@@ -79,8 +82,10 @@ export function PaymentSummary() {
                 i.telephone || "",
                 i.chef_quartier?.nom_complet || "Présentiel",
                 getFinanceCollectedAmount(i),
+                getPendingAmount(i),
                 i.montant_total_paye || 0,
-                i.montant_requis || 4000,
+                i.montant_requis || REQUIRED_PAYMENT_AMOUNT,
+                getRemainingDue(i),
                 status,
                 new Date(i.created_at).toLocaleDateString("fr-FR"),
             ];
@@ -133,16 +138,32 @@ export function PaymentSummary() {
 
             <div className="flex-1 overflow-y-auto p-8">
                 <div className="max-w-[1400px] mx-auto space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                         <Card className="p-5">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
                                     <DollarSign className="h-5 w-5 text-emerald-600" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-text-secondary">Total collecté</p>
+                                    <p className="text-sm text-text-secondary">En caisse (dedans)</p>
                                     <p className="text-xl font-bold text-emerald-600">
                                         {formatMontant(totals.totalCollecte)}
+                                    </p>
+                                    <p className="text-xs text-text-secondary">
+                                        Déclaré : {formatMontant(totals.totalDeclare)}
+                                    </p>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="p-5">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                                    <DollarSign className="h-5 w-5 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-text-secondary">En attente (dehors)</p>
+                                    <p className="text-xl font-bold text-amber-600">
+                                        {formatMontant(totals.totalDehors)}
                                     </p>
                                 </div>
                             </div>
@@ -207,8 +228,9 @@ export function PaymentSummary() {
                                     }
                                 >
                                     <option value="">Tous les statuts</option>
-                                    <option value="valide_financier">Validé par financier</option>
+                                    <option value="valide_financier">Validé finance</option>
                                     <option value="en_attente_validation">En attente validation</option>
+                                    <option value="solde">Soldé</option>
                                     <option value="partiel">Partiel</option>
                                     <option value="non_payé">Non payé</option>
                                     <option value="refuse">Refusé</option>
@@ -248,7 +270,9 @@ export function PaymentSummary() {
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Référence</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Participant</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Président de section</th>
-                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Montant déclaré</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Déclaré</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Reçu (dedans)</th>
+                                                <th className="p-4 font-semibold text-text-main dark:text-white text-center">Reste dû</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white text-center">Statut</th>
                                                 <th className="p-4 font-semibold text-text-main dark:text-white">Date</th>
                                             </tr>
@@ -291,6 +315,12 @@ export function PaymentSummary() {
                                                         </td>
                                                         <td className="p-4 text-center font-medium text-blue-600">
                                                             {formatMontant(inscription.montant_total_paye)}
+                                                        </td>
+                                                        <td className="p-4 text-center font-medium text-emerald-600">
+                                                            {formatMontant(getFinanceCollectedAmount(inscription))}
+                                                        </td>
+                                                        <td className="p-4 text-center font-medium text-red-500">
+                                                            {formatMontant(getRemainingDue(inscription))}
                                                         </td>
                                                         <td className="p-4 text-center">
                                                             <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>

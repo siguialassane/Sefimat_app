@@ -24,7 +24,11 @@ import { notify } from "@/components/ui/toast";
 import { useAuth } from "@/contexts";
 import {
     getFinanceBadgeClasses,
+    getFinanceCollectedAmount,
     getFinanceStatusMeta,
+    getRemainingDue,
+    getRequiredAmount,
+    REQUIRED_PAYMENT_AMOUNT,
 } from "@/lib/finance";
 
 export function PresidentDashboard() {
@@ -39,6 +43,7 @@ export function PresidentDashboard() {
         partiallyPaid: 0,
         unpaid: 0,
         totalCollected: 0,
+        totalValidated: 0,
         totalRemaining: 0, // Reste à payer
         collectionRate: 0,
         pendingFinance: 0,
@@ -84,8 +89,9 @@ export function PresidentDashboard() {
                 
             const totalMembers = inscriptions.length;
             const totalCollected = inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-            const totalRequired = totalMembers * 4000;
-            const totalRemaining = totalRequired - totalCollected;
+            const totalValidated = inscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
+            const totalRequired = inscriptions.reduce((acc, i) => acc + getRequiredAmount(i), 0);
+            const totalRemaining = inscriptions.reduce((acc, i) => acc + getRemainingDue(i), 0);
             
             setStats({
                 totalMembers,
@@ -93,6 +99,7 @@ export function PresidentDashboard() {
                 partiallyPaid: inscriptions.filter(i => i.statut_paiement === 'partiel').length,
                 unpaid: inscriptions.filter(i => i.statut_paiement === 'non_payé' || !i.statut_paiement).length,
                 totalCollected,
+                totalValidated,
                 totalRemaining,
                 collectionRate: totalMembers > 0 ? Math.round((totalCollected / totalRequired) * 100) : 0,
                 pendingFinance: inscriptions.filter(i => i.workflow_status === 'pending_finance').length,
@@ -112,8 +119,8 @@ export function PresidentDashboard() {
                 // Utiliser les stats de la vue DB
                 const totalMembers = statsData.total_inscriptions || 0;
                 const totalCollected = statsData.total_collected || 0;
-                const totalRequired = totalMembers * 4000;
-                const totalRemaining = totalRequired - totalCollected;
+                const totalValidated = statsData.total_validated || 0;
+                const totalRequired = statsData.total_required || totalMembers * REQUIRED_PAYMENT_AMOUNT;
                 
                 setStats({
                     totalMembers,
@@ -121,6 +128,7 @@ export function PresidentDashboard() {
                     partiallyPaid: statsData.partially_paid || 0,
                     unpaid: statsData.unpaid || 0,
                     totalCollected,
+                    totalValidated,
                     totalRemaining: statsData.total_remaining || 0,
                     collectionRate: totalMembers > 0 ? Math.round((totalCollected / totalRequired) * 100) : 0,
                     pendingFinance: statsData.pending_finance || 0,
@@ -341,9 +349,12 @@ export function PresidentDashboard() {
                                     <Wallet className="h-5 w-5 text-green-600" />
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-xs text-text-secondary">Collecté</p>
+                                    <p className="text-xs text-text-secondary">Encaissé déclaré</p>
                                     <p className="text-sm sm:text-lg font-bold text-green-600 truncate">
                                         {formatMontant(stats.totalCollected)}
+                                    </p>
+                                    <p className="text-xs text-text-secondary truncate">
+                                        dont {formatMontant(stats.totalValidated)} validés
                                     </p>
                                 </div>
                             </div>
@@ -437,7 +448,7 @@ export function PresidentDashboard() {
                                     </div>
                                 </div>
                                 <div className="text-center text-sm text-text-secondary">
-                                    {formatMontant(stats.totalCollected)} / {formatMontant(stats.totalMembers * 4000)}
+                                    {formatMontant(stats.totalCollected)} / {formatMontant(stats.totalMembers * REQUIRED_PAYMENT_AMOUNT)}
                                 </div>
                             </CardContent>
                         </Card>

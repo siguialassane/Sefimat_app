@@ -7,11 +7,15 @@ import { Select } from "@/components/ui/select";
 import { X, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { notify } from "@/components/ui/toast";
+import { useAuth } from "@/contexts";
+import { getMaxAcceptablePayment, getPostReceptionDossierUpdate, getRemainingDue, REQUIRED_PAYMENT_AMOUNT,
+} from "@/lib/finance";
 
 /**
  * Dialogue partagé "Ajouter un paiement" (staff : finance / secrétariat).
- * Enregistre le versement via la RPC add_payment SANS toucher au workflow :
- * un complément ne fait jamais reculer un dossier validé.
+ * Complément GUICHET : argent encaissé immédiatement, versement 'validé'
+ * direct (dedans, scénario 4), SANS toucher au workflow : un complément ne
+ * fait jamais reculer un dossier validé.
  *
  * Props :
  * - inscription : ligne inscriptions concernée
@@ -19,15 +23,17 @@ import { notify } from "@/components/ui/toast";
  * - onSuccess : (id, updates) appelé après enregistrement (updates inclut montant_total_paye)
  */
 export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
+    const { user } = useAuth();
     const [amount, setAmount] = useState("");
     const [mode, setMode] = useState("especes");
     const [submitting, setSubmitting] = useState(false);
 
     if (!inscription) return null;
 
-    const requis = inscription.montant_requis || 4000;
+    const requis = inscription.montant_requis || REQUIRED_PAYMENT_AMOUNT;
     const totalPaye = inscription.montant_total_paye || 0;
-    const remaining = Math.max(0, requis - totalPaye);
+    const remaining = getRemainingDue(inscription);
+    const maxAcceptable = getMaxAcceptablePayment(inscription);
 
     const handleSubmit = async () => {
         const value = Math.floor(Number(amount));
@@ -35,8 +41,8 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
             notify.warning("Veuillez saisir un montant supérieur à 0.", { title: "Montant invalide" });
             return;
         }
-        if (value > remaining) {
-            notify.warning(`Le montant ne peut pas dépasser le reste (${remaining.toLocaleString("fr-FR")} FCFA).`, {
+        if (value > maxAcceptable) {
+            notify.warning(`Le montant ne peut pas dépasser le maximum accepté (${maxAcceptable.toLocaleString("fr-FR")} FCFA).`, {
                 title: "Montant invalide",
             });
             return;
@@ -49,6 +55,9 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
                 p_montant: value,
                 p_mode_paiement: mode,
                 p_type_paiement: "inscription",
+                // Guichet staff : argent en main, dedans direct avec traçabilité acteur.
+                p_statut: "validé",
+                p_acteur: user?.id || null,
             });
             if (error) throw error;
             if (!data?.success) throw new Error(data?.error || "Erreur lors de l'ajout du paiement");
@@ -56,11 +65,17 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
             const newTotal = data.new_total ?? totalPaye + value;
             const updates = {
                 montant_total_paye: newTotal,
+                montant_valide: (inscription.montant_valide || 0) + value,
                 statut_paiement: newTotal >= requis ? "soldé" : newTotal > 0 ? "partiel" : "non_payé",
             };
-            // Si la finance avait abandonné un reliquat, le réduire du montant ajouté
-            if (["pending_secretariat", "completed"].includes(inscription.workflow_status)) {
+            // Si la finance avait abandonné un reliquat, le réduire du montant ajouté.
+            if ((inscription.montant_non_du || 0) > 0) {
                 updates.montant_non_du = Math.max(0, requis - newTotal);
+            }
+            // Guichet soldé = argent dedans : le dossier part au secrétariat (scénario 1).
+            const transition = getPostReceptionDossierUpdate(inscription, value, user?.id, new Date().toISOString());
+            if (transition) {
+                Object.assign(updates, transition.update);
             }
 
             const { error: updateError } = await supabase
@@ -73,6 +88,9 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
                 `Paiement de ${value.toLocaleString("fr-FR")} FCFA enregistré. Nouveau total : ${newTotal.toLocaleString("fr-FR")} FCFA.`,
                 { title: "Paiement enregistré" }
             );
+            if (transition?.autoAdvanced) {
+                notify.info("Dossier soldé — envoyé au secrétariat.", { title: "Dossier soldé" });
+            }
             onSuccess?.(inscription.id, updates);
             onClose?.();
         } catch (err) {
@@ -105,7 +123,7 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
                     </span>
                     <span className="text-text-secondary"> • </span>
                     <span className="text-red-500">
-                        Reste : {remaining.toLocaleString("fr-FR")} FCFA
+                        Reste dû : {remaining.toLocaleString("fr-FR")} FCFA
                     </span>
                 </p>
 
@@ -116,10 +134,10 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
                             id="staff-payment-amount"
                             type="number"
                             min="1"
-                            max={remaining}
+                            max={maxAcceptable}
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            placeholder={`Max ${remaining.toLocaleString("fr-FR")}`}
+                            placeholder={`Max ${maxAcceptable.toLocaleString("fr-FR")}`}
                         />
                     </div>
                     <div>
@@ -139,7 +157,7 @@ export function AddPaymentDialog({ inscription, onClose, onSuccess }) {
                     <Button
                         className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                         onClick={handleSubmit}
-                        disabled={submitting || remaining <= 0}
+                        disabled={submitting || maxAcceptable <= 0}
                     >
                         {submitting ? "Enregistrement..." : "Enregistrer"}
                     </Button>

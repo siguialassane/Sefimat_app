@@ -1,3 +1,4 @@
 export { ThemeProvider, useTheme } from "./ThemeContext";
 export { AuthProvider, useAuth } from "./AuthContext";
-export { DataProvider, useData } from "./DataContext";
+export { DataProvider } from "./DataContext";
+export { useData } from "./data-context";

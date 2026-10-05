@@ -5,14 +5,15 @@
 -- ============================================
 
 -- 1. Vue: Statistiques globales du dashboard
-CREATE OR REPLACE VIEW v_global_dashboard_stats AS
+DROP VIEW IF EXISTS v_global_dashboard_stats;
+CREATE VIEW v_global_dashboard_stats AS
 SELECT 
     COUNT(id) AS total_inscriptions,
     COUNT(CASE WHEN statut_paiement IN ('soldé', 'valide_financier') THEN 1 END) AS fully_paid,
     COUNT(CASE WHEN statut_paiement = 'partiel' THEN 1 END) AS partially_paid,
     COUNT(CASE WHEN statut_paiement = 'non_payé' OR statut_paiement IS NULL THEN 1 END) AS unpaid,
     COALESCE(SUM(montant_total_paye), 0) AS total_collected,
-    (COUNT(id) * 4000) - COALESCE(SUM(montant_total_paye), 0) AS total_remaining,
+    COALESCE(SUM(GREATEST(0, COALESCE(montant_requis, 4000) - COALESCE(montant_total_paye, 0) - COALESCE(montant_non_du, 0))), 0) AS total_remaining,
     COUNT(CASE WHEN workflow_status = 'pending_finance' THEN 1 END) AS pending_finance,
     COUNT(CASE WHEN workflow_status = 'pending_secretariat' THEN 1 END) AS pending_secretariat,
     COUNT(CASE WHEN workflow_status = 'completed' THEN 1 END) AS completed,
@@ -22,7 +23,9 @@ SELECT
     COUNT(CASE WHEN age >= 10 AND age < 15 THEN 1 END) AS age_10_14,
     COUNT(CASE WHEN age >= 15 AND age < 18 THEN 1 END) AS age_15_17,
     COUNT(CASE WHEN age >= 18 AND age <= 25 THEN 1 END) AS age_18_25,
-    COUNT(CASE WHEN age > 25 AND age <= 35 THEN 1 END) AS age_26_35
+    COUNT(CASE WHEN age > 25 AND age <= 35 THEN 1 END) AS age_26_35,
+    COALESCE(SUM(COALESCE(montant_requis, 4000)), 0) AS total_required,
+    COALESCE(SUM(CASE WHEN created_by = 'president' AND statut_paiement IS DISTINCT FROM 'valide_financier' AND workflow_status IS DISTINCT FROM 'pending_secretariat' AND workflow_status IS DISTINCT FROM 'completed' THEN 0 ELSE COALESCE(montant_total_paye, 0) END), 0) AS total_validated
 FROM inscriptions;
 
 -- 2. Fonction: Inscriptions récentes

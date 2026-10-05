@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Save, Settings, Bed, CheckCircle, Plus, Trash2, Edit2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { notify } from "@/components/ui/toast";
 import { useData } from "@/contexts";
@@ -92,13 +93,22 @@ export function ConfigDortoirs() {
             return;
         }
 
+        const sexeStr = prompt("Sexe du dortoir (homme/femme):", "homme");
+        const sexe = (sexeStr || "").trim().toLowerCase();
+
+        if (sexe !== "homme" && sexe !== "femme") {
+            notify.warning("Veuillez entrer un sexe valide (homme ou femme)", { title: "Sexe invalide" });
+            return;
+        }
+
         try {
             const { error } = await supabase
                 .from('dortoirs')
                 .insert({
                     nom: nom.trim(),
                     capacite,
-                    description: ''
+                    description: '',
+                    sexe
                 });
 
             if (error) throw error;
@@ -237,6 +247,7 @@ export function ConfigDortoirs() {
                         const stats = getDortoirStats(dortoir.id);
                         const nom = getValue(dortoir, 'nom');
                         const capacite = getValue(dortoir, 'capacite') || 0;
+                        const sexe = getValue(dortoir, 'sexe') || '';
                         const isEdited = editedDortoirs[dortoir.id] !== undefined;
                         const tauxRemplissage = capacite > 0 ? (stats.assigned / capacite) * 100 : 0;
 
@@ -263,6 +274,12 @@ export function ConfigDortoirs() {
                                             <CardTitle className="text-base">
                                                 {dortoir.nom}
                                             </CardTitle>
+                                            <Badge className={sexe === 'femme'
+                                                ? "bg-pink-100 text-pink-700 border border-pink-200 dark:bg-pink-900/30 dark:text-pink-300"
+                                                : "bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-300"
+                                            }>
+                                                {sexe === 'femme' ? "♀ Femme" : sexe === 'homme' ? "♂ Homme" : "Non défini"}
+                                            </Badge>
                                         </div>
                                         <Button
                                             variant="ghost"
@@ -301,6 +318,23 @@ export function ConfigDortoirs() {
                                             onChange={(e) => handleChange(dortoir.id, 'capacite', e.target.value)}
                                             className="h-9"
                                         />
+                                    </div>
+
+                                    {/* Sexe */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor={`sexe-${dortoir.id}`} className="text-xs">
+                                            Sexe du dortoir
+                                        </Label>
+                                        <Select
+                                            id={`sexe-${dortoir.id}`}
+                                            value={sexe}
+                                            onChange={(e) => handleChange(dortoir.id, 'sexe', e.target.value)}
+                                            className="h-9"
+                                        >
+                                            <option value="">Non défini</option>
+                                            <option value="homme">♂ Homme</option>
+                                            <option value="femme">♀ Femme</option>
+                                        </Select>
                                     </div>
 
                                     {/* Stats */}

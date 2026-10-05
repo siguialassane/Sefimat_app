@@ -13,6 +13,11 @@ import {
     Wallet,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+    getFinanceCollectedAmount,
+    getRemainingDue,
+    getRequiredAmount,
+} from "@/lib/finance";
 
 export function SectionDashboard() {
     const context = useOutletContext();
@@ -24,6 +29,7 @@ export function SectionDashboard() {
         fullyPaid: 0,
         partiallyPaid: 0,
         totalCollected: 0,
+        totalValidated: 0,
         totalRemaining: 0,
         collectionRate: 0,
     });
@@ -59,14 +65,16 @@ export function SectionDashboard() {
 
             const totalMembers = inscriptions.length;
             const totalCollected = inscriptions.reduce((acc, i) => acc + (i.montant_total_paye || 0), 0);
-            const totalRequired = totalMembers * 4000;
-            const totalRemaining = totalRequired - totalCollected;
+            const totalValidated = inscriptions.reduce((acc, i) => acc + getFinanceCollectedAmount(i), 0);
+            const totalRequired = inscriptions.reduce((acc, i) => acc + getRequiredAmount(i), 0);
+            const totalRemaining = inscriptions.reduce((acc, i) => acc + getRemainingDue(i), 0);
 
             setStats({
                 totalMembers,
                 fullyPaid: inscriptions.filter(i => i.statut_paiement === 'soldé' || i.statut_paiement === 'valide_financier').length,
                 partiallyPaid: inscriptions.filter(i => i.statut_paiement === 'partiel').length,
                 totalCollected,
+                totalValidated,
                 totalRemaining,
                 collectionRate: totalMembers > 0 ? Math.round((totalCollected / totalRequired) * 100) : 0,
             });
@@ -198,9 +206,12 @@ export function SectionDashboard() {
                                     <Wallet className="h-6 w-6 text-green-600" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-text-secondary">Total collecté</p>
+                                    <p className="text-sm text-text-secondary">Encaissé déclaré</p>
                                     <p className="text-2xl font-bold text-green-600">
                                         {formatMontant(stats.totalCollected)}
+                                    </p>
+                                    <p className="text-xs text-text-secondary">
+                                        dont {formatMontant(stats.totalValidated)} validés
                                     </p>
                                 </div>
                             </div>

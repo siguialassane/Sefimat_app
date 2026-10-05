@@ -2,7 +2,8 @@ import { useState } from "react";
 import { ChevronUp, Building, Bed } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function DormitoryDropdown({ stats }) {
+export function DormitoryDropdown({ stats, dortoirs = [] }) {
+    const getSexe = (stat) => stat.sexe || dortoirs.find((d) => d.id === stat.id)?.sexe || "";
     const [isOpen, setIsOpen] = useState(false);
 
     // Calculate total params for summary
@@ -64,6 +65,10 @@ export function DormitoryDropdown({ stats }) {
                         <div className="grid grid-cols-2 gap-3">
                             {stats.map((stat, index) => {
                                 const tauxNum = parseFloat(stat.taux_remplissage);
+                                const sexe = getSexe(stat);
+                                const sexeBadgeClass = sexe === "femme"
+                                    ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"
+                                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
                                 let colorClass = 'bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30';
 
                                 if (tauxNum >= 90) {
@@ -86,6 +91,11 @@ export function DormitoryDropdown({ stats }) {
                                             <span className="text-sm font-bold truncate pr-2">{stat.nom}</span>
                                             <Bed className="h-4 w-4 opacity-70 flex-shrink-0" />
                                         </div>
+                                        {sexe !== "" && (
+                                            <span className={cn("mb-2 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", sexeBadgeClass)}>
+                                                {sexe === "femme" ? "♀ Femme" : "♂ Homme"}
+                                            </span>
+                                        )}
 
                                         <div className="space-y-2 mt-auto">
                                             <div className="text-xl font-bold tracking-tight leading-none">

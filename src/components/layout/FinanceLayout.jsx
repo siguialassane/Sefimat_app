@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     LayoutDashboard,
     CheckCircle,
@@ -9,10 +9,13 @@ import {
     Menu,
     X,
     List,
+    Wallet,
+    UserPlus,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { useAuth } from "@/contexts";
+import { useAuth, useData } from "@/contexts";
+import { notify } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
@@ -22,25 +25,64 @@ const menuItems = [
         path: "/finance/dashboard",
     },
     {
+        icon: Wallet,
+        label: "Caisse",
+        path: "/finance/caisse",
+        badgeKey: "versementsEnAttente",
+    },
+    {
         icon: CheckCircle,
-        label: "Validations",
+        label: "Dossiers",
         path: "/finance/validation",
     },
     {
         icon: List,
-        label: "Liste Paiement",
+        label: "Versements",
         path: "/finance/liste",
+    },
+    {
+        icon: FileSpreadsheet,
+        label: "Synthèse",
+        path: "/finance/synthese",
     },
     {
         icon: BarChart3,
         label: "Stats",
         path: "/finance/stats",
     },
+    {
+        icon: UserPlus,
+        label: "Préinscriptions",
+        path: "/finance/preinscription",
+    },
 ];
+
+// Toast temps réel : prévient la finance dès qu'un versement arrive en caisse.
+function CaisseRealtimeWatcher() {
+    const { caisseEvent, inscriptions, chefsQuartier } = useData();
+    const lastShownRef = useRef(0);
+    useEffect(() => {
+        if (!caisseEvent || caisseEvent.at <= lastShownRef.current) return;
+        lastShownRef.current = caisseEvent.at;
+        const v = caisseEvent.versement || {};
+        const inscription = (inscriptions || []).find((i) => i.id === v.inscription_id);
+        const chef = (chefsQuartier || []).find((c) => c.id === inscription?.chef_quartier_id);
+        const montant = new Intl.NumberFormat("fr-FR").format(v.montant || 0);
+        const qui = inscription
+            ? `${inscription.nom || ""} ${inscription.prenom || ""}`.trim()
+            : "Versement";
+        notify.info(`${montant} FCFA — ${qui} (${chef ? chef.nom_complet : "Guichet"})`, {
+            title: "Nouveau versement en attente",
+        });
+    }, [caisseEvent, inscriptions, chefsQuartier]);
+    return null;
+}
 
 export function FinanceLayout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { signOut, userProfile } = useAuth();
+    const { stats } = useData();
+    const caisseBadge = stats?.versementsEnAttente || 0;
     const navigate = useNavigate();
 
     const handleSignOut = async () => {
@@ -50,6 +92,7 @@ export function FinanceLayout() {
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark">
+            <CaisseRealtimeWatcher />
             {/* Desktop Sidebar */}
             <aside className="hidden lg:flex flex-col w-64 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark">
                 {/* Logo */}
@@ -87,6 +130,11 @@ export function FinanceLayout() {
                         >
                             <item.icon className="h-5 w-5" />
                             {item.label}
+                            {item.badgeKey && caisseBadge > 0 && (
+                                <span className="ml-auto min-w-6 h-6 px-1.5 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">
+                                    {caisseBadge}
+                                </span>
+                            )}
                         </NavLink>
                     ))}
                 </nav>
@@ -163,6 +211,11 @@ export function FinanceLayout() {
                                 >
                                     <item.icon className="h-5 w-5" />
                                     {item.label}
+                                    {item.badgeKey && caisseBadge > 0 && (
+                                        <span className="ml-auto min-w-6 h-6 px-1.5 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">
+                                            {caisseBadge}
+                                        </span>
+                                    )}
                                 </NavLink>
                             ))}
                         </nav>
