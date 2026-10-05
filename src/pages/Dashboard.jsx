@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
     RefreshCw,
 } from "lucide-react";
 import { useData } from "@/contexts";
+import { isInSecretariatScope } from "@/lib/secretariat";
 import { notify } from "@/components/ui/toast";
 
 export function Dashboard() {
@@ -35,12 +36,7 @@ export function Dashboard() {
     const [refreshing, setRefreshing] = useState(false);
 
     const visibleInscriptions = useMemo(() => {
-        return inscriptions.filter((i) => {
-            if (i.created_by === "president") {
-                return i.workflow_status === "pending_secretariat" || i.workflow_status === "completed";
-            }
-            return true;
-        });
+        return inscriptions.filter(isInSecretariatScope);
     }, [inscriptions]);
 
     const visibleStats = useMemo(() => {

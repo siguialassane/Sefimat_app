@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useData } from "@/contexts";
+import { isInSecretariatScope } from "@/lib/secretariat";
 import { notify } from "@/components/ui/toast";
 
 // Configuration des statuts (mapping DB -> UI)
@@ -106,16 +107,10 @@ export function RegistrationManagement() {
             const matchesNiveau = !filters.niveau || r.niveau === filters.niveau;
             const matchesSexe = !filters.sexe || r.sexe === filters.sexe;
             
-            // Filtre workflow: afficher uniquement les inscriptions en attente de secrétariat pour les inscriptions président
-            // Pour les inscriptions président avec workflow
-            if (r.originalData.created_by === 'president') {
-                // Afficher uniquement si workflow_status = 'pending_secretariat' ou 'completed'
-                return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe && 
-                       (r.originalData.workflow_status === 'pending_secretariat' || r.originalData.workflow_status === 'completed');
-            }
-            
-            // Pour les autres inscriptions, afficher toutes
-            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe;
+            // Périmètre secrétaire : les dossiers président n'apparaissent
+            // qu'après validation finance (cf. src/lib/secretariat.js)
+            return matchesSearch && matchesStatus && matchesChef && matchesNiveau && matchesSexe &&
+                isInSecretariatScope(r.originalData);
         });
     }, [registrations, searchTerm, filters]);
 

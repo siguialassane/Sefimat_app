@@ -14,6 +14,7 @@ import {
     Download,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { applySecretariatScope } from "@/lib/secretariat";
 import { notify } from "@/components/ui/toast";
 
 export function Exports() {
@@ -245,6 +246,7 @@ export function Exports() {
         async function countFiltered() {
             try {
                 let query = supabase.from('inscriptions').select('id', { count: 'exact', head: true });
+                query = applySecretariatScope(query);
                 query = applyFiltersToQuery(query);
 
                 const { count, error } = await query;
@@ -281,6 +283,10 @@ export function Exports() {
                     chef_quartier:chefs_quartier(nom_complet, zone)
                 `)
                 .order("created_at", { ascending: false });
+
+            // Périmètre secrétaire dans tous les cas : jamais de dossier
+            // président non validé par la finance, même en "export complet".
+            query = applySecretariatScope(query);
 
             if (filtered) {
                 query = applyFiltersToQuery(query);
@@ -340,8 +346,9 @@ export function Exports() {
                             </h2>
                         </div>
                         <p className="text-text-secondary dark:text-gray-400 text-sm md:text-base">
-                            Téléchargez la liste brute de tous les participants inscrits, tous quartiers, statuts
-                            et types d'inscription confondus. Ceci inclut des données sensibles.
+                            Téléchargez la liste des participants de votre périmètre (dossiers validés par
+                            la finance), tous quartiers, statuts et types d'inscription confondus.
+                            Ceci inclut des données sensibles.
                         </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 shrink-0">

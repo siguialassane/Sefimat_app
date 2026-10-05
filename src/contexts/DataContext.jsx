@@ -8,23 +8,17 @@ import {
   isVersementPending,
 } from '../lib/finance';
 import { useAuth } from './AuthContext';
+import { isInSecretariatScope } from '../lib/secretariat';
 import { DataContext } from './data-context';
 
 function buildStats(inscriptions, paiements) {
   const safeInscriptions = Array.isArray(inscriptions) ? inscriptions : [];
   const safePaiements = Array.isArray(paiements) ? paiements : [];
 
-  // Pour les stats générales du secrétariat, ne compter que les inscriptions qui sont visibles
-  // c'est-à-dire : 
-  // - Les inscriptions NON président (ancien système)
-  // - Les inscriptions président qui ont passé la validation financière (pending_secretariat ou completed)
+  // Pour les stats générales du secrétariat, ne compter que les inscriptions
+  // visibles (cf. src/lib/secretariat.js)
   const inscriptionsVisiblesSecretariat = safeInscriptions.filter(i => {
-    // Si inscription président, elle doit avoir passé la finance
-    if (i?.created_by === 'president') {
-      return i?.workflow_status === 'pending_secretariat' || i?.workflow_status === 'completed';
-    }
-    // Sinon, toutes les autres inscriptions sont comptées (ancien système)
-    return true;
+    return isInSecretariatScope(i);
   });
 
   const totalInscriptions = inscriptionsVisiblesSecretariat.length;
