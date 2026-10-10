@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useData } from "@/contexts";
+import { isExcluScientifique, sansPepiniereNotes } from "@/lib/scientifique";
 
 export function ScientifiqueDashboard() {
     const {
@@ -31,7 +32,10 @@ export function ScientifiqueDashboard() {
         return inscriptions.filter(i => {
             // Vérifier que l'inscription est validée
             if (i.statut !== 'valide') return false;
-            
+
+            // Pépinière : exclu de la cellule scientifique
+            if (isExcluScientifique(i)) return false;
+
             // Vérifier qu'elle n'a pas encore de note
             if (inscriptionIdsAvecNote.has(i.id)) return false;
             
@@ -47,8 +51,9 @@ export function ScientifiqueDashboard() {
 
     // Calcul du taux de remplissage des classes
     const tauxRemplissageClasses = useMemo(() => {
+        const notesUtiles = sansPepiniereNotes(notesExamens);
         return classes.map(classe => {
-            const effectif = notesExamens.filter(n => n.classe_id === classe.id).length;
+            const effectif = notesUtiles.filter(n => n.classe_id === classe.id).length;
             const taux = classe.capacite > 0 ? (effectif / classe.capacite) * 100 : 0;
             return { ...classe, effectif, taux };
         });

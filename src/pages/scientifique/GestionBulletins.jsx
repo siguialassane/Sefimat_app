@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { LazyImage } from '@/components/ui/lazy-image';
 import { notify } from '@/components/ui/toast';
 import { useData } from '@/contexts';
+import { sansPepiniereNotes } from "@/lib/scientifique";
 import {
     Download,
     FileText,
@@ -55,7 +56,7 @@ export default function GestionBulletins() {
 
     // Filtrer les notes avec classe_id assignée
     const notesAvecClasse = useMemo(() => {
-        return notesExamens.filter(note => note.classe_id !== null);
+        return sansPepiniereNotes(notesExamens).filter(note => note.classe_id !== null);
     }, [notesExamens]);
 
     // Filtrer les participants avec moyenne calculée (notes complètes)

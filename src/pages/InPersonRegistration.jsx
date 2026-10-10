@@ -36,7 +36,7 @@ import { notify } from "@/components/ui/toast";
 // son code puis complète : identité, contacts, dortoir, photo.
 // Nom/prénom saisis par la finance : VERROUILLÉS (non modifiables).
 const completionSteps = [
-    { id: 1, title: "Identité", fields: ["sexe", "age", "niveauEtude", "telephone", "ecole"] },
+    { id: 1, title: "Identité", fields: ["sexe", "age", "niveauEtude", "telephone", "ecole", "estPepiniere"] },
     { id: 2, title: "Parents & Contact", fields: ["nomParent", "prenomParent", "numeroParent", "lieuHabitation", "numeroUrgence"] },
     { id: 3, title: "Finalisation", fields: ["nombreParticipations", "dortoirId"] }
 ];
@@ -54,6 +54,7 @@ const completionSchema = z.object({
     nombreParticipations: z.number().min(0, "Le nombre doit être positif ou zéro"),
     numeroUrgence: z.string().min(8, "Le numéro d'urgence est obligatoire"),
     dortoirId: z.string().min(1, "Veuillez sélectionner un dortoir"),
+    estPepiniere: z.boolean().optional(),
 });
 
 export function InPersonRegistration() {
@@ -95,6 +96,7 @@ export function InPersonRegistration() {
         defaultValues: {
             sexe: "homme",
             nombreParticipations: 0,
+            estPepiniere: false,
         },
     });
 
@@ -296,6 +298,7 @@ export function InPersonRegistration() {
                 valide_par_financier: user?.id || null,
                 date_validation_financier: now,
                 dossier_complet: true,
+                est_pepiniere: data.estPepiniere === true,
             };
             const { error } = await supabase
                 .from('inscriptions')
@@ -307,7 +310,7 @@ export function InPersonRegistration() {
 
             setDossier(null);
             chargerACompleter();
-            reset({ sexe: "homme", nombreParticipations: 0 });
+            reset({ sexe: "homme", nombreParticipations: 0, estPepiniere: false });
             setPhotoFile(null);
             setPhotoKey((prev) => prev + 1);
             setCurrentStep(1);
@@ -564,6 +567,13 @@ export function InPersonRegistration() {
                                                                 </label>
                                                             </div>
                                                         </fieldset>
+
+                                                        <label htmlFor="estPepiniere" className="flex cursor-pointer items-center gap-3 rounded-lg border border-border-light dark:border-border-dark bg-amber-50 dark:bg-amber-900/10 px-4 py-2.5 text-sm">
+                                                            <input id="estPepiniere" type="checkbox" {...register("estPepiniere")} className="h-4 w-4 accent-amber-600" />
+                                                            <span className="font-medium text-text-main dark:text-gray-200">
+                                                                Pépinière <span className="font-normal text-text-secondary">(petit enfant : badge oui, cellule scientifique non)</span>
+                                                            </span>
+                                                        </label>
 
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div className="flex flex-col gap-2">

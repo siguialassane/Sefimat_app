@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { useData } from "@/contexts";
 import { supabase } from "@/lib/supabase";
+import { isExcluScientifique } from "@/lib/scientifique";
 import { notify } from "@/components/ui/toast";
 
 export function GestionNotes() {
@@ -23,6 +24,8 @@ export function GestionNotes() {
     const notesFiltrees = useMemo(() => {
         return notesExamens
             .filter(note => {
+                // Pépinière : exclu de la cellule scientifique
+                if (isExcluScientifique(note.inscription)) return false;
                 // Filtre recherche
                 if (searchTerm) {
                     const search = searchTerm.toLowerCase();
@@ -240,7 +243,8 @@ export function GestionNotes() {
         const memeClasse = notesExamens.filter(n =>
             n.classe_id === note.classe_id &&
             n.moyenne !== null &&
-            n.moyenne !== undefined
+            n.moyenne !== undefined &&
+            !isExcluScientifique(n.inscription)
         );
 
         // Trier par moyenne décroissante

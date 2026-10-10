@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useData, useAuth } from "@/contexts";
 import { supabase } from "@/lib/supabase";
 import { determinerNiveau, plageNiveau, choisirClasseDisponible, NIVEAUX, NIVEAU_LABELS } from "@/lib/niveaux";
+import { isExcluScientifique } from "@/lib/scientifique";
 import { notify } from "@/components/ui/toast";
 
 export function TestEntree() {
@@ -36,7 +37,10 @@ export function TestEntree() {
             .filter(i => {
                 // Vérifier que l'inscription est validée
                 if (i.statut !== 'valide') return false;
-                
+
+                // Pépinière : pas de test d'entrée
+                if (isExcluScientifique(i)) return false;
+
                 // Vérifier qu'elle n'a pas encore de note
                 if (inscriptionIdsAvecNote.has(i.id)) return false;
                 
@@ -150,6 +154,10 @@ export function TestEntree() {
         const note = parseFloat(noteValue);
         if (isNaN(note) || note < 0 || note > 20) {
             setErrors(prev => ({ ...prev, [inscription.id]: "Note invalide (0-20)" }));
+            return false;
+        }
+        if (isExcluScientifique(inscription)) {
+            setErrors(prev => ({ ...prev, [inscription.id]: "Dossier pépinière : pas de test d'entrée" }));
             return false;
         }
 

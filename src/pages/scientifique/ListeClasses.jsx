@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { useData } from "@/contexts";
+import { sansPepiniereNotes } from "@/lib/scientifique";
 import { notify } from "@/components/ui/toast";
 
 export function ListeClasses() {
@@ -32,8 +33,9 @@ export function ListeClasses() {
     // Obtenir les participants par classe
     const participantsParClasse = useMemo(() => {
         const result = {};
+        const notesUtiles = sansPepiniereNotes(notesExamens);
         classesFiltrees.forEach(classe => {
-            result[classe.id] = notesExamens
+            result[classe.id] = notesUtiles
                 .filter(note => note.classe_id === classe.id)
                 .map(note => ({
                     ...note,
@@ -175,7 +177,7 @@ export function ListeClasses() {
                             pdf.setFontSize(10);
                             pdf.setTextColor(0, 0, 0);
                         }
-                    } catch (err) {
+                    } catch {
                         // Placeholder en cas d'erreur
                         pdf.setFillColor(229, 231, 235);
                         pdf.roundedRect(28, y, photoSize, photoSize, 2, 2, 'F');
@@ -311,7 +313,7 @@ export function ListeClasses() {
                                 pdf.setFillColor(229, 231, 235);
                                 pdf.roundedRect(26, y, photoSize, photoSize, 1, 1, 'F');
                             }
-                        } catch (err) {
+                        } catch {
                             pdf.setFillColor(229, 231, 235);
                             pdf.roundedRect(26, y, photoSize, photoSize, 1, 1, 'F');
                         }

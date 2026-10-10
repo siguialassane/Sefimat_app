@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useData } from "@/contexts";
 import { supabase } from "@/lib/supabase";
 import { getSeuilsMap, plageNiveau, validerSeuils, NOTE_MIN, NOTE_MAX } from "@/lib/niveaux";
+import { sansPepiniereNotes } from "@/lib/scientifique";
 import { notify } from "@/components/ui/toast";
 
 export function ConfigClasses() {
@@ -21,7 +22,7 @@ export function ConfigClasses() {
     // Calculer les stats par niveau
     const getStatsNiveau = useCallback((niveau) => {
         const classesDuNiveau = classes.filter(c => c.niveau === niveau);
-        const effectifTotal = notesExamens.filter(n => n.niveau_attribue === niveau).length;
+        const effectifTotal = sansPepiniereNotes(notesExamens).filter(n => n.niveau_attribue === niveau).length;
         const capaciteTotale = classesDuNiveau.reduce((acc, c) => acc + c.capacite, 0);
         return {
             nbClasses: classesDuNiveau.length,
@@ -312,7 +313,7 @@ export function ConfigClasses() {
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {classes.map(classe => {
-                                const effectif = notesExamens.filter(n => n.classe_id === classe.id).length;
+                                const effectif = sansPepiniereNotes(notesExamens).filter(n => n.classe_id === classe.id).length;
                                 const tauxRemplissage = classe.capacite > 0 ? (effectif / classe.capacite) * 100 : 0;
 
                                 return (

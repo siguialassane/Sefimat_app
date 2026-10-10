@@ -9,6 +9,7 @@ import {
 } from '../lib/finance';
 import { useAuth } from './AuthContext';
 import { isInSecretariatScope } from '../lib/secretariat';
+import { isExcluScientifique } from '../lib/scientifique';
 import { DataContext } from './data-context';
 
 function buildStats(inscriptions, paiements) {
@@ -220,6 +221,8 @@ export function DataProvider({ children }) {
     // - Les inscriptions NON président validées (ancien système)
     // - Les inscriptions président avec workflow_status = 'completed'
     const inscriptionsVisiblesScientifique = safeInscriptions.filter(i => {
+      // Pépinière : exclu de la cellule scientifique
+      if (isExcluScientifique(i)) return false;
       // Si inscription président, elle doit être completed
       if (i?.created_by === 'president') {
         return i?.workflow_status === 'completed' && i?.statut === 'valide';
@@ -239,10 +242,13 @@ export function DataProvider({ children }) {
 
     const inscriptionIdsAvecNoteEntree = new Set();
     const inscriptionIdsAvecMoyenne = new Set();
+    const inscById = new Map(safeInscriptions.map(i => [i?.id, i]));
 
     for (const note of safeNotes) {
       const inscriptionId = note?.inscription_id;
       if (!inscriptionId) continue;
+      // Pépinière : notes ignorées dans les stats scientifiques
+      if (isExcluScientifique(note?.inscription ?? inscById.get(inscriptionId))) continue;
 
       const niveau = note?.niveau_attribue;
       if (niveau && Object.prototype.hasOwnProperty.call(parNiveauSets, niveau)) {

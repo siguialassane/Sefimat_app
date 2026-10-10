@@ -168,6 +168,11 @@ export function RegistrationDetailsModal({
                                     {statusConfig[registration.statut]?.label || registration.statut}
                                 </Badge>
                             )}
+                            {!isEditing && registration.originalData?.est_pepiniere === true && (
+                                <Badge variant="warning">
+                                    Pépinière
+                                </Badge>
+                            )}
                         </h3>
                         <p className="text-sm text-text-secondary dark:text-gray-400 mt-1">
                             Créé le {registration.date} • {registration.originalData?.type_inscription === 'en_ligne' ? 'Inscription en ligne' : 'Inscription présentielle'}
@@ -417,6 +422,20 @@ export function RegistrationDetailsModal({
                                     <option value="valide">Validé</option>
                                     <option value="rejete">Rejeté</option>
                                 </Select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label htmlFor="edit-pepiniere" className="flex cursor-pointer items-center gap-3 rounded-lg border border-border-light dark:border-border-dark bg-amber-50 dark:bg-amber-900/10 px-4 py-2.5 text-sm">
+                                    <input
+                                        id="edit-pepiniere"
+                                        type="checkbox"
+                                        checked={formData.est_pepiniere === true}
+                                        onChange={e => handleChange("est_pepiniere", e.target.checked)}
+                                        className="h-4 w-4 accent-amber-600"
+                                    />
+                                    <span className="font-medium text-text-main dark:text-gray-200">
+                                        Pépinière <span className="font-normal text-text-secondary">(petit enfant : badge oui, cellule scientifique non)</span>
+                                    </span>
+                                </label>
                             </div>
 
                             <div className="md:col-span-2 mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-yellow-200 dark:border-yellow-800">

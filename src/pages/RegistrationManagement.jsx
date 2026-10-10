@@ -199,6 +199,7 @@ export function RegistrationManagement() {
                 statut: formData.statut,
                 dortoir_id: formData.dortoir_id || null,
                 niveau_formation: formData.niveau_formation || null,
+                est_pepiniere: formData.est_pepiniere === true,
             };
 
             const { error } = await supabase
