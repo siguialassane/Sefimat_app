@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 // Test ciblé du flux présentiel en 2 temps (node test-preinscription.js)
 // Finance préinscrit (nom/prénom/montant -> code SEFI-) puis le secrétariat
 // finalise par code (nom/prénom verrouillés). L'ancien flux de création
@@ -60,7 +61,7 @@ check("scan: usage unique vérifié", scan.includes('"used"') && scan.includes("
 
 const comp = readFileSync("./src/pages/InPersonRegistration.jsx", "utf8");
 check("finalisation: bouton QR", comp.includes("Photo par téléphone"));
-check("finalisation: aperçu à confirmer", comp.includes("Accepter") && comp.includes("remoteAccepted"));
+check("finalisation: photo QR directe dans le div réservé", comp.includes("existingPhoto={remoteAccepted ? remotePhoto : undefined}") && !comp.includes("Accepter") && !comp.includes("à confirmer"));
 check("finalisation: photo distante à la soumission", comp.includes("remotePhoto ? remotePhoto"));
 check("finalisation: liste sans saisie code", comp.includes("Dossiers à compléter") && !comp.includes("code-recherche"));
 check("finalisation: Genre coché visible", comp.includes("border-primary bg-primary/10"));

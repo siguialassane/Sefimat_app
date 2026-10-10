@@ -252,9 +252,15 @@ export function InPersonRegistration() {
             (payload) => {
                 const row = payload.new;
                 if (row?.photo_url && row?.status === "used") {
+                    // Acceptée d'office (déjà validée sur le téléphone) :
+                    // remplace directement la photo du div réservé.
                     setRemotePhoto(row.photo_url);
+                    setRemoteAccepted(true);
+                    setPhotoFile(null);
+                    setPhotoError(null);
+                    setPhotoKey((prev) => prev + 1);
                     setQrSession(null);
-                    notify.success("Photo reçue du téléphone — à confirmer.", { title: "Photo reçue" });
+                    notify.success("Photo reçue du téléphone.", { title: "Photo reçue" });
                 }
             }
         ).subscribe();
@@ -427,30 +433,14 @@ export function InPersonRegistration() {
                                         </div>
                                         <PhotoCapture
                                             key={photoKey}
-                                            onPhotoCapture={(f) => { setPhotoFile(f); if (f) { setRemoteAccepted(false); } }}
+                                            existingPhoto={remoteAccepted ? remotePhoto : undefined}
+                                            onPhotoCapture={(f) => { setPhotoFile(f); setRemotePhoto(null); setRemoteAccepted(false); }}
                                             required={true}
                                         />
                                         <Button type="button" variant="outline" className="w-full gap-2 mt-3" onClick={genererQR}>
                                             <Smartphone className="h-4 w-4" />
                                             Photo par téléphone (QR)
                                         </Button>
-                                        {remotePhoto && !remoteAccepted && (
-                                            <div className="mt-3 p-3 rounded-xl border border-emerald-500/50 bg-emerald-500/5">
-                                                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-2">Photo reçue — à confirmer</p>
-                                                <img src={remotePhoto} alt="Photo téléphone" className="w-full rounded-lg border border-border-light dark:border-border-dark" />
-                                                <div className="flex gap-2 mt-2">
-                                                    <Button type="button" className="flex-1" onClick={() => { setRemoteAccepted(true); setPhotoError(null); }}>Accepter</Button>
-                                                    <Button type="button" variant="outline" className="flex-1" onClick={() => { setRemotePhoto(null); setRemoteAccepted(false); }}>Refuser</Button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {remoteAccepted && remotePhoto && (
-                                            <div className="mt-3 p-3 rounded-xl border border-primary/40 bg-primary/5">
-                                                <p className="text-sm font-semibold text-primary mb-2">Photo du téléphone acceptée</p>
-                                                <img src={remotePhoto} alt="Photo acceptée" className="w-full rounded-lg border border-border-light dark:border-border-dark" />
-                                                <button type="button" onClick={() => { setRemoteAccepted(false); setRemotePhoto(null); }} className="text-xs font-medium text-primary hover:underline mt-2">Utiliser une autre photo</button>
-                                            </div>
-                                        )}
                                         {photoError && (
                                             <p className="text-red-500 text-sm text-center mt-3">{photoError}</p>
                                         )}
