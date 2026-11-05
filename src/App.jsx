@@ -14,6 +14,7 @@ const PepiniereList = lazy(() => import("@/pages/PepiniereList").then((module) =
 const InPersonRegistration = lazy(() => import("@/pages/InPersonRegistration").then((module) => ({ default: module.InPersonRegistration })));
 const Corbeille = lazy(() => import("@/pages/Corbeille").then((module) => ({ default: module.Corbeille })));
 const BadgeManagement = lazy(() => import("@/pages/BadgeManagement").then((module) => ({ default: module.BadgeManagement })));
+const CertificateManagement = lazy(() => import("@/pages/CertificateManagement").then((module) => ({ default: module.CertificateManagement })));
 const Exports = lazy(() => import("@/pages/Exports").then((module) => ({ default: module.Exports })));
 const ConfigDortoirs = lazy(() => import("@/pages/ConfigDortoirs").then((module) => ({ default: module.ConfigDortoirs })));
 const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard").then((module) => ({ default: module.FinanceDashboard })));
@@ -106,6 +107,7 @@ function App() {
                   <Route path="inscription-presentielle" element={<InPersonRegistration />} />
                             <Route path="corbeille" element={<Corbeille />} />
                   <Route path="badges" element={<BadgeManagement />} />
+                  <Route path="certificats" element={<CertificateManagement />} />
                   <Route path="exports" element={<Exports />} />
                   <Route path="config-dortoirs" element={<ConfigDortoirs />} />
                 </Route>

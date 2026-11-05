@@ -10,6 +10,7 @@ import {
     Bed,
     Trash2,
     Sprout,
+    Award,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -23,6 +24,7 @@ const navItems = [
     { to: "/admin/inscription-presentielle", icon: UserPlus, label: "Finaliser inscription" },
     { to: "/admin/corbeille", icon: Trash2, label: "Corbeille" },
     { to: "/admin/badges", icon: IdCard, label: "Gestion des badges" },
+    { to: "/admin/certificats", icon: Award, label: "Certificats" },
     { to: "/admin/config-dortoirs", icon: Bed, label: "Configuration dortoirs" },
     { to: "/admin/exports", icon: Download, label: "Exports" },
 ];

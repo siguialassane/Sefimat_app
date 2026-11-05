@@ -92,13 +92,13 @@ function BadgePreview({ participant, badgeRef }) {
                 crossOrigin="anonymous"
             />
 
-            {/* Photo du participant - décalé à droite et rogné */}
+            {/* Photo du participant, ajustée à l'intérieur du cadre du modèle. */}
             <div
                 style={{
                     position: "absolute",
                     top: "70px",
-                    left: "95px",
-                    width: "160px",
+                    left: "94px",
+                    width: "166px",
                     height: "174px",
                     borderRadius: "4px",
                     overflow: "hidden",

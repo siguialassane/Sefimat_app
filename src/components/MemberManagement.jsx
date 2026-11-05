@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, Download, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, Download, RefreshCw, Trash2 } from "lucide-react";
 import { supabase as memberClient } from "@/lib/supabase";
 import { MemberBadge } from "@/components/MemberBadge";
+import { COMMISSIONS } from "@/lib/commissions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -78,10 +79,45 @@ export function MemberManagement() {
     };
     const filtered = members.filter((member) => `${member.nom} ${member.prenom} ${member.commission}`.toLowerCase().includes(search.toLowerCase()));
 
+    const commissionCounts = members.reduce((counts, member) => {
+        const name = member.commission || "Non renseignée";
+        counts.set(name, (counts.get(name) || 0) + 1);
+        return counts;
+    }, new Map());
+    const commissionStats = [
+        ...COMMISSIONS.map((commission) => ({ ...commission, count: commissionCounts.get(commission.nom) || 0 })),
+        ...[...commissionCounts.entries()]
+            .filter(([name]) => !COMMISSIONS.some((commission) => commission.nom === name))
+            .map(([nom, count]) => ({ nom, count, couleur: "#64748b" })),
+    ];
+
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
             <div><h2 className="text-2xl font-bold text-text-main dark:text-white">Badges des membres</h2><p className="text-sm text-text-secondary mt-1">Partagez le lien d'inscription, puis préparez les badges des commissions.</p></div>
             <Card className="p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center"><Input readOnly value={registrationLink} aria-label="Lien d'inscription des membres" /><Button variant="outline" onClick={copyLink} className="gap-2 shrink-0"><Copy className="h-4 w-4" /> Copier le lien</Button></Card>
+            <Card className="p-5">
+                <details className="group">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+                        <div>
+                            <h3 className="font-semibold text-text-main dark:text-white">Membres par commission</h3>
+                            <p className="text-sm text-text-secondary mt-1">Répartition de tous les membres inscrits</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-sm font-semibold text-text-secondary">{members.length} membre{members.length !== 1 ? "s" : ""} au total</span>
+                            <ChevronDown className="h-5 w-5 text-text-secondary transition-transform group-open:rotate-180" aria-hidden="true" />
+                        </div>
+                    </summary>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                        {commissionStats.map((commission) => (
+                            <div key={commission.nom} className="flex items-center gap-3 rounded-lg border border-border-light dark:border-border-dark px-3 py-2.5">
+                                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: commission.couleur }} aria-hidden="true" />
+                                <span className="text-sm text-text-main dark:text-white flex-1 min-w-0">{commission.nom}</span>
+                                <span className="text-sm font-bold text-text-main dark:text-white tabular-nums">{commission.count}</span>
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            </Card>
             {
                 <div className="grid lg:grid-cols-2 gap-6">
                     <Card className="overflow-hidden"><div className="p-4 space-y-3"><div className="flex items-center justify-between"><h3 className="font-semibold">Membres ({filtered.length})</h3><Button variant="outline" size="sm" onClick={load} aria-label="Actualiser la liste"><RefreshCw className="h-4 w-4" /></Button></div><Input placeholder="Rechercher un membre ou une commission" value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="divide-y divide-border-light dark:divide-border-dark max-h-[600px] overflow-y-auto">{filtered.length === 0 ? <p className="p-5 text-text-secondary text-sm">Aucun membre trouvé.</p> : filtered.map((member) => <div key={member.id} className="p-4 flex items-center gap-3"><button type="button" onClick={() => setSelected(member)} className="flex items-center gap-3 text-left flex-1 min-w-0">{member.photo_url ? <img src={member.photo_url} alt="" className="h-11 w-11 rounded-full object-cover bg-gray-100" /> : <span className="h-11 w-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">{member.nom?.charAt(0)}</span>}<span className="min-w-0"><span className="block font-semibold truncate">{member.nom} {member.prenom}</span><span className="block text-xs text-text-secondary truncate">{member.commission}</span></span></button><Button variant="outline" size="sm" onClick={() => remove(member)} disabled={busy} aria-label={`Supprimer ${member.nom} ${member.prenom}`}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>)}</div></Card>
