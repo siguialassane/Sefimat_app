@@ -10,8 +10,6 @@ import { notify } from "@/components/ui/toast";
 export function MemberManagement() {
     const [session, setSession] = useState(null);
     const [ready, setReady] = useState(false);
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [members, setMembers] = useState([]);
     const [selected, setSelected] = useState(null);
     const [search, setSearch] = useState("");
@@ -62,13 +60,6 @@ export function MemberManagement() {
         return () => { memberClient.removeChannel(channel); };
     }, [session]);
 
-    const login = async (event) => {
-        event.preventDefault();
-        setBusy(true);
-        const { error } = await memberClient.auth.signInWithPassword({ email, password });
-        if (error) notify.error(error.message, { title: "Connexion impossible" });
-        setBusy(false);
-    };
     const remove = async (member) => {
         if (!window.confirm(`Supprimer l'inscription de ${member.nom} ${member.prenom} ?`)) return;
         setBusy(true);
@@ -107,7 +98,7 @@ export function MemberManagement() {
             <div><h2 className="text-2xl font-bold text-text-main dark:text-white">Badges des membres</h2><p className="text-sm text-text-secondary mt-1">Partagez le lien d'inscription, puis préparez les badges des commissions.</p></div>
             <Card className="p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center"><Input readOnly value={registrationLink} aria-label="Lien d'inscription des membres" /><Button variant="outline" onClick={copyLink} className="gap-2 shrink-0"><Copy className="h-4 w-4" /> Copier le lien</Button></Card>
             {!ready ? <p className="text-text-secondary">Chargement...</p> : !session ? (
-                <Card className="p-6 max-w-md"><h3 className="font-semibold mb-2">Connexion à la gestion des membres</h3><p className="text-sm text-text-secondary mb-4">Utilisez le compte dédié à la gestion des membres pour accéder aux coordonnées.</p><form onSubmit={login} className="space-y-3"><Input type="email" placeholder="Email" aria-label="Email du compte membres" value={email} onChange={(e) => setEmail(e.target.value)} required /><Input type="password" placeholder="Mot de passe" aria-label="Mot de passe du compte membres" value={password} onChange={(e) => setPassword(e.target.value)} required /><Button type="submit" disabled={busy}>Se connecter</Button></form></Card>
+                <Card className="p-6 max-w-md"><p className="text-sm text-text-secondary">Votre session a expiré. Reconnectez-vous au secrétariat pour accéder aux membres.</p><a href="/login" className="inline-block mt-3 text-primary font-semibold">Retour à la connexion</a></Card>
             ) : (
                 <div className="grid lg:grid-cols-2 gap-6">
                     <Card className="overflow-hidden"><div className="p-4 space-y-3"><div className="flex items-center justify-between"><h3 className="font-semibold">Membres ({filtered.length})</h3><Button variant="outline" size="sm" onClick={load} aria-label="Actualiser la liste"><RefreshCw className="h-4 w-4" /></Button></div><Input placeholder="Rechercher un membre ou une commission" value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="divide-y divide-border-light dark:divide-border-dark max-h-[600px] overflow-y-auto">{filtered.length === 0 ? <p className="p-5 text-text-secondary text-sm">Aucun membre trouvé.</p> : filtered.map((member) => <div key={member.id} className="p-4 flex items-center gap-3"><button type="button" onClick={() => setSelected(member)} className="flex items-center gap-3 text-left flex-1 min-w-0">{member.photo_url ? <img src={member.photo_url} alt="" className="h-11 w-11 rounded-full object-cover bg-gray-100" /> : <span className="h-11 w-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">{member.nom?.charAt(0)}</span>}<span className="min-w-0"><span className="block font-semibold truncate">{member.nom} {member.prenom}</span><span className="block text-xs text-text-secondary truncate">{member.commission}</span></span></button><Button variant="outline" size="sm" onClick={() => remove(member)} disabled={busy} aria-label={`Supprimer ${member.nom} ${member.prenom}`}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>)}</div></Card>
