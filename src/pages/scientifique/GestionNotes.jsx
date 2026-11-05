@@ -289,7 +289,6 @@ export function GestionNotes() {
                         <option value="all">Tous les niveaux</option>
                         <option value="niveau_1">Niveau 1</option>
                         <option value="niveau_2">Niveau 2</option>
-                        <option value="niveau_3">Niveau 3</option>
                         <option value="niveau_superieur">Niveau Supérieur</option>
                     </Select>
                     <Select

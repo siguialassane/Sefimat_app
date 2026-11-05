@@ -333,7 +333,7 @@ export function TestEntree() {
                                     const plage = plageNiveau(niv, configSeuilsNiveaux);
                                     return (
                                         <li key={niv}>
-                                            Note {String(plage.min).replace('.', ',')} à {String(plage.max).replace('.', ',')} → <span className="font-semibold">{NIVEAU_LABELS[niv]}</span>
+                                            Note {niv === 'niveau_1' ? '' : '> '}{String(plage.min).replace('.', ',')} à {String(plage.max).replace('.', ',')} → <span className="font-semibold">{NIVEAU_LABELS[niv]}</span>
                                         </li>
                                     );
                                 })}

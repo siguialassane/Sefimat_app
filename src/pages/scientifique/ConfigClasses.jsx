@@ -16,6 +16,7 @@ export function ConfigClasses() {
 
     const [editedCapacites, setEditedCapacites] = useState({});
     const [editedSeuils, setEditedSeuils] = useState({});
+    const [editedNames, setEditedNames] = useState({});
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -77,16 +78,20 @@ export function ConfigClasses() {
 
     // Sauvegarder les capacités et les seuils
     const handleSave = useCallback(async () => {
-        if (Object.keys(editedCapacites).length === 0 && Object.keys(editedSeuils).length === 0) return;
+        if (Object.keys(editedCapacites).length === 0 && Object.keys(editedSeuils).length === 0 && Object.keys(editedNames).length === 0) return;
 
         setSaving(true);
         setSuccess(false);
 
         try {
-            // Valider les seuils si modifiés (0 < N1 < N2 < N3 < 20)
+            if (Object.values(editedNames).some((name) => !name.trim())) {
+                notify.error("Le nom d'une classe ne peut pas être vide.");
+                return;
+            }
+            // Valider les seuils si modifiés (0 < N1 < N2 < 20).
             if (Object.keys(editedSeuils).length > 0) {
                 const effectifs = seuilsEffectifs();
-                const erreur = validerSeuils(effectifs.niveau_1, effectifs.niveau_2, effectifs.niveau_3);
+                const erreur = validerSeuils(effectifs.niveau_1, effectifs.niveau_2);
                 if (erreur) {
                     notify.error(erreur, { title: "Seuils invalides" });
                     setSaving(false);
@@ -114,12 +119,18 @@ export function ConfigClasses() {
                 if (error) throw error;
             }
 
+            for (const [id, name] of Object.entries(editedNames)) {
+                const { error } = await supabase.from('classes').update({ nom: name.trim() }).eq('id', id);
+                if (error) throw error;
+            }
+
             // Recharger les données
             await refresh();
 
             // Nettoyer les éditions
             setEditedCapacites({});
             setEditedSeuils({});
+            setEditedNames({});
             setSuccess(true);
             notify.success("Capacités et seuils des niveaux mis à jour.", { title: "Configuration enregistrée" });
 
@@ -130,14 +141,13 @@ export function ConfigClasses() {
         } finally {
             setSaving(false);
         }
-    }, [editedCapacites, editedSeuils, seuilsEffectifs, refresh]);
+    }, [editedCapacites, editedSeuils, editedNames, seuilsEffectifs, refresh]);
 
-    const hasChanges = Object.keys(editedCapacites).length > 0 || Object.keys(editedSeuils).length > 0;
+    const hasChanges = Object.keys(editedCapacites).length > 0 || Object.keys(editedSeuils).length > 0 || Object.keys(editedNames).length > 0;
 
     const niveaux = [
         { key: 'niveau_1', label: 'Niveau 1', color: 'bg-red-500' },
         { key: 'niveau_2', label: 'Niveau 2', color: 'bg-orange-500' },
-        { key: 'niveau_3', label: 'Niveau 3', color: 'bg-yellow-500' },
         { key: 'niveau_superieur', label: 'Niveau Supérieur', color: 'bg-green-500' },
     ];
 
@@ -146,11 +156,10 @@ export function ConfigClasses() {
         const rows = [
             { niveau: 'niveau_1', note_max: seuilsEffectifs().niveau_1 },
             { niveau: 'niveau_2', note_max: seuilsEffectifs().niveau_2 },
-            { niveau: 'niveau_3', note_max: seuilsEffectifs().niveau_3 },
         ];
         const plage = plageNiveau(niveauKey, rows);
         const fmt = (v) => String(v).replace('.', ',');
-        return `Note ${fmt(plage.min)} à ${fmt(plage.max)}`;
+        return `Note ${niveauKey === 'niveau_1' ? '' : '> '}${fmt(plage.min)} à ${fmt(plage.max)}`;
     }, [seuilsEffectifs]);
 
     return (
@@ -203,7 +212,7 @@ export function ConfigClasses() {
                             <p className="mt-2">
                                 Les seuils définissent la note maximale d'entrée de chaque niveau :
                                 une note inférieure ou égale au seuil va dans ce niveau,
-                                au-delà du seuil du Niveau 3 le participant va au Niveau Supérieur.
+                                au-delà du seuil du Niveau 2 le participant va au Niveau Supérieur.
                             </p>
                         </div>
                     </div>
@@ -211,7 +220,7 @@ export function ConfigClasses() {
             </Card>
 
             {/* Configuration par niveau */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {niveaux.map(niveau => {
                     const stats = getStatsNiveau(niveau.key);
                     const capacite = getCapaciteValue(niveau.key);
@@ -322,9 +331,12 @@ export function ConfigClasses() {
                                         className="p-3 rounded-lg border border-border-light dark:border-border-dark"
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="font-medium text-text-main dark:text-white">
-                                                {classe.nom}
-                                            </span>
+                                            <Input
+                                                aria-label={"Nom de la classe " + classe.nom}
+                                                value={editedNames[classe.id] ?? classe.nom ?? ""}
+                                                onChange={(event) => setEditedNames((previous) => ({ ...previous, [classe.id]: event.target.value }))}
+                                                className="max-w-[220px]"
+                                            />
                                             <span className="text-sm text-text-secondary">
                                                 {effectif}/{classe.capacite}
                                             </span>

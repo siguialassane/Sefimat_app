@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useData } from "@/contexts";
 import { isExcluScientifique, sansPepiniereNotes } from "@/lib/scientifique";
+import { getSeuilsMap } from "@/lib/niveaux";
 
 export function ScientifiqueDashboard() {
     const {
@@ -21,10 +22,12 @@ export function ScientifiqueDashboard() {
         notesExamens,
         classes,
         statsScientifique,
+        configSeuilsNiveaux,
         loading,
         refresh,
         lastUpdate,
     } = useData();
+    const seuils = getSeuilsMap(configSeuilsNiveaux);
 
     // Participants validés sans note d'entrée
     const participantsSansNote = useMemo(() => {
@@ -180,7 +183,7 @@ export function ScientifiqueDashboard() {
                                 <div className="flex items-center gap-3">
                                     <div className="h-3 w-3 rounded-full bg-red-500" />
                                     <span className="font-medium text-text-main dark:text-white">Niveau 1</span>
-                                    <span className="text-xs text-text-secondary">(0-5)</span>
+                                    <span className="text-xs text-text-secondary">(0 à {seuils.niveau_1})</span>
                                 </div>
                                 <Badge variant="destructive">
                                     {statsScientifique.parNiveau.niveau_1} participants
@@ -190,27 +193,17 @@ export function ScientifiqueDashboard() {
                                 <div className="flex items-center gap-3">
                                     <div className="h-3 w-3 rounded-full bg-orange-500" />
                                     <span className="font-medium text-text-main dark:text-white">Niveau 2</span>
-                                    <span className="text-xs text-text-secondary">(5-10)</span>
+                                    <span className="text-xs text-text-secondary">(&gt; {seuils.niveau_1} à {seuils.niveau_2})</span>
                                 </div>
                                 <Badge variant="warning">
                                     {statsScientifique.parNiveau.niveau_2} participants
-                                </Badge>
-                            </div>
-                            <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                                    <span className="font-medium text-text-main dark:text-white">Niveau 3</span>
-                                    <span className="text-xs text-text-secondary">(10-14)</span>
-                                </div>
-                                <Badge variant="default">
-                                    {statsScientifique.parNiveau.niveau_3} participants
                                 </Badge>
                             </div>
                             <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
                                 <div className="flex items-center gap-3">
                                     <div className="h-3 w-3 rounded-full bg-green-500" />
                                     <span className="font-medium text-text-main dark:text-white">Niveau Supérieur</span>
-                                    <span className="text-xs text-text-secondary">(15-20)</span>
+                                    <span className="text-xs text-text-secondary">(&gt; {seuils.niveau_2} à 20)</span>
                                 </div>
                                 <Badge variant="success">
                                     {statsScientifique.parNiveau.niveau_superieur} participants

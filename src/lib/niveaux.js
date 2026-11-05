@@ -1,8 +1,8 @@
 // Règles note d'entrée -> niveau, pilotées par la table config_seuils_niveaux.
 // note_max = borne haute INCLUSIVE de chaque niveau (croissantes).
-// Tout ce qui dépasse le max du niveau 3 va au niveau supérieur.
+// Tout ce qui dépasse le max du niveau 2 va au niveau supérieur.
 
-export const NIVEAUX = ['niveau_1', 'niveau_2', 'niveau_3', 'niveau_superieur'];
+export const NIVEAUX = ['niveau_1', 'niveau_2', 'niveau_superieur'];
 
 export const NIVEAU_LABELS = {
     niveau_1: 'Niveau 1',
@@ -11,12 +11,12 @@ export const NIVEAU_LABELS = {
     niveau_superieur: 'Niveau Supérieur',
 };
 
-export const DEFAULT_SEUILS = { niveau_1: 5, niveau_2: 10, niveau_3: 14 };
+export const DEFAULT_SEUILS = { niveau_1: 7, niveau_2: 12 };
 
 export const NOTE_MIN = 0;
 export const NOTE_MAX = 20;
 
-// Lignes brutes { niveau, note_max } -> { niveau_1: x, niveau_2: y, niveau_3: z }
+// Lignes brutes { niveau, note_max } -> bornes des deux premiers niveaux.
 export function getSeuilsMap(configRows) {
     const map = { ...DEFAULT_SEUILS };
     for (const row of configRows || []) {
@@ -31,10 +31,9 @@ export function getSeuilsMap(configRows) {
 export function determinerNiveau(note, configRows) {
     const seuils = getSeuilsMap(configRows);
     const n = parseFloat(note);
-    if (isNaN(n)) return null;
+    if (isNaN(n) || n < NOTE_MIN || n > NOTE_MAX) return null;
     if (n <= seuils.niveau_1) return 'niveau_1';
     if (n <= seuils.niveau_2) return 'niveau_2';
-    if (n <= seuils.niveau_3) return 'niveau_3';
     return 'niveau_superieur';
 }
 
@@ -43,8 +42,7 @@ export function plageNiveau(niveau, configRows) {
     const seuils = getSeuilsMap(configRows);
     if (niveau === 'niveau_1') return { min: NOTE_MIN, max: seuils.niveau_1 };
     if (niveau === 'niveau_2') return { min: seuils.niveau_1, max: seuils.niveau_2 };
-    if (niveau === 'niveau_3') return { min: seuils.niveau_2, max: seuils.niveau_3 };
-    return { min: seuils.niveau_3, max: NOTE_MAX };
+    return { min: seuils.niveau_2, max: NOTE_MAX };
 }
 
 // Choisit la première classe (triées par numero croissant) ayant encore de la
@@ -62,12 +60,12 @@ export function choisirClasseDisponible(classesTriees, effectifs, extra) {
     return null;
 }
 
-// Validation d'un triplet de seuils saisis : 0 < s1 < s2 < s3 < 20
-export function validerSeuils(s1, s2, s3) {
-    const vals = [s1, s2, s3].map(v => parseFloat(v));
-    if (vals.some(v => isNaN(v))) return "Les trois seuils doivent être des nombres.";
-    const [a, b, c] = vals;
-    if (a <= NOTE_MIN || c >= NOTE_MAX) return "Les seuils doivent être entre 0 et 20 (exclus).";
-    if (!(a < b && b < c)) return "Les seuils doivent être strictement croissants (Niveau 1 < Niveau 2 < Niveau 3).";
+// Validation des seuils saisis : 0 < s1 < s2 < 20.
+export function validerSeuils(s1, s2) {
+    const vals = [s1, s2].map(v => parseFloat(v));
+    if (vals.some(v => isNaN(v))) return "Les deux seuils doivent être des nombres.";
+    const [a, b] = vals;
+    if (a <= NOTE_MIN || b >= NOTE_MAX) return "Les seuils doivent être entre 0 et 20 (exclus).";
+    if (!(a < b)) return "Les seuils doivent être strictement croissants (Niveau 1 < Niveau 2).";
     return null;
 }
