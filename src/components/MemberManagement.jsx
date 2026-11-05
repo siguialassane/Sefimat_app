@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Copy, Download, RefreshCw, Trash2 } from "lucide-react";
-import { memberClient } from "@/lib/memberAuth";
+import { supabase as memberClient } from "@/lib/supabase";
 import { MemberBadge } from "@/components/MemberBadge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { notify } from "@/components/ui/toast";
 
 export function MemberManagement() {
-    const [session, setSession] = useState(null);
-    const [ready, setReady] = useState(false);
     const [members, setMembers] = useState([]);
     const [selected, setSelected] = useState(null);
     const [search, setSearch] = useState("");
@@ -21,12 +19,6 @@ export function MemberManagement() {
     const registrationLink = `${siteOrigin.replace(/\/$/, "")}/inscription-membre`;
 
     const load = async () => {
-        const access = await memberClient.rpc("peut_gerer_membres");
-        if (access.error || access.data !== true) {
-            notify.error("Ce compte n'est pas autorisé à gérer les membres.", { title: "Accès refusé" });
-            await memberClient.auth.signOut();
-            return;
-        }
         const { data, error } = await memberClient.from("membres_organisation").select("*").order("created_at", { ascending: false });
         if (error) { notify.error(error.message, { title: "Chargement impossible" }); return; }
         const rows = data || [];
@@ -46,19 +38,12 @@ export function MemberManagement() {
     };
 
     useEffect(() => {
-        let active = true;
-        memberClient.auth.getSession().then(({ data }) => { if (active) { setSession(data.session); setReady(true); } });
-        const { data } = memberClient.auth.onAuthStateChange((_event, next) => setSession(next));
-        return () => { active = false; data.subscription.unsubscribe(); };
-    }, []);
-    useEffect(() => { if (session) load(); else { setMembers([]); setSelected(null); } }, [session]);
-    useEffect(() => {
-        if (!session) return undefined;
+        load();
         const channel = memberClient.channel("membres-organisation")
             .on("postgres_changes", { event: "*", schema: "public", table: "membres_organisation" }, () => { load(); })
             .subscribe();
         return () => { memberClient.removeChannel(channel); };
-    }, [session]);
+    }, []);
 
     const remove = async (member) => {
         if (!window.confirm(`Supprimer l'inscription de ${member.nom} ${member.prenom} ?`)) return;
@@ -97,14 +82,12 @@ export function MemberManagement() {
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
             <div><h2 className="text-2xl font-bold text-text-main dark:text-white">Badges des membres</h2><p className="text-sm text-text-secondary mt-1">Partagez le lien d'inscription, puis préparez les badges des commissions.</p></div>
             <Card className="p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center"><Input readOnly value={registrationLink} aria-label="Lien d'inscription des membres" /><Button variant="outline" onClick={copyLink} className="gap-2 shrink-0"><Copy className="h-4 w-4" /> Copier le lien</Button></Card>
-            {!ready ? <p className="text-text-secondary">Chargement...</p> : !session ? (
-                <Card className="p-6 max-w-md"><p className="text-sm text-text-secondary">Votre session a expiré. Reconnectez-vous au secrétariat pour accéder aux membres.</p><a href="/login" className="inline-block mt-3 text-primary font-semibold">Retour à la connexion</a></Card>
-            ) : (
+            {
                 <div className="grid lg:grid-cols-2 gap-6">
                     <Card className="overflow-hidden"><div className="p-4 space-y-3"><div className="flex items-center justify-between"><h3 className="font-semibold">Membres ({filtered.length})</h3><Button variant="outline" size="sm" onClick={load} aria-label="Actualiser la liste"><RefreshCw className="h-4 w-4" /></Button></div><Input placeholder="Rechercher un membre ou une commission" value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="divide-y divide-border-light dark:divide-border-dark max-h-[600px] overflow-y-auto">{filtered.length === 0 ? <p className="p-5 text-text-secondary text-sm">Aucun membre trouvé.</p> : filtered.map((member) => <div key={member.id} className="p-4 flex items-center gap-3"><button type="button" onClick={() => setSelected(member)} className="flex items-center gap-3 text-left flex-1 min-w-0">{member.photo_url ? <img src={member.photo_url} alt="" className="h-11 w-11 rounded-full object-cover bg-gray-100" /> : <span className="h-11 w-11 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">{member.nom?.charAt(0)}</span>}<span className="min-w-0"><span className="block font-semibold truncate">{member.nom} {member.prenom}</span><span className="block text-xs text-text-secondary truncate">{member.commission}</span></span></button><Button variant="outline" size="sm" onClick={() => remove(member)} disabled={busy} aria-label={`Supprimer ${member.nom} ${member.prenom}`}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>)}</div></Card>
                     <Card className="p-5"><h3 className="font-semibold mb-4">Prévisualisation</h3>{selected ? <><div className="overflow-x-auto"><MemberBadge member={selected} badgeRef={badgeRef} /></div><div className="text-sm text-text-secondary mt-4 space-y-1"><p>{selected.telephone}</p><p>{selected.email}</p></div><Button className="mt-4 gap-2" onClick={download} disabled={busy}><Download className="h-4 w-4" /> Télécharger le badge PDF</Button></> : <p className="text-text-secondary">Sélectionnez un membre pour voir son badge.</p>}</Card>
                 </div>
-            )}
+            }
         </div>
     );
 }
