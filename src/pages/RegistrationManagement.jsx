@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,7 @@ const niveauEtudeMap = {
 
 export function RegistrationManagement() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     // Utiliser le DataContext global au lieu de charger localement
     const { 
@@ -95,6 +96,16 @@ export function RegistrationManagement() {
     const registrations = useMemo(() => {
         return inscriptions.map(formatRegistration);
     }, [inscriptions, formatRegistration]);
+
+    useEffect(() => {
+        const detailId = location.state?.detailId;
+        if (!detailId) return;
+        const registration = registrations.find((item) => item.id === detailId && isInSecretariatScope(item.originalData));
+        if (registration) {
+            setEditModal({ open: true, registration });
+            navigate(location.pathname, { replace: true, state: null });
+        }
+    }, [location.state, location.pathname, navigate, registrations]);
 
     // Filtrer les inscriptions
     const filteredRegistrations = useMemo(() => {

@@ -9,6 +9,7 @@ import {
     IdCard,
     Bed,
     Trash2,
+    Sprout,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -18,6 +19,7 @@ import { useAuth } from "@/contexts";
 const navItems = [
     { to: "/admin/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
     { to: "/admin/inscriptions", icon: Users, label: "Gestion des inscriptions" },
+    { to: "/admin/pepinieres", icon: Sprout, label: "Liste des pépinières" },
     { to: "/admin/inscription-presentielle", icon: UserPlus, label: "Finaliser inscription" },
     { to: "/admin/corbeille", icon: Trash2, label: "Corbeille" },
     { to: "/admin/badges", icon: IdCard, label: "Gestion des badges" },

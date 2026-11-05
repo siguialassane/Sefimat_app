@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { memberClient } from '../lib/memberAuth';
 import { 
   authenticateUser, 
   getStoredUser, 
@@ -99,6 +100,7 @@ export function AuthProvider({ children }) {
   // Déconnexion
   const signOut = useCallback(async () => {
     console.log('AuthContext: Déconnexion');
+    await memberClient.auth.signOut();
     // On purge les deux types pour éviter les surprises
     clearStoredUser('local');
     clearStoredUser('session');

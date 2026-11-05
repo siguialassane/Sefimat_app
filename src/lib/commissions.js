@@ -1,0 +1,20 @@
+// Couleurs utilisées sur les badges et dans la liste des membres.
+export const COMMISSIONS = [
+    { nom: "Manager Général", couleur: "#164b32" },
+    { nom: "Manager Général Adjoint chargé des formations", couleur: "#2f6680" },
+    { nom: "Manager Général Adjoint chargé du plaidoyer", couleur: "#8a4d26" },
+    { nom: "Secrétariat Général et digitalisation", couleur: "#335d9b" },
+    { nom: "Formation Pédagogique et Andragogique", couleur: "#695335" },
+    { nom: "Finance, Comptabilité, et Budget", couleur: "#ad7100" },
+    { nom: "Communication & Marketing", couleur: "#b74442" },
+    { nom: "Administration Générale et Protocole", couleur: "#a84616" },
+    { nom: "Pépinière", couleur: "#61802f" },
+    { nom: "Mobilisation & Organisation", couleur: "#246d69" },
+    { nom: "Restauration", couleur: "#a45325" },
+    { nom: "Santé", couleur: "#b33754" },
+    { nom: "Sécurité & Programmation Sûre", couleur: "#3b495a" },
+    { nom: "Logistique, Transport et Equipement", couleur: "#596b79" },
+    { nom: "Hébergement et Cadre de Vie", couleur: "#726e35" },
+    { nom: "Hygiène et Environnement", couleur: "#2a8050" },
+    { nom: "Monitoring des données", couleur: "#475896" },
+];

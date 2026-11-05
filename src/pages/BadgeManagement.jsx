@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useData } from "@/contexts";
 import { notify } from "@/components/ui/toast";
+import { MemberManagement } from "@/components/MemberManagement";
 
 // Mapping niveau formation
 const niveauFormationMap = {
@@ -74,7 +75,7 @@ function BadgePreview({ participant, badgeRef }) {
         >
             {/* Image de fond - remplir entièrement sans déformation */}
             <img
-                src="/images/badge.jpeg"
+                src="/images/badge-seminariste-modele.png"
                 alt="Badge background"
                 style={{
                     position: "absolute",
@@ -95,10 +96,10 @@ function BadgePreview({ participant, badgeRef }) {
             <div
                 style={{
                     position: "absolute",
-                    top: "74px",
-                    left: "105px",
-                    width: "140px",
-                    height: "170px",
+                    top: "70px",
+                    left: "95px",
+                    width: "160px",
+                    height: "174px",
                     borderRadius: "4px",
                     overflow: "hidden",
                     display: "flex",
@@ -132,6 +133,9 @@ function BadgePreview({ participant, badgeRef }) {
                 )}
             </div>
 
+            {/* Masquer les données d'exemple du modèle avant d'afficher celles du participant. */}
+            <div style={{ position: "absolute", left: "15px", right: "15px", bottom: "7px", height: "155px", backgroundColor: "#fff", borderRadius: "5px" }} />
+
             {/* Zone informations - Format selon format.png */}
             <div
                 style={{
@@ -154,7 +158,7 @@ function BadgePreview({ participant, badgeRef }) {
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
                             NOM :
                         </span>
-                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "4px" }}>
+                        <span style={{ fontSize: "16px", fontWeight: "700", color: "#111827", marginLeft: "6px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "3px", lineHeight: 1.1 }}>
                             {participant.nom || "..."}
                         </span>
                     </div>
@@ -165,7 +169,7 @@ function BadgePreview({ participant, badgeRef }) {
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#111827", textTransform: "uppercase", letterSpacing: "1px" }}>
                             PRENOM(S) :
                         </span>
-                        <span style={{ fontSize: "11px", color: "#374151", marginLeft: "4px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "4px" }}>
+                        <span style={{ fontSize: "16px", fontWeight: "700", color: "#111827", marginLeft: "6px", flex: 1, borderBottom: "1px dotted #9ca3af", paddingBottom: "3px", lineHeight: 1.1 }}>
                             {participant.prenom || "..."}
                         </span>
                     </div>
@@ -212,7 +216,7 @@ function BadgePreview({ participant, badgeRef }) {
     );
 }
 
-export function BadgeManagement() {
+function ParticipantBadgeManagement() {
     // Utiliser le DataContext global
     const { inscriptions: allInscriptions, dortoirs, loading, refresh } = useData();
     
@@ -341,7 +345,7 @@ export function BadgeManagement() {
             }
 
             // Précharger l'image de fond du badge
-            await preloadImage("/images/badge.jpeg");
+            await preloadImage("/images/badge-seminariste-modele.png");
 
             // Précharger la photo du participant si elle existe
             if (selectedParticipant.photo_url) {
@@ -419,7 +423,7 @@ export function BadgeManagement() {
             ]);
 
             // Précharger l'image de fond du badge une seule fois
-            await preloadImage("/images/badge.jpeg");
+            await preloadImage("/images/badge-seminariste-modele.png");
 
             // Format A6 : 105mm x 148mm
             const pdfWidth = 105;
@@ -751,6 +755,19 @@ export function BadgeManagement() {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+export function BadgeManagement() {
+    const [tab, setTab] = useState("participants");
+    return (
+        <div className="h-full flex flex-col">
+            <div className="px-4 md:px-8 pt-5 flex gap-2 border-b border-border-light dark:border-border-dark" role="tablist" aria-label="Type de badge">
+                <button type="button" role="tab" aria-selected={tab === "participants"} onClick={() => setTab("participants")} className={`px-4 py-3 text-sm font-semibold border-b-2 ${tab === "participants" ? "border-primary text-primary" : "border-transparent text-text-secondary"}`}>Séminaristes</button>
+                <button type="button" role="tab" aria-selected={tab === "membres"} onClick={() => setTab("membres")} className={`px-4 py-3 text-sm font-semibold border-b-2 ${tab === "membres" ? "border-primary text-primary" : "border-transparent text-text-secondary"}`}>Membres</button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">{tab === "participants" ? <ParticipantBadgeManagement /> : <MemberManagement />}</div>
         </div>
     );
 }

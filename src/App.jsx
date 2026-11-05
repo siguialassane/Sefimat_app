@@ -6,9 +6,11 @@ import { Toaster, notify } from "@/components/ui/toast";
 import { AdminLayout, FinanceLayout, PresidentLayout, ScientifiqueLayout, ManagerLayout } from "@/components/layout";
 
 const PublicRegistration = lazy(() => import("@/pages/PublicRegistration").then((module) => ({ default: module.PublicRegistration })));
+const MemberRegistration = lazy(() => import("@/pages/MemberRegistration").then((module) => ({ default: module.MemberRegistration })));
 const Login = lazy(() => import("@/pages/Login").then((module) => ({ default: module.Login })));
 const Dashboard = lazy(() => import("@/pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const RegistrationManagement = lazy(() => import("@/pages/RegistrationManagement").then((module) => ({ default: module.RegistrationManagement })));
+const PepiniereList = lazy(() => import("@/pages/PepiniereList").then((module) => ({ default: module.PepiniereList })));
 const InPersonRegistration = lazy(() => import("@/pages/InPersonRegistration").then((module) => ({ default: module.InPersonRegistration })));
 const Corbeille = lazy(() => import("@/pages/Corbeille").then((module) => ({ default: module.Corbeille })));
 const BadgeManagement = lazy(() => import("@/pages/BadgeManagement").then((module) => ({ default: module.BadgeManagement })));
@@ -72,6 +74,7 @@ function App() {
                 {/* Public Routes */}
                 <Route path="/" element={<PublicRegistration />} />
                 <Route path="/inscription" element={<PublicRegistration />} />
+                <Route path="/inscription-membre" element={<MemberRegistration />} />
                 <Route path="/login" element={<Login />} />
                 {/* Photo par téléphone : page publique, jeton à usage unique */}
                 <Route path="/scan/:token" element={<ScanPhoto />} />
@@ -99,6 +102,7 @@ function App() {
                   <Route index element={<Navigate to="/admin/dashboard" replace />} />
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="inscriptions" element={<RegistrationManagement />} />
+                  <Route path="pepinieres" element={<PepiniereList />} />
                   <Route path="inscription-presentielle" element={<InPersonRegistration />} />
                             <Route path="corbeille" element={<Corbeille />} />
                   <Route path="badges" element={<BadgeManagement />} />
