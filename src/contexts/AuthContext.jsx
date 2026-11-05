@@ -8,8 +8,7 @@ import {
   getDefaultRoute,
   normalizeStorageType,
   DEFAULT_AUTH_STORAGE,
-  isValidStoredUser,
-  findUserByIdOrEmail,
+  isValidStoredUser
 } from '../config/users.config';
 
 const AuthContext = createContext(null);
@@ -30,21 +29,9 @@ export function AuthProvider({ children }) {
   // Au démarrage, vérifier si un utilisateur est stocké
   useEffect(() => {
     console.log('AuthContext: Vérification utilisateur stocké...');
-    let active = true;
-    (async () => {
-      const storedUser = getStoredUser(DEFAULT_AUTH_STORAGE);
-      if (storedUser?.role === 'secretaire') {
-        const { data } = await memberClient.auth.getSession();
-        if (!data.session) {
-          clearStoredUser('local');
-          clearStoredUser('session');
-          if (active) { setUser(null); setLoading(false); }
-          return;
-        }
-      }
-      if (active) { setUser(storedUser || null); setLoading(false); }
-    })();
-    return () => { active = false; };
+    const storedUser = getStoredUser(DEFAULT_AUTH_STORAGE);
+    setUser(storedUser || null);
+    setLoading(false);
   }, []);
 
   // Permet de forcer une déconnexion depuis n'importe où (ex: page login)
@@ -65,19 +52,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     
     try {
-      let authenticatedUser = authenticateUser(email, password);
-      const configuredUser = findUserByIdOrEmail(email);
-      if (configuredUser?.role === 'secretaire') {
-        const { data, error } = await memberClient.auth.signInWithPassword({
-          email: 'siguialassane93+sefimap-membres@gmail.com',
-          password,
-        });
-        if (error || !data.session) {
-          return { data: null, error: { message: 'Email ou mot de passe incorrect' } };
-        }
-        const { password: _password, ...safeUser } = configuredUser;
-        authenticatedUser = safeUser;
-      }
+      const authenticatedUser = authenticateUser(email, password);
       
       if (authenticatedUser) {
         console.log('AuthContext: ✅ Connexion réussie:', authenticatedUser.role);
